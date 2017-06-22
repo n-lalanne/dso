@@ -17,10 +17,20 @@ find_package(SuiteParse REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Boost COMPONENTS system thread) 
 
+# Find GTSAM components
+find_package(GTSAM REQUIRED) # Uses Installed package
+include_directories($(GTSAM_INCLUDE_DIR))
+# include_directories(/usr/local/include/gtsam/3rdparty/Eigen/)
+
+find_package(GTSAMCMakeTools)
+include(GtsamMakeConfigFile)
+include(GtsamBuildTypes)
+include(GtsamTesting)
+
 # optional libraries
 find_package(LibZip QUIET)
 find_package(Pangolin 0.2 QUIET)
-find_package(OpenCV QUIET)
+find_package(OpenCV 2.4 QUIET)
 
 # flags
 add_definitions("-DENABLE_SSE")
@@ -82,7 +92,7 @@ endif ()
 
 # decide if we have openCV
 if (OpenCV_FOUND)
-	message("--- found OpenCV, compiling dso_opencv library.")
+	message("--- found OpenCV at ${OpenCV_INCLUDE_DIRS}, compiling dso_opencv library.")
 	include_directories( ${OpenCV_INCLUDE_DIRS} )
 	set(dso_opencv_SOURCE_FILES 
 	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/OpenCV/ImageDisplay_OpenCV.cpp

@@ -454,6 +454,7 @@ int main( int argc, char** argv )
 
         for(int ii=0;ii<(int)idsToPlay.size(); ii++)
         {
+            std::cout << "Id: " << ii << std::endl;
             if(!fullSystem->initialized)	// if not initialized: reset start time.
             {
                 gettimeofday(&tv_start, NULL);
