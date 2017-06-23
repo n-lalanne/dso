@@ -63,6 +63,10 @@ set(dso_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/util/settings.cpp
   ${PROJECT_SOURCE_DIR}/src/util/Undistort.cpp
   ${PROJECT_SOURCE_DIR}/src/util/globalCalib.cpp
+
+  # VI
+  ${PROJECT_SOURCE_DIR}/src/IMU/imudata.cpp
+  ${PROJECT_SOURCE_DIR}/src/IMU/configparam.cpp
 )
 
 
@@ -72,6 +76,9 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/thirdparty/Sophus
   ${PROJECT_SOURCE_DIR}/thirdparty/sse2neon
   ${EIGEN3_INCLUDE_DIR}
+
+  # VI
+  ${PROJECT_SOURCE_DIR}/src/IMU
 ) 
 
 
