@@ -21,6 +21,7 @@ find_package(Boost COMPONENTS system thread)
 find_package(GTSAM REQUIRED) # Uses Installed package
 include_directories($(GTSAM_INCLUDE_DIR))
 # include_directories(/usr/local/include/gtsam/3rdparty/Eigen/)
+set(GTSAM_LIBRARIES gtsam)
 
 find_package(GTSAMCMakeTools)
 include(GtsamMakeConfigFile)
@@ -67,6 +68,9 @@ set(dso_SOURCE_FILES
   # VI
   ${PROJECT_SOURCE_DIR}/src/IMU/imudata.cpp
   ${PROJECT_SOURCE_DIR}/src/IMU/configparam.cpp
+
+  # Groundtruth 
+  ${PROJECT_SOURCE_DIR}/src/GroundTruthIterator/GroundTruthIterator.cpp
 )
 
 
@@ -79,6 +83,9 @@ include_directories(
 
   # VI
   ${PROJECT_SOURCE_DIR}/src/IMU
+
+  # Groundtruth 
+  ${PROJECT_SOURCE_DIR}/src/GroundTruthIterator
 ) 
 
 
@@ -128,6 +135,7 @@ endif()
 # compile main library.
 include_directories( ${CSPARSE_INCLUDE_DIR} ${CHOLMOD_INCLUDE_DIR}) 
 add_library(dso ${dso_SOURCE_FILES} ${dso_opencv_SOURCE_FILES} ${dso_pangolin_SOURCE_FILES})
+target_link_libraries(dso gtsam)
 
 #set_property( TARGET dso APPEND_STRING PROPERTY COMPILE_FLAGS -Wall )
 

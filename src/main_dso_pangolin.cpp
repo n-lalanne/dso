@@ -48,7 +48,6 @@
 #include "IOWrapper/Pangolin/PangolinDSOViewer.h"
 #include "IOWrapper/OutputWrapper/SampleOutputWrapper.h"
 
-
 std::string vignette = "";
 std::string gammaCalib = "";
 std::string source = "";
