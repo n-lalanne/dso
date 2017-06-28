@@ -29,6 +29,8 @@
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/inference/Symbol.h>
 
+#include <Eigen/Dense>
+
 // No of reading in ground truth file (not including the timestamp)
 // can be either 7 (x,y,z,qw,qx,qy,qz) like VICON or 16 (+ v_x,v_y,v_z,bg_x,bg_y,bg_z,ba_x,ba_y,ba_z) like the state estimate
 #define NO_OF_READING_IN_GROUND_TRUTH 16
@@ -44,6 +46,8 @@ public:
     std::time_t timestamp;
     gtsam::Pose3 pose;
     gtsam::Velocity3 velocity;
+    Eigen::Vector3d gyroBias;
+    Eigen::Vector3d acceleroBias;
     
   } ground_truth_measurement_t;
 
@@ -52,7 +56,11 @@ public:
   ~GroundTruthIterator();
 
   GroundTruthIterator::ground_truth_measurement_t next();
-  gtsam::Pose3 getPoseBetween(double start_timestamp, double end_timestamp);
+  gtsam::Pose3 getGroundTruthBetween(
+    double start_timestamp, double end_timestamp, 
+    GroundTruthIterator::ground_truth_measurement_t &start_ground_truth,
+    GroundTruthIterator::ground_truth_measurement_t &end_ground_truth
+  );
   
   void stash() { mIsStashed = true; }
 

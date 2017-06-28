@@ -87,8 +87,9 @@ GroundTruthIterator::ground_truth_measurement_t GroundTruthIterator::next()
         mStashedMeasurement.velocity = gtsam::Velocity3 (
                                                           ground_truth(7), ground_truth(8), ground_truth(9)
                                                         );
+        mStashedMeasurement.gyroBias << ground_truth(10), ground_truth(11), ground_truth(12);
+        mStashedMeasurement.acceleroBias << ground_truth(13), ground_truth(14), ground_truth(15);
       }
-      
 
     }
 
@@ -101,7 +102,11 @@ GroundTruthIterator::ground_truth_measurement_t GroundTruthIterator::next()
   return mStashedMeasurement;
 }
 
-gtsam::Pose3 GroundTruthIterator::getPoseBetween(double start_timestamp, double end_timestamp)
+gtsam::Pose3 GroundTruthIterator::getGroundTruthBetween(
+  double start_timestamp, double end_timestamp, 
+  GroundTruthIterator::ground_truth_measurement_t &start_ground_truth,
+  GroundTruthIterator::ground_truth_measurement_t &end_ground_truth
+)
 {
   assert(start_timestamp < end_timestamp);
   
@@ -109,9 +114,6 @@ gtsam::Pose3 GroundTruthIterator::getPoseBetween(double start_timestamp, double 
   end_timestamp = round(end_timestamp * TIMESTAMP_PRECISION_FACTOR);
 
   bool is_first_ground_truth = true;
-
-  GroundTruthIterator::ground_truth_measurement_t cam1_pose;
-  GroundTruthIterator::ground_truth_measurement_t cam2_pose;
 
   GroundTruthIterator::ground_truth_measurement_t previous_ground_truth;
 
@@ -131,11 +133,10 @@ gtsam::Pose3 GroundTruthIterator::getPoseBetween(double start_timestamp, double 
       if (is_first_ground_truth) 
       {
         is_first_ground_truth = false;
-        cam1_pose = ground_truth;
+        start_ground_truth = ground_truth;
       }
 
-      previous_ground_truth = ground_truth;
-
+      end_ground_truth = ground_truth;
     } 
     else if (ground_truth_timestamp >= end_timestamp)
     {
@@ -147,9 +148,8 @@ gtsam::Pose3 GroundTruthIterator::getPoseBetween(double start_timestamp, double 
       }
 
       this->stash();
-      cam2_pose = previous_ground_truth;
-
-      return cam1_pose.pose.between(cam2_pose.pose);
+      
+      return start_ground_truth.pose.between(end_ground_truth.pose);
     }
   }
 }
