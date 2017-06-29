@@ -19,7 +19,8 @@ find_package(Boost COMPONENTS system thread)
 
 # Find GTSAM components
 find_package(GTSAM REQUIRED) # Uses Installed package
-include_directories($(GTSAM_INCLUDE_DIR))
+include_directories(${GTSAM_INCLUDE_DIR})
+message(STATUS "Gtsam includes ${GTSAM_INCLUDE_DIR}")
 # include_directories(/usr/local/include/gtsam/3rdparty/Eigen/)
 set(GTSAM_LIBRARIES gtsam)
 
