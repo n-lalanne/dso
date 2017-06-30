@@ -7,3 +7,5 @@ build-*
 *.so
 *.a
 *.so.*
+.idea*
+cmake-build-debug*
