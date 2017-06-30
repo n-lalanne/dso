@@ -43,7 +43,7 @@ class GroundTruthIterator
 public:
   typedef struct {
     
-    std::time_t timestamp;
+    double timestamp;
     gtsam::Pose3 pose;
     gtsam::Velocity3 velocity;
     Eigen::Vector3d gyroBias;
