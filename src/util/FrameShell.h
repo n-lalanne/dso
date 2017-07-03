@@ -38,10 +38,13 @@ public:
 	int id; 			// INTERNAL ID, starting at zero.
 	int incoming_id;	// ID passed into DSO
 	double timestamp;		// timestamp passed into DSO.
+	double viTimestamp;
+
 
 	// set once after tracking
 	SE3 camToTrackingRef;
 	FrameShell* trackingRef;
+    FrameHessian* correspondingfh;
 
 	// constantly adapted.
 	SE3 camToWorld;				// Write: TRACKING, while frame is still fresh; MAPPING: only when locked [shellPoseMutex].

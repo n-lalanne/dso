@@ -125,7 +125,7 @@ void FrameHessian::release()
 }
 
 
-void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
+void FrameHessian::makeImages(float* color, CalibHessian* HCalib, std::vector<dso_vi::IMUData>& vimuData)
 {
 
 	for(int i=0;i<pyrLevelsUsed;i++)
@@ -188,7 +188,36 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 			}
 		}
 	}
+
+
+
 }
+
+void FrameHessian::PredictPose(FrameHessian* lastRef, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat33 Rbc){
+
+	// initialize some IMU parameters
+
+	// preintegrate imu data from previous frame
+	double old_timestamp = lastRef->timestamp;
+	for(dso_vi::IMUData  imudata: mvIMUSinceLastKF)
+	{
+		Mat61 rawimudata;
+		rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
+						imudata._g(0), imudata._g(1), imudata._g(2);
+        rawimudata.head<3>() =  Rbc * rawimudata.head<3>();
+        rawimudata.tail<3>() =  Rbc * rawimudata.tail<3>();
+		imu_preintegrated_->integrateMeasurement(
+				rawimudata.head<3>(),
+				rawimudata.tail<3>(),
+				(imudata._t - old_timestamp) * 1e-9 // timestamp is in ns (we need seconds)
+		);
+		old_timestamp = imudata._t;
+	}
+	prop_state = imu_preintegrated_->predict(lastRef->prop_state, bias1);
+    //imu_preintegrated_->
+}
+
+
 
 void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )
 {

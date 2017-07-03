@@ -29,7 +29,13 @@
 #include <string>
 #include <cmath>
 
-
+namespace  dso_vi
+{
+    extern double accel_noise_sigma;
+    extern double gyro_noise_sigma;
+    extern double accel_bias_rw_sigma;
+    extern double gyro_bias_rw_sigma;
+} // namespace dso_vi
 namespace dso
 {
 #define SOLVER_SVD (int)1

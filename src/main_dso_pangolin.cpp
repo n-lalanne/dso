@@ -485,8 +485,9 @@ int main( int argc, char** argv )
             }
 
 
-
-            if(!skipFrame) fullSystem->addActiveFrame(img, i);
+            std::vector<dso_vi::IMUData> vimuData;
+            dso_vi::ConfigParam configf("to be entered");
+            if(!skipFrame) fullSystem->addActiveFrame(img, i, vimuData, timesToPlayAt[ii], configf);
 
 
 

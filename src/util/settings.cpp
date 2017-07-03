@@ -26,6 +26,13 @@
 #include "util/settings.h"
 #include <boost/bind.hpp>
 
+namespace dso_vi
+{
+	double accel_noise_sigma = 0.0003924;
+	double gyro_noise_sigma = 0.000205689024915;
+	double accel_bias_rw_sigma = 0.004905;
+	double gyro_bias_rw_sigma = 0.000001454441043;
+} //namespace dso_vi
 
 namespace dso
 {

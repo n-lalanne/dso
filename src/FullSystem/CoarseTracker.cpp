@@ -37,6 +37,7 @@
 #include "IOWrapper/ImageRW.h"
 #include <algorithm>
 
+
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
 #include "SSE2NEON.h"
 #endif
@@ -494,7 +495,53 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 	}
 	buf_warped_n = numTermsInWarped;
 
-
+//===============================Computing IMU error======================================================
+//	float IMUenergy, IMUNav, IMUbias = 0;
+//	Vec3f IresR, Iresp, Iresb, Iresv, Iresba, Iresbg;
+//    Vec9f Iresi;
+//    Vec6f Iresb;
+//	Mat33 delta_R, Ri, Rj;
+//    Mat33 Jgv, Jav, Jgp, Jap,JgR;
+//    Vec3 vi ,vj ,gw ,delta_v ,delta_p, pi, pj, gw, bia, bja, big, bjg;
+//    Mat99f = SigmaI;
+//    Mat66f = SigmaB;
+//	double delta_t;
+//
+//	delta_R = newFrame->imu_preintegrated_->deltaRij().matrix();
+//	Ri = newFrame->prop_state.R().matrix();
+//	Rj = lastRef->prop_state.R().matrix();
+//
+//	delta_v = newFrame->imu_preintegrated_->deltaVij().matrix();
+//	vi = newFrame->prop_state.v();
+//	vj = lastRef->prop_state.v();
+//
+//	delta_p = newFrame->imu_preintegrated_->deltaPij().matrix();
+//	pi = newFrame->prop_state.t();
+//	pj = lastRef->prop_state.t();
+//
+//
+//
+//
+//	IresR = SO3::log((delta_R * SO3::exp(JgR * big).matrix()) * Ri * Rj.inverse()).matrix();
+//	Iresv = Ri * (vj - vi - gw * delta_t ) - (delta_v + Jgv * bjg + Jav * bja);
+//    Iresp = Ri * (pj - pi - vi * delta_t - 0.5*gw*delta_v*delta_v ) - (delta_p + Jgp * bjg  + Jap * bja);
+//    Iresba = bia - bja;
+//    Iresbg = big - bjg;
+//
+//    Iresi.block<3,1>(0,0) = IresR;
+//    Iresi.block<3,1>(3,0) = Iresv;
+//    Iresi.block<3,1>(6,0) = Iresp;
+//
+//    Iresb.block<3,1>(0,0) = Iresba;
+//    Iresb.block<3,1>(3,0) = Iresbg;
+//
+//
+//
+//    IMUNav = Iresi.transpose() * SigmaI * Iresi;
+//    IMUbias =  Iresb.transpose() * SigmaB * Iresb;
+//    IMUenergy = IMUNav + IMUbias;
+    //E += IMUenergy;
+//=============================================================================================================
 	if(debugPlot)
 	{
 		IOWrap::displayImage("RES", resImage, false);

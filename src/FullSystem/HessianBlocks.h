@@ -34,11 +34,22 @@
 #include "util/NumType.h"
 #include "FullSystem/Residuals.h"
 #include "util/ImageAndExposure.h"
+#include <gtsam/navigation/CombinedImuFactor.h>
+#include <gtsam/navigation/GPSFactor.h>
+#include <gtsam/navigation/ImuFactor.h>
+#include <gtsam/slam/dataset.h>
+#include <gtsam/slam/BetweenFactor.h>
+#include <gtsam/slam/PriorFactor.h>
+#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
+#include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <gtsam/inference/Symbol.h>
 
+// Need to add IMU data for each frame
+#include "IMU/imudata.h"
+using namespace gtsam;
 
 namespace dso
 {
-
 
 inline Vec2 affFromTo(const Vec2 &from, const Vec2 &to)	// contains affine parameters as XtoWorld.
 {
@@ -169,6 +180,37 @@ struct FrameHessian
 	MinimalImageB3* debugImage;
 
 
+	//===========================================IMU data ==========================================================
+	// data for imu integration
+	PreintegrationType *imu_preintegrated_;
+
+	double timestamp;
+
+	// Pridicted pose/biases ;
+	NavState prop_state;
+
+	SE3 prop_pose;
+
+	// the pose of the frame
+	// Pose3 pose;
+	// Vector3 velocity;
+
+    imuBias::ConstantBias bias1;
+
+	boost::shared_ptr<PreintegratedCombinedMeasurements::Params> imuParams;
+
+	// last keyframe
+	//FrameHessian * lastkf;
+
+
+
+	//==========================================IMU related methods==================================================
+	void PredictPose(FrameHessian* lastkf, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat33 Rbc);
+
+
+
+	//photometric fucitons
+
     inline Vec6 w2c_leftEps() const {return get_state_scaled().head<6>();}
     inline AffLight aff_g2l() const {return AffLight(get_state_scaled()[6], get_state_scaled()[7]);}
     inline AffLight aff_g2l_0() const {return AffLight(get_state_zero()[6]*SCALE_A, get_state_zero()[7]*SCALE_B);}
@@ -251,13 +293,42 @@ struct FrameHessian
 		efFrame = 0;
 		frameEnergyTH = 8*8*patternNum;
 
-
-
 		debugImage=0;
+
+        imuParams = PreintegratedCombinedMeasurements::Params::MakeSharedD(0.0);
+
+        Mat33 measured_acc_cov = Mat33::Identity(3,3) * pow(dso_vi::accel_noise_sigma,2);
+        Mat33 measured_omega_cov = Mat33::Identity(3,3) * pow(dso_vi::gyro_noise_sigma,2);
+        Mat33 integration_error_cov = Mat33::Identity(3,3)*1e-8; // error committed in integrating position from velocities
+        Mat33 bias_acc_cov = Mat33::Identity(3,3) * pow(dso_vi::accel_bias_rw_sigma,2);
+        Mat33 bias_omega_cov = Mat33::Identity(3,3) * pow(dso_vi::gyro_bias_rw_sigma,2);
+        Mat66 bias_acc_omega_int = Mat66::Identity(6,6)*1e-5; // error in the bias used for preintegration
+
+        imuParams->accelerometerCovariance = measured_acc_cov; // acc white noise in continuous
+        imuParams->integrationCovariance = integration_error_cov; // integration uncertainty continuous
+        // should be using 2nd order integration
+        // PreintegratedRotation params:
+        imuParams->gyroscopeCovariance = measured_omega_cov; // gyro white noise in continuous
+        // PreintegrationCombinedMeasurements params:
+        imuParams->biasAccCovariance = bias_acc_cov; // acc bias in continuous
+        imuParams->biasOmegaCovariance = bias_omega_cov; // gyro bias in continuous
+        imuParams->biasAccOmegaInt = bias_acc_omega_int;
+
+        gtsam::Vector3 gyroBias(-0.002153, 0.020744, 0.075806);
+        gtsam::Vector3 acceleroBias(-0.013337, 0.103464, 0.093086);
+        gtsam::imuBias::ConstantBias biasPrior(acceleroBias, gyroBias);
+
+#ifdef USE_COMBINED
+		imu_preintegrated_ = new PreintegratedCombinedMeasurements(imuParams, bias1);
+#else
+		imu_preintegrated_ = new PreintegratedImuMeasurements(imuParams, biasPrior);
+#endif
+
+
 	};
 
 
-    void makeImages(float* color, CalibHessian* HCalib);
+    void makeImages(float* color, CalibHessian* HCalib, std::vector<dso_vi::IMUData>& vimuData);
 
 	inline Vec10 getPrior()
 	{

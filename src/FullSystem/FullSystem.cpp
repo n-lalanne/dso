@@ -54,6 +54,7 @@
 
 #include "util/ImageAndExposure.h"
 
+
 #include <cmath>
 
 namespace dso
@@ -307,6 +308,12 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		lastF_2_fh_tries.push_back(SE3::exp(fh_2_slast.log()*0.5).inverse() * lastF_2_slast); // assume half motion.
 		lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
 		lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
+
+		//just use the initial pose from IMU
+		NavState prop_state = fh->prop_state;
+		SE3 prop_pose(prop_state.R(),prop_state.t());
+//		lastF_2_fh_tries.push_back(prop_pose);
+
 
 
 		// just try a TON of different initializations (all rotations). In the end,
@@ -799,7 +806,7 @@ void FullSystem::flagPointsForRemoval()
 }
 
 
-void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
+void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<dso_vi::IMUData> vimuData, double ftimestamp, dso_vi::ConfigParam &config )
 {
 
     if(isLost) return;
@@ -813,14 +820,24 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 	shell->aff_g2l = AffLight(0,0);
     shell->marginalizedAt = shell->id = allFrameHistory.size();
     shell->timestamp = image->timestamp;
+    shell->viTimestamp = ftimestamp;
     shell->incoming_id = id;
+    shell->correspondingfh = fh;
 	fh->shell = shell;
-	allFrameHistory.push_back(shell);
+    fh->timestamp = ftimestamp;
+    allFrameHistory.push_back(shell);
 
+	//============================ accumulate  IMU data=====================================
+	fh->timestamp = ftimestamp;
+
+	for(dso_vi::IMUData rawimudata : vimuData)
+	{
+		mvIMUSinceLastKF.push_back(rawimudata);
+	}
 
 	// =========================== make Images / derivatives etc. =========================
 	fh->ab_exposure = image->exposure_time;
-    fh->makeImages(image->image, &Hcalib);
+    fh->makeImages(image->image, &Hcalib, mvIMUSinceLastKF);
 
 
 
@@ -857,6 +874,8 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 			CoarseTracker* tmp = coarseTracker; coarseTracker=coarseTracker_forNewKF; coarseTracker_forNewKF=tmp;
 		}
 
+		//when we determine the last key frame, we will propagate the pose by using the preintegration measurement and the pose of the last key frame
+        fh->PredictPose(coarseTracker->lastRef, mvIMUSinceLastKF, Rbc);
 
 		Vec4 tres = trackNewCoarse(fh);
 		if(!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) || !std::isfinite((double)tres[2]) || !std::isfinite((double)tres[3]))

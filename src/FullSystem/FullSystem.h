@@ -41,6 +41,9 @@
 #include "FullSystem/PixelSelector2.h"
 
 #include <math.h>
+// vio version
+#include "IMU/imudata.h"
+#include "IMU/configparam.h"
 
 namespace dso
 {
@@ -136,7 +139,7 @@ public:
 	virtual ~FullSystem();
 
 	// adds a new frame, and creates point & residual structs.
-	void addActiveFrame(ImageAndExposure* image, int id);
+	void addActiveFrame(ImageAndExposure* image, int id, std::vector<dso_vi::IMUData> vimuData, double ftimestamp, dso_vi::ConfigParam &config);
 
 	// marginalizes a frame. drops / marginalizes points & residuals.
 	void marginalizeFrame(FrameHessian* frame);
@@ -161,6 +164,8 @@ public:
 
 	void setGammaFunction(float* BInv);
 	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
+
+	std::vector<FrameShell*> getAllFrameHistory() { return allFrameHistory; }
 
 private:
 
@@ -276,6 +281,11 @@ private:
 
 	std::vector<float> allResVec;
 
+	//==================== Save all the IMU raw data here===============================
+	std::vector<dso_vi::IMUData> mvIMUSinceLastKF;
+
+    Mat33 Rbc;
+
 
 
 	// mutex etc. for tracker exchange.
@@ -315,6 +325,10 @@ private:
 	bool needToKetchupMapping;
 
 	int lastRefStopID;
+
+	//gravity respect to inertial frame
+	Vec3b gravity;
+
 };
 }
 
