@@ -31,6 +31,7 @@
 #include "util/settings.h"
 #include "OptimizationBackend/MatrixAccumulators.h"
 #include "IOWrapper/Output3DWrapper.h"
+#include "FullSystem.h"
 
 
 
@@ -45,7 +46,7 @@ class CoarseTracker {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-	CoarseTracker(int w, int h);
+	CoarseTracker(int w, int h, FullSystem* fullsystem_);
 	~CoarseTracker();
 
 	bool trackNewestCoarse(
@@ -74,6 +75,7 @@ public:
 	float cyi[PYR_LEVELS];
 	int w[PYR_LEVELS];
 	int h[PYR_LEVELS];
+	FullSystem* fullSystem;
 
     void debugPlotIDepthMap(float* minID, float* maxID, std::vector<IOWrap::Output3DWrapper*> &wraps);
     void debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*> &wraps);

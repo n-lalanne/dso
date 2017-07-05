@@ -134,8 +134,8 @@ FullSystem::FullSystem()
 	selectionMap = new float[wG[0]*hG[0]];
 
 	coarseDistanceMap = new CoarseDistanceMap(wG[0], hG[0]);
-	coarseTracker = new CoarseTracker(wG[0], hG[0]);
-	coarseTracker_forNewKF = new CoarseTracker(wG[0], hG[0]);
+	coarseTracker = new CoarseTracker(wG[0], hG[0], this);
+	coarseTracker_forNewKF = new CoarseTracker(wG[0], hG[0], this);
 	coarseInitializer = new CoarseInitializer(wG[0], hG[0]);
 	pixelSelector = new PixelSelector(wG[0], hG[0]);
 
@@ -1017,6 +1017,7 @@ void FullSystem::mappingLoop()
 			{
 				lock.unlock();
 				makeKeyFrame(fh);
+
 				needToKetchupMapping=false;
 				lock.lock();
 			}
@@ -1212,6 +1213,12 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	printLogLine();
     //printEigenValLine();
 
+// =========================== Update the Navstates in the local window =======
+	for(unsigned int i=0;i<frameHessians.size();i++)
+		{frameHessians[i]->updatestate();}
+
+// 	=========================== Clear the IMU buffer for next round ===========
+	mvIMUSinceLastKF.clear();
 }
 
 

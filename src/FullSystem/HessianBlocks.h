@@ -67,8 +67,8 @@ class EFFrame;
 class EFPoint;
 
 #define SCALE_IDEPTH 1.0f		// scales internal value to idepth.
-#define SCALE_XI_ROT 1.0f
-#define SCALE_XI_TRANS 0.5f
+#define SCALE_XI_ROT 0.5f
+#define SCALE_XI_TRANS 1.0f
 #define SCALE_F 50.0f
 #define SCALE_C 50.0f
 #define SCALE_W 1.0f
@@ -189,7 +189,9 @@ struct FrameHessian
 	// Pridicted pose/biases ;
 	NavState prop_state;
 
-	SE3 prop_pose;
+
+
+	//SE3 prop_pose;
 
 	// the pose of the frame
 	// Pose3 pose;
@@ -206,6 +208,7 @@ struct FrameHessian
 
 	//==========================================IMU related methods==================================================
 	void PredictPose(FrameHessian* lastkf, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat33 Rbc);
+    void updatestate();
 
 
 

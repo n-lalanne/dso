@@ -36,7 +36,12 @@
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 #include "IOWrapper/ImageRW.h"
 #include <algorithm>
+#include <boost/tuple/tuple.hpp>
 
+
+using symbol_shorthand::X; // Pose3 (x,y,z,r,p,y)
+using symbol_shorthand::V; // Vel   (xdot,ydot,zdot)
+using symbol_shorthand::B; // Bias  (ax,ay,az,gx,gy,gz)
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
 #include "SSE2NEON.h"
@@ -57,7 +62,7 @@ T* allocAligned(int size, std::vector<T*> &rawPtrVec)
 }
 
 
-CoarseTracker::CoarseTracker(int ww, int hh) : lastRef_aff_g2l(0,0)
+CoarseTracker::CoarseTracker(int ww, int hh, FullSystem* _fullsystem) : lastRef_aff_g2l(0,0), fullSystem(_fullsystem)
 {
 	// make coarse tracking templates.
 	for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
@@ -306,6 +311,7 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 	__m128 one = _mm_set1_ps(1);
 	__m128 minusOne = _mm_set1_ps(-1);
 	__m128 zero = _mm_set1_ps(0);
+//    newFrame->imu_preintegrated_->computeErrorAndJacobians()
 
 	int n = buf_warped_n;
 	assert(n%4==0);
@@ -333,11 +339,83 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 				minusOne,
 				_mm_load_ps(buf_warped_residual+i),
 				_mm_load_ps(buf_warped_weight+i));
-	}
+    }
 
 	acc.finish();
+
+    NonlinearFactorGraph *graph = new NonlinearFactorGraph();
+    PreintegratedImuMeasurements *preint_imu = dynamic_cast<PreintegratedImuMeasurements*>(newFrame->imu_preintegrated_);
+    ImuFactor imu_factor(X(0), V(0),
+                         X(1), V(1),
+                         B(0),
+                         *preint_imu);
+    graph->add(imu_factor);
+
+	gtsam::Pose3 relativePose = lastRef->prop_state.pose().inverse().compose(newFrame->prop_state.pose());
+
+	gtsam::Vector3 velocity;
+	velocity << 1, 1, 1;
+
+
+    Values initial_values;
+	initial_values.insert(X(0), gtsam::Pose3::identity());
+    initial_values.insert(V(0), gtsam::zero(3));
+    initial_values.insert(B(0), lastRef->bias1);
+	initial_values.insert(X(1), relativePose);
+	initial_values.insert(V(1), velocity);
+
+//	GaussianFactorGraph::shared_ptr linearGraph = graph->linearize(initial_values);
+	boost::shared_ptr<GaussianFactor> linearFactor = imu_factor.linearize(initial_values);
+	Eigen::MatrixXd J_imu, r_imu;
+	Mat33 J_imu_rot,H_imu_rot;
+	Vec3 r_imu_rot,b_imu_rot;
+//    boost::tie(J_imu, r_imu) = linearGraph->jacobian();
+	boost::tie(J_imu, r_imu) = linearFactor->jacobian();
+	J_imu_rot = J_imu.block<3,3>(0,0);
+	r_imu_rot = r_imu.block<3,1>(0,0);
+
+	std::cout << "Error: " << imu_factor.evaluateError(gtsam::Pose3::identity(), gtsam::zero(3), relativePose, velocity, lastRef->bias1) << std::endl;
+
+
+	std::cout << "----------------------------------IMU----------------------------------" << std::endl;
+	std::cout << "H_imu: " << J_imu.rows() << "x" << J_imu.cols() << " b_imu: " << r_imu.rows() << "x" << r_imu.cols() << std::endl;
+	std::cout << "Res: ";
+	for (int i = 0; i < 9; i++)
+	{
+		std::cout << r_imu(i) << " ";
+	}
+	std::cout << "IMUs: " << fullSystem->getIMUSinceLastKF().size() << std::endl;
+	std::cout << std::endl;
+	std::cout << "----------------------------------IMU----------------------------------" << std::endl;
+
+
+    /*=====================modify the rotation part of the jacobian=========================================*/
+//        acc.updateSSE_eighted(
+//                _mm_mul_ps(id,dx),
+//                _mm_mul_ps(id,dy),
+//                _mm_sub_ps(zero, _mm_mul_ps(id,_mm_add_ps(_mm_mul_ps(u,dx), _mm_mul_ps(v,dy)))),
+//                _mm_add_ps(_mm_sub_ps(zero, _mm_add_ps(
+//                        _mm_mul_ps(_mm_mul_ps(u,v),dx),
+//                        _mm_mul_ps(dy,_mm_add_ps(one, _mm_mul_ps(v,v))))),Jrimu_rx),
+//                _mm_add_ps(_mm_add_ps(
+//                        _mm_mul_ps(_mm_mul_ps(u,v),dy),
+//                        _mm_mul_ps(dx,_mm_add_ps(one, _mm_mul_ps(u,u)))),Jrimu_ry),
+//                _mm_add_ps(_mm_sub_ps(_mm_mul_ps(u,dy), _mm_mul_ps(v,dx)),Jrimu_rz),
+//                _mm_mul_ps(a,_mm_sub_ps(b0, _mm_load_ps(buf_warped_refColor+i))),
+//                minusOne,
+//                _mm_load_ps(buf_warped_residual+i),
+//                _mm_load_ps(buf_warped_weight+i));
+/*=====================end of the vio jacobian version==================================================*/
+
+
 	H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
 	b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+
+	H_imu_rot = J_imu_rot.transpose() * J_imu_rot;
+	b_imu_rot = J_imu_rot.transpose() * r_imu_rot;
+
+	H_out.block<3,3>(0,0) += H_imu_rot;
+	b_out.segment<3>(0) += b_imu_rot;
 
 	H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
 	H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;
@@ -496,21 +574,25 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 	buf_warped_n = numTermsInWarped;
 
 //===============================Computing IMU error======================================================
-//	float IMUenergy, IMUNav, IMUbias = 0;
-//	Vec3f IresR, Iresp, Iresb, Iresv, Iresba, Iresbg;
-//    Vec9f Iresi;
-//    Vec6f Iresb;
-//	Mat33 delta_R, Ri, Rj;
-//    Mat33 Jgv, Jav, Jgp, Jap,JgR;
-//    Vec3 vi ,vj ,gw ,delta_v ,delta_p, pi, pj, gw, bia, bja, big, bjg;
-//    Mat99f = SigmaI;
-//    Mat66f = SigmaB;
-//	double delta_t;
-//
-//	delta_R = newFrame->imu_preintegrated_->deltaRij().matrix();
-//	Ri = newFrame->prop_state.R().matrix();
-//	Rj = lastRef->prop_state.R().matrix();
-//
+	float IMUenergy, IMUNav, IMUbias = 0;
+	Vec3 IresR, Iresp, Iresb, Iresv, Iresba, Iresbg;
+    Vec9 Iresi;
+	Mat33 delta_R, Ri, Rj;
+    Mat33 Jgv, Jav, Jgp, Jap,JgR;
+    Vec3 vi ,vj ,gw ,delta_v ,delta_p, pi, pj, bia, bja, big, bjg;
+
+//  Mat99f  SigmaI;
+//  Mat66f  SigmaB;
+
+    Mat33  Sigmag;
+    Mat33  SigmaR;
+
+	double delta_t;
+
+    delta_R = newFrame->imu_preintegrated_->deltaRij().matrix();
+	Ri = lastRef->prop_state.R().matrix();
+	Rj = newFrame->prop_state.R().matrix();
+
 //	delta_v = newFrame->imu_preintegrated_->deltaVij().matrix();
 //	vi = newFrame->prop_state.v();
 //	vj = lastRef->prop_state.v();
@@ -518,28 +600,35 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 //	delta_p = newFrame->imu_preintegrated_->deltaPij().matrix();
 //	pi = newFrame->prop_state.t();
 //	pj = lastRef->prop_state.t();
-//
-//
-//
-//
-//	IresR = SO3::log((delta_R * SO3::exp(JgR * big).matrix()) * Ri * Rj.inverse()).matrix();
+
+	Mat33 Jbgb = SO3::exp(JgR * big).matrix();
+	Jbgb.setIdentity();
+
+	Mat33 fortest = delta_R * Ri.inverse() * Rj;
+
+	IresR = SO3(delta_R * Rj.inverse() * Ri).log();
+//	IresR = SO3(delta_R * Jbgb * Rj.inverse() * Ri).log();
 //	Iresv = Ri * (vj - vi - gw * delta_t ) - (delta_v + Jgv * bjg + Jav * bja);
-//    Iresp = Ri * (pj - pi - vi * delta_t - 0.5*gw*delta_v*delta_v ) - (delta_p + Jgp * bjg  + Jap * bja);
-//    Iresba = bia - bja;
-//    Iresbg = big - bjg;
-//
+//  Iresp = Ri * (pj - pi - vi * delta_t - 0.5*gw*delta_v*delta_v ) - (delta_p + Jgp * bjg  + Jap * bja);
+//  Iresba = bia - bja;
+//  Iresbg = big - bjg;
+	PreintegratedImuMeasurements *preint_imu = dynamic_cast<PreintegratedImuMeasurements*>(newFrame->imu_preintegrated_);
+	SigmaR = preint_imu->preintMeasCov().block<3, 3>(6, 6);
+
 //    Iresi.block<3,1>(0,0) = IresR;
 //    Iresi.block<3,1>(3,0) = Iresv;
 //    Iresi.block<3,1>(6,0) = Iresp;
 //
 //    Iresb.block<3,1>(0,0) = Iresba;
 //    Iresb.block<3,1>(3,0) = Iresbg;
-//
-//
-//
-//    IMUNav = Iresi.transpose() * SigmaI * Iresi;
-//    IMUbias =  Iresb.transpose() * SigmaB * Iresb;
-//    IMUenergy = IMUNav + IMUbias;
+//    IMUbias = Iresbg.transpose() * Sigmag * Iresbg;
+
+	//std::cout<< "testmatrix: "<< fortest << std::endl;
+	std::cout<<" r0: "<< IresR(0)<< " r1: "<< IresR(1)<< " r2: "<< IresR(2)<<std::endl;
+    IMUNav = IresR.transpose() * SigmaR * IresR;
+    //IMUbias =  Iresb.transpose() * SigmaB * Iresb;
+    IMUenergy = IMUNav;
+
     //E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)

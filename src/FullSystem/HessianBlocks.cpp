@@ -204,20 +204,47 @@ void FrameHessian::PredictPose(FrameHessian* lastRef, std::vector<dso_vi::IMUDat
 		Mat61 rawimudata;
 		rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
 						imudata._g(0), imudata._g(1), imudata._g(2);
-        rawimudata.head<3>() =  Rbc * rawimudata.head<3>();
-        rawimudata.tail<3>() =  Rbc * rawimudata.tail<3>();
+//        rawimudata.head<3>() =  Rbc * rawimudata.head<3>();
+//        rawimudata.tail<3>() =  Rbc * rawimudata.tail<3>();
 		imu_preintegrated_->integrateMeasurement(
 				rawimudata.head<3>(),
 				rawimudata.tail<3>(),
-				(imudata._t - old_timestamp) * 1e-9 // timestamp is in ns (we need seconds)
+				imudata._t - old_timestamp
 		);
 		old_timestamp = imudata._t;
 	}
 	prop_state = imu_preintegrated_->predict(lastRef->prop_state, bias1);
-    //imu_preintegrated_->
+//	prop_state = imu_preintegrated_->predict(
+//			gtsam::NavState(gtsam::Rot3::identity(), Point3(0, 0, 0), Velocity3(0, 0, 0)),
+//			bias1
+//	);
+//	Pose3 newPose = lastRef->prop_state.pose().compose(prop_state.pose());
+//	prop_state = gtsam::NavState(newPose, gtsam::Velocity3(0, 0, 0));
+
+	gtsam::Rot3 relative_prop = lastRef->prop_state.pose().rotation().inverse().compose(prop_state.pose().rotation());
+
+	Eigen::Quaterniond rij_quat = imu_preintegrated_->deltaRij().toQuaternion();
+	Eigen::Quaterniond relative_quat = relative_prop.toQuaternion();
+
+	Mat33 delta_R, Ri, Rj;
+	delta_R = imu_preintegrated_->deltaRij().matrix();
+	Ri = lastRef->prop_state.R().matrix();
+	Rj = prop_state.R().matrix();
+
+	Mat33 fortest = delta_R * Rj.inverse() * Ri;
+
+
+
+	std::cout << "--------------------------Predict--------------------------" << std::endl;
+//	std::cout << "Delta: " << rij_quat.x() << ", " << rij_quat.y() << ", " << rij_quat.z() << ", " << std::endl;
+//	std::cout << "Relative: " << relative_quat.x() << ", " << relative_quat.y() << ", " << relative_quat.z() << ", " << std::endl;
+	std::cout<< "testmatrix: "<< fortest << std::endl;
+	std::cout << "--------------------------Predict--------------------------" << std::endl;
 }
 
-
+void FrameHessian::updatestate(){
+	return;
+}
 
 void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )
 {

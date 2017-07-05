@@ -166,6 +166,8 @@ public:
 	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
 
 	std::vector<FrameShell*> getAllFrameHistory() { return allFrameHistory; }
+	Mat33 getRbc() { return Rbc; }
+    std::vector<dso_vi::IMUData> getIMUSinceLastKF() { return mvIMUSinceLastKF; }
 
 private:
 
