@@ -193,7 +193,7 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib, std::vector<ds
 
 }
 
-void FrameHessian::PredictPose(FrameHessian* lastRef, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat33 Rbc){
+SE3 FrameHessian::PredictPose(FrameHessian* lastRef, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat44 Tbc){
 
 	// initialize some IMU parameters
 
@@ -213,37 +213,13 @@ void FrameHessian::PredictPose(FrameHessian* lastRef, std::vector<dso_vi::IMUDat
 		);
 		old_timestamp = imudata._t;
 	}
-	prop_state = imu_preintegrated_->predict(lastRef->prop_state, bias1);
-//	prop_state = imu_preintegrated_->predict(
-//			gtsam::NavState(gtsam::Rot3::identity(), Point3(0, 0, 0), Velocity3(0, 0, 0)),
-//			bias1
-//	);
-//	Pose3 newPose = lastRef->prop_state.pose().compose(prop_state.pose());
-//	prop_state = gtsam::NavState(newPose, gtsam::Velocity3(0, 0, 0));
 
-	gtsam::Rot3 relative_prop = lastRef->prop_state.pose().rotation().inverse().compose(prop_state.pose().rotation());
-
-	Eigen::Quaterniond rij_quat = imu_preintegrated_->deltaRij().toQuaternion();
-	Eigen::Quaterniond relative_quat = relative_prop.toQuaternion();
-
-	Mat33 delta_R, Ri, Rj;
-	delta_R = imu_preintegrated_->deltaRij().matrix();
-	Ri = lastRef->prop_state.R().matrix();
-	Rj = prop_state.R().matrix();
-
-	Mat33 fortest = delta_R * Rj.inverse() * Ri;
-
-
-
-	std::cout << "--------------------------Predict--------------------------" << std::endl;
-//	std::cout << "Delta: " << rij_quat.x() << ", " << rij_quat.y() << ", " << rij_quat.z() << ", " << std::endl;
-//	std::cout << "Relative: " << relative_quat.x() << ", " << relative_quat.y() << ", " << relative_quat.z() << ", " << std::endl;
-	std::cout<< "testmatrix: "<< fortest << std::endl;
-	std::cout << "--------------------------Predict--------------------------" << std::endl;
-}
-
-void FrameHessian::updatestate(){
-	return;
+	gtsam::NavState ref_pose_imu = lastRef->getNavState(Tbc);
+	gtsam::NavState predicted_pose_imu = imu_preintegrated_->predict(ref_pose_imu, bias1);
+	std::cout << "After nav: " << predicted_pose_imu.pose().matrix() << std::endl;
+	std::cout << "Rel nav: " << predicted_pose_imu.pose().inverse().compose(ref_pose_imu.pose()).matrix() << std::endl;
+	Mat44 predicted_pose_camera = Tbc.inverse() * predicted_pose_imu.pose().matrix() * Tbc;
+	return SE3(predicted_pose_camera);
 }
 
 void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )

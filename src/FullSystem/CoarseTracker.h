@@ -103,6 +103,12 @@ private:
 	void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 
+    // for imu errors
+    Vec9 calcIMURes(const SE3 &refToNew);
+    gtsam::Matrix  J_imu_Rt, J_imu_bias, J_imu_v;
+    Vector9 res_imu;
+    Mat99 information_imu;
+
 	// pc buffers
 	float* pc_u[PYR_LEVELS];
 	float* pc_v[PYR_LEVELS];

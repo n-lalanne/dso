@@ -43,6 +43,7 @@
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/inference/Symbol.h>
+#include <util/FrameShell.h>
 
 // Need to add IMU data for each frame
 #include "IMU/imudata.h"
@@ -186,10 +187,22 @@ struct FrameHessian
 
 	double timestamp;
 
-	// Pridicted pose/biases ;
-	NavState prop_state;
+	// Predicted pose/biases ;
+	gtsam::Velocity3 velocity;
 
-
+	/**
+	 *
+	 * @param Tbc
+	 * @return NavState in IMU frame (transformation from current frame to world frame)
+	 */
+	gtsam::NavState getNavState(Mat44 &Tbc)
+	{
+		Mat44 cam2WorldIMU = Tbc * shell->camToWorld.inverse().matrix() * Tbc.inverse();
+		std::cout << "ref pose: \n" << worldToCam_evalPT.inverse().matrix() << std::endl;
+		std::cout << "Tbc: \n" << Tbc << std::endl;
+		std::cout << "Before Nav: \n" << cam2WorldIMU << std::endl;
+		return gtsam::NavState(gtsam::Pose3(cam2WorldIMU), Vector3::Zero());
+	}
 
 	//SE3 prop_pose;
 
@@ -207,9 +220,14 @@ struct FrameHessian
 
 
 	//==========================================IMU related methods==================================================
-	void PredictPose(FrameHessian* lastkf, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat33 Rbc);
-    void updatestate();
-
+	/**
+	 *
+	 * @param lastkf
+	 * @param mvIMUSinceLastKF
+	 * @param Rbc
+	 * @return transformation from current frame to last kf
+	 */
+	SE3 PredictPose(FrameHessian* lastkf, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat44 Tbc);
 
 
 	//photometric fucitons

@@ -166,7 +166,9 @@ public:
 	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
 
 	std::vector<FrameShell*> getAllFrameHistory() { return allFrameHistory; }
-	Mat33 getRbc() { return Rbc; }
+	Mat33 getRbc() { return Tbc.block<3, 3>(0, 0); }
+	Mat44 getTbc() { return Tbc; }
+	void setTbc(Mat44 _Tbc) { Tbc = _Tbc; }
     std::vector<dso_vi::IMUData> getIMUSinceLastKF() { return mvIMUSinceLastKF; }
 
 private:
@@ -286,8 +288,7 @@ private:
 	//==================== Save all the IMU raw data here===============================
 	std::vector<dso_vi::IMUData> mvIMUSinceLastKF;
 
-    Mat33 Rbc;
-
+    Mat44 Tbc;
 
 
 	// mutex etc. for tracker exchange.
