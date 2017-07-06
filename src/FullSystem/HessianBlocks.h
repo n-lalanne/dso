@@ -47,6 +47,8 @@
 
 // Need to add IMU data for each frame
 #include "IMU/imudata.h"
+#include "GroundTruthIterator/GroundTruthIterator.h"
+
 using namespace gtsam;
 
 namespace dso
@@ -68,8 +70,8 @@ class EFFrame;
 class EFPoint;
 
 #define SCALE_IDEPTH 1.0f		// scales internal value to idepth.
-#define SCALE_XI_ROT 0.5f
-#define SCALE_XI_TRANS 1.0f
+#define SCALE_XI_ROT 1.0f
+#define SCALE_XI_TRANS 0.5f
 #define SCALE_F 50.0f
 #define SCALE_C 50.0f
 #define SCALE_W 1.0f
@@ -197,10 +199,7 @@ struct FrameHessian
 	 */
 	gtsam::NavState getNavState(Mat44 &Tbc)
 	{
-		Mat44 cam2WorldIMU = Tbc * shell->camToWorld.inverse().matrix() * Tbc.inverse();
-		std::cout << "ref pose: \n" << worldToCam_evalPT.inverse().matrix() << std::endl;
-		std::cout << "Tbc: \n" << Tbc << std::endl;
-		std::cout << "Before Nav: \n" << cam2WorldIMU << std::endl;
+		Mat44 cam2WorldIMU = dso_vi::IMUData::convertCamFrame2IMUFrame(shell->camToWorld.inverse().matrix(), Tbc);
 		return gtsam::NavState(gtsam::Pose3(cam2WorldIMU), Vector3::Zero());
 	}
 
@@ -213,6 +212,11 @@ struct FrameHessian
     imuBias::ConstantBias bias1;
 
 	boost::shared_ptr<PreintegratedCombinedMeasurements::Params> imuParams;
+
+	// groundtruth measurement
+	dso_vi::GroundTruthIterator::ground_truth_measurement_t groundtruth;
+
+
 
 	// last keyframe
 	//FrameHessian * lastkf;
@@ -338,6 +342,8 @@ struct FrameHessian
         gtsam::Vector3 gyroBias(-0.002153, 0.020744, 0.075806);
         gtsam::Vector3 acceleroBias(-0.013337, 0.103464, 0.093086);
         gtsam::imuBias::ConstantBias biasPrior(acceleroBias, gyroBias);
+
+		bias1 = biasPrior;
 
 #ifdef USE_COMBINED
 		imu_preintegrated_ = new PreintegratedCombinedMeasurements(imuParams, bias1);

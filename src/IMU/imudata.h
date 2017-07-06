@@ -40,6 +40,22 @@ public:
     Vector3d _g;    //gyr data
     Vector3d _a;    //acc data
     double _t;      //timestamp
+
+    static Matrix4d convertCamFrame2IMUFrame(Matrix4d camPose, Matrix4d Tbc)
+    {
+        Matrix4d Tcb = Tbc.inverse();
+//        Tcb.block<3, 3>(0, 0) = Tbc.block<3, 3>(0, 0).transpose();
+//        Tcb.block<3, 1>(0, 3).noalias() = -Tcb.block<3, 3>(0, 0) * Tcb.block<3, 1>(0, 3);
+        return Tbc * camPose * Tcb;
+    }
+
+    static Matrix4d convertIMUFrame2CamFrame(Matrix4d imuPose, Matrix4d Tbc)
+    {
+        Matrix4d Tcb = Tbc.inverse();
+//        Tcb.block<3, 3>(0, 0) = Tbc.block<3, 3>(0, 0).transpose();
+//        Tcb.block<3, 1>(0, 3).noalias() = -Tcb.block<3, 3>(0, 0) * Tcb.block<3, 1>(0, 3);
+        return Tcb * imuPose * Tbc;
+    }
 };
 
 }

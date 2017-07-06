@@ -354,11 +354,11 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 	H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
 	b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
 
-	H_out.block<3,3>(0,0) += H_imu_rot;
-	b_out.segment<3>(0) += b_imu_rot;
-
-    H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
+	H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
 	b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+
+//	H_out.block<3,3>(0,0) += H_imu_rot;
+//	b_out.segment<3>(0) += b_imu_rot;
 
 	H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
 	H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;

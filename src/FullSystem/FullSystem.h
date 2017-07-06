@@ -139,7 +139,8 @@ public:
 	virtual ~FullSystem();
 
 	// adds a new frame, and creates point & residual structs.
-	void addActiveFrame(ImageAndExposure* image, int id, std::vector<dso_vi::IMUData> vimuData, double ftimestamp, dso_vi::ConfigParam &config);
+	void addActiveFrame(ImageAndExposure* image, int id, std::vector<dso_vi::IMUData> vimuData, double ftimestamp,
+						dso_vi::ConfigParam &config, dso_vi::GroundTruthIterator::ground_truth_measurement_t groundtruth);
 
 	// marginalizes a frame. drops / marginalizes points & residuals.
 	void marginalizeFrame(FrameHessian* frame);
@@ -174,9 +175,6 @@ public:
 private:
 
 	CalibHessian Hcalib;
-
-
-
 
 	// opt single point
 	int optimizePoint(PointHessian* point, int minObs, bool flagOOB);

@@ -56,6 +56,7 @@
 
 
 #include <cmath>
+#include <GroundTruthIterator/GroundTruthIterator.h>
 
 namespace dso
 {
@@ -287,12 +288,10 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	std::vector<SE3,Eigen::aligned_allocator<SE3>> lastF_2_fh_tries;
 	if(allFrameHistory.size() == 2)
 	{
-		std::cout << "Tracking from identity: " << std::endl;
 		for (unsigned int i = 0; i < lastF_2_fh_tries.size(); i++) lastF_2_fh_tries.push_back(SE3());
 	}
 	else
 	{
-		std::cout << "Tracking from IMU: " << std::endl;
 		FrameShell* slast = allFrameHistory[allFrameHistory.size()-2];
 		FrameShell* sprelast = allFrameHistory[allFrameHistory.size()-3];
 		SE3 slast_2_sprelast;
@@ -307,59 +306,185 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 		SE3 const_vel_lastF_2_fh = fh_2_slast.inverse() * lastF_2_slast;
 
+
+		SE3 groundtruth_lastF_2_fh( dso_vi::IMUData::convertIMUFrame2CamFrame(
+				fh->groundtruth.pose.inverse().compose(lastF->groundtruth.pose).matrix(), getTbc()
+		));
+
 		//just use the initial pose from IMU
 		//when we determine the last key frame, we will propagate the pose by using the preintegration measurement and the pose of the last key frame
 		SE3 prop_fh_2_world = fh->PredictPose(coarseTracker->lastRef, mvIMUSinceLastKF, getTbc());
 		SE3 prop_lastF_2_fh_r = prop_fh_2_world.inverse() * lastF->shell->camToWorld.inverse();
-		SE3 prop_pose(prop_lastF_2_fh_r.rotationMatrix(), const_vel_lastF_2_fh.matrix().block<3, 1>(0, 3));
-		lastF_2_fh_tries.push_back(prop_pose);
+//		SE3 prop_lastF_2_fh(prop_lastF_2_fh_r.rotationMatrix(), Vec3(0,0,0));
+//		SE3 prop_lastF_2_fh(prop_lastF_2_fh_r.rotationMatrix(), const_vel_lastF_2_fh.matrix().block<3, 1>(0, 3));
 
-		std::cout << "KF: " << coarseTracker->lastRef->frameID << " Fh: " << fh->frameID << std::endl;
-		std::cout << "IMUs: " << mvIMUSinceLastKF.size() << std::endl;
-		std::cout << "Const: \n" << const_vel_lastF_2_fh.matrix() << std::endl;
-		std::cout << "Pred: \n" << prop_pose.matrix() << std::endl;
+		// get the translation independent of last KF rotation
+		Vec3 const_vel_translation = const_vel_lastF_2_fh.inverse().matrix().block<3, 1>(0, 3);
+		SE3 prop_lastF_2_fh(prop_lastF_2_fh_r.rotationMatrix(), -prop_lastF_2_fh_r.rotationMatrix() * const_vel_translation);
 
-		// get last delta-movement.
-//		lastF_2_fh_tries.push_back(const_vel_lastF_2_fh);	// assume constant motion.
-//		lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() * lastF_2_slast);	// assume double motion (frame skipped)
-//		lastF_2_fh_tries.push_back(SE3::exp(fh_2_slast.log()*0.5).inverse() * lastF_2_slast); // assume half motion.
-//		lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
-//		lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
-//
-//		// just try a TON of different initializations (all rotations). In the end,
-//		// if they don't work they will only be tried on the coarsest level, which is super fast anyway.
-//		// also, if tracking rails here we loose, so we really, really want to avoid that.
+//		lastF_2_fh_tries.push_back(prop_lastF_2_fh);
+//		lastF_2_fh_tries.push_back(SE3(prop_lastF_2_fh.rotationMatrix(), const_vel_lastF_2_fh.matrix().block<3, 1>(0, 3)));
+//		lastF_2_fh_tries.push_back(SE3(prop_lastF_2_fh.rotationMatrix(), Vec3::Zero()));
+
+//		std::cout << "KF: " << coarseTracker->lastRef->frameID << " Fh: " << fh->frameID << std::endl;
+//		std::cout << "IMUs: " << mvIMUSinceLastKF.size() << std::endl;
+//		std::cout << "Const: \n" << const_vel_lastF_2_fh.matrix() << std::endl;
+//		std::cout << "Pred: \n" << prop_pose.matrix() << std::endl;
+
+		// relative rotation compared to groundtruth
+
+		SE3 rotation_error = groundtruth_lastF_2_fh.inverse() * prop_lastF_2_fh;
+		Quaternion quaternion_error = rotation_error.unit_quaternion();
+
+		std::cout << "GT fh: " << fh->groundtruth.pose.matrix() << std::endl;
+		std::cout << "GT KF: " << lastF->groundtruth.pose.matrix() << std::endl;
+		std::cout << "GT Rel: " << groundtruth_lastF_2_fh.matrix() << std::endl;
+		std::cout << "Rotation error imu: " << quaternion_error.x() << ", "
+											<< quaternion_error.y() << ", "
+											<< quaternion_error.z()
+											<< std::endl;
+
+		rotation_error = groundtruth_lastF_2_fh.inverse() * const_vel_lastF_2_fh;
+		quaternion_error = rotation_error.unit_quaternion();
+		std::cout << "Rotation error cvm: " << quaternion_error.x() << ", "
+				  << quaternion_error.y() << ", "
+				  << quaternion_error.z()
+				  << std::endl;
+
 //		for(float rotDelta=0.02; rotDelta < 0.05; rotDelta++)
 //		{
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,0,0), Vec3(0,0,0)));			// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,0,rotDelta,0), Vec3(0,0,0)));			// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,0,0,rotDelta), Vec3(0,0,0)));			// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,-rotDelta,0,0), Vec3(0,0,0)));			// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,0,-rotDelta,0), Vec3(0,0,0)));			// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,0,0,-rotDelta), Vec3(0,0,0)));			// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,rotDelta,0), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,0,rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,0,rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,-rotDelta,rotDelta,0), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,0,-rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,-rotDelta,0,rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,-rotDelta,0), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,0,rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,0,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,-rotDelta,-rotDelta,0), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,0,-rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,-rotDelta,0,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,-rotDelta,-rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,-rotDelta,-rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,-rotDelta,rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,-rotDelta,rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,-rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,-rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,0,0), Vec3(0,0,0)));			// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,0,rotDelta,0), Vec3(0,0,0)));			// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,0,0,rotDelta), Vec3(0,0,0)));			// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,-rotDelta,0,0), Vec3(0,0,0)));			// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,0,-rotDelta,0), Vec3(0,0,0)));			// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,0,0,-rotDelta), Vec3(0,0,0)));			// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,rotDelta,0), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,0,rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,0,rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,-rotDelta,rotDelta,0), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,0,-rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,-rotDelta,0,rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,-rotDelta,0), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,0,rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,0,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,-rotDelta,-rotDelta,0), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,0,-rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,-rotDelta,0,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,-rotDelta,-rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,-rotDelta,-rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,-rotDelta,rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,-rotDelta,rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,-rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,-rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,rotDelta,-rotDelta), Vec3(0,0,0)));	// assume constant motion.
+//			lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
 //		}
 
+		// get last delta-movement.
 		if(!slast->poseValid || !sprelast->poseValid || !lastF->shell->poseValid)
+		{
+			lastF_2_fh_tries.push_back(SE3());
+		}
+		else
+		{
+			lastF_2_fh_tries.push_back(const_vel_lastF_2_fh);    // assume constant motion.
+			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() *
+									   lastF_2_slast);    // assume double motion (frame skipped)
+			lastF_2_fh_tries.push_back(
+					SE3::exp(fh_2_slast.log() * 0.5).inverse() * lastF_2_slast); // assume half motion.
+			lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
+			lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
+
+//			 just try a TON of different initializations (all rotations). In the end,
+//			 if they don't work they will only be tried on the coarsest level, which is super fast anyway.
+//			 also, if tracking rails here we loose, so we really, really want to avoid that.
+
+
+			for (float rotDelta = 0.02; rotDelta < 0.05; rotDelta++) {
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, rotDelta, 0, 0),
+											   Vec3(0, 0, 0)));            // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, 0, rotDelta, 0),
+											   Vec3(0, 0, 0)));            // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, 0, 0, rotDelta),
+											   Vec3(0, 0, 0)));            // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, -rotDelta, 0, 0),
+											   Vec3(0, 0, 0)));            // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, 0, -rotDelta, 0),
+											   Vec3(0, 0, 0)));            // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, 0, 0, -rotDelta),
+											   Vec3(0, 0, 0)));            // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, 0),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, 0, rotDelta, rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, rotDelta, 0, rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, 0),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, 0, -rotDelta, rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, -rotDelta, 0, rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, 0),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, 0, rotDelta, -rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, rotDelta, 0, -rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, 0),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, 0, -rotDelta, -rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, -rotDelta, 0, -rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, -rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, -rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, -rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, -rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
+										   SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, rotDelta),
+											   Vec3(0, 0, 0)));    // assume constant motion.
+			}
+		}
+
+
+		if(!lastF->shell->poseValid )
 		{
 			lastF_2_fh_tries.clear();
 			lastF_2_fh_tries.push_back(SE3());
@@ -816,7 +941,8 @@ void FullSystem::flagPointsForRemoval()
 }
 
 
-void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<dso_vi::IMUData> vimuData, double ftimestamp, dso_vi::ConfigParam &config )
+void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<dso_vi::IMUData> vimuData, double ftimestamp,
+								 dso_vi::ConfigParam &config , dso_vi::GroundTruthIterator::ground_truth_measurement_t groundtruth )
 {
 
     if(isLost) return;
@@ -835,6 +961,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
     shell->correspondingfh = fh;
 	fh->shell = shell;
     fh->timestamp = ftimestamp;
+	fh->groundtruth = groundtruth;
     allFrameHistory.push_back(shell);
 
 	//============================ accumulate  IMU data=====================================

@@ -142,11 +142,11 @@ target_link_libraries(dso gtsam boost_system boost_thread cxsparse ${LIBZIP_LIBR
 
 
 # build main executable (only if we have both OpenCV and Pangolin)
-if (OpenCV_FOUND AND Pangolin_FOUND)
-	message("--- compiling dso_dataset.")
-	add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp )
-    target_link_libraries(dso_dataset dso boost_system boost_thread cxsparse ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
-else()
-	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
-endif()
+#if (OpenCV_FOUND AND Pangolin_FOUND)
+#	message("--- compiling dso_dataset.")
+#	add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp )
+#    target_link_libraries(dso_dataset dso boost_system boost_thread cxsparse ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
+#else()
+#	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
+#endif()
 

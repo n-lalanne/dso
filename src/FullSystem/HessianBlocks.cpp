@@ -207,8 +207,8 @@ SE3 FrameHessian::PredictPose(FrameHessian* lastRef, std::vector<dso_vi::IMUData
 //        rawimudata.head<3>() =  Rbc * rawimudata.head<3>();
 //        rawimudata.tail<3>() =  Rbc * rawimudata.tail<3>();
 		imu_preintegrated_->integrateMeasurement(
-				rawimudata.head<3>(),
-				rawimudata.tail<3>(),
+				rawimudata.block<3,1>(0,0),
+				rawimudata.block<3,1>(3,0),
 				imudata._t - old_timestamp
 		);
 		old_timestamp = imudata._t;
@@ -216,9 +216,7 @@ SE3 FrameHessian::PredictPose(FrameHessian* lastRef, std::vector<dso_vi::IMUData
 
 	gtsam::NavState ref_pose_imu = lastRef->getNavState(Tbc);
 	gtsam::NavState predicted_pose_imu = imu_preintegrated_->predict(ref_pose_imu, bias1);
-	std::cout << "After nav: " << predicted_pose_imu.pose().matrix() << std::endl;
-	std::cout << "Rel nav: " << predicted_pose_imu.pose().inverse().compose(ref_pose_imu.pose()).matrix() << std::endl;
-	Mat44 predicted_pose_camera = Tbc.inverse() * predicted_pose_imu.pose().matrix() * Tbc;
+	Mat44 predicted_pose_camera = dso_vi::IMUData::convertIMUFrame2CamFrame(predicted_pose_imu.pose().matrix(), Tbc);
 	return SE3(predicted_pose_camera);
 }
 
