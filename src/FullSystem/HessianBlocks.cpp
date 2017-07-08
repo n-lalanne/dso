@@ -232,7 +232,22 @@ SE3 FrameHessian::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimest
 	);
 	gtsam::NavState predicted_pose_imu = imu_preintegrated_->predict(ref_pose_imu, bias1);
 
-	Mat44 predicted_pose_camera = dso_vi::IMUData::convertIMUFrame2CamFrame(predicted_pose_imu.pose().matrix(), Tbc);
+	Mat44 mat_pose_imu = predicted_pose_imu.pose().matrix();
+	if
+	(
+			!std::isfinite(predicted_pose_imu.pose().translation().x()) ||
+			!std::isfinite(predicted_pose_imu.pose().translation().y()) ||
+			!std::isfinite(predicted_pose_imu.pose().translation().z())
+	)
+	{
+		if (!setting_debugout_runquiet)
+		{
+			std::cout << "IMU prediction nan for translation!!!" << std::endl;
+		}
+		mat_pose_imu.block<3, 1>(0, 3) = Vec3::Zero();
+	}
+
+	Mat44 predicted_pose_camera = dso_vi::IMUData::convertIMUFrame2CamFrame(mat_pose_imu, Tbc);
 	return SE3(predicted_pose_camera);
 }
 

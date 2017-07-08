@@ -343,6 +343,9 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 
 	acc.finish();
 
+	H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
+	b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+
 	Mat33 J_imu_rot,H_imu_rot;
 	Vec3 r_imu_rot,b_imu_rot;
 
@@ -354,11 +357,8 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 	H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
 	b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
 
-	H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
-	b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
-
-//	H_out.block<3,3>(0,0) += H_imu_rot;
-//	b_out.segment<3>(0) += b_imu_rot;
+	//H_out.block<3,3>(0,0) += H_imu_rot;
+	//b_out.segment<3>(0) += b_imu_rot;
 
 	H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
 	H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;
@@ -374,7 +374,7 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 	b_out.segment<1>(7) *= SCALE_B;
 }
 
-Vec9 CoarseTracker::calcIMURes(const SE3 &refToNew)
+Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 {
 	PreintegratedImuMeasurements *preint_imu = dynamic_cast<PreintegratedImuMeasurements*>(newFrame->imu_preintegrated_);
 	information_imu = preint_imu->preintMeasCov().inverse();
@@ -385,7 +385,9 @@ Vec9 CoarseTracker::calcIMURes(const SE3 &refToNew)
 						 *preint_imu);
 
 	// relative pose wrt IMU
-	gtsam::Pose3 relativePose(fullSystem->getTbc() * refToNew.inverse().matrix() * fullSystem->getTbc().inverse());
+	gtsam::Pose3 relativePose(dso_vi::IMUData::convertCamFrame2IMUFrame(
+			previousToNew.inverse().matrix(), fullSystem->getTbc()
+	));
 
 	gtsam::Vector3 velocity;
 	velocity << 1, 1, 1;
@@ -416,7 +418,7 @@ Vec9 CoarseTracker::calcIMURes(const SE3 &refToNew)
 
 
 
-Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH)
+Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToNew, AffLight aff_g2l, float cutoffTH)
 {
 	float E = 0;
 	int numTermsInE = 0;
@@ -557,7 +559,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 
 
 
-	Vector9 imu_error = calcIMURes(refToNew);
+	Vector9 imu_error = calcIMURes(previousToNew);
 	Vector3 imu_error_r = imu_error.segment(0, 2);
 	Mat33 information_r = information_imu.block<3, 3>(6, 6);
 	double IMUenergy = imu_error_r.transpose() * information_r * imu_error_r;
@@ -606,7 +608,7 @@ void CoarseTracker::setCoarseTrackingRef(
 }
 bool CoarseTracker::trackNewestCoarse(
 		FrameHessian* newFrameHessian,
-		SE3 &lastToNew_out, AffLight &aff_g2l_out,
+		SE3 &lastToNew_out, SE3 &previousToNew_out, AffLight &aff_g2l_out,
 		int coarsestLvl,
 		Vec5 minResForAbort,
 		IOWrap::Output3DWrapper* wrap)
@@ -634,11 +636,11 @@ bool CoarseTracker::trackNewestCoarse(
 	{
 		Mat88 H; Vec8 b;
 		float levelCutoffRepeat=1;
-		Vec6 resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
+		Vec6 resOld = calcRes(lvl, refToNew_current, previousToNew_out, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
 		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
 		{
 			levelCutoffRepeat*=2;
-			resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
+			resOld = calcRes(lvl, refToNew_current, previousToNew_out, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
 
             if(!setting_debugout_runquiet)
                 printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
@@ -712,7 +714,7 @@ bool CoarseTracker::trackNewestCoarse(
 			aff_g2l_new.a += incScaled[6];
 			aff_g2l_new.b += incScaled[7];
 
-			Vec6 resNew = calcRes(lvl, refToNew_new, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
+			Vec6 resNew = calcRes(lvl, refToNew_new, previousToNew_out, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
 
 			bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
 
