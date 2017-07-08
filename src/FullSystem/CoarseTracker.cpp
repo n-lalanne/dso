@@ -39,9 +39,6 @@
 #include <boost/tuple/tuple.hpp>
 
 
-using symbol_shorthand::X; // Pose3 (x,y,z,r,p,y)
-using symbol_shorthand::V; // Vel   (xdot,ydot,zdot)
-using symbol_shorthand::B; // Bias  (ax,ay,az,gx,gy,gz)
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
 #include "SSE2NEON.h"
@@ -376,36 +373,20 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 
 Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 {
-	PreintegratedImuMeasurements *preint_imu = dynamic_cast<PreintegratedImuMeasurements*>(newFrame->imu_preintegrated_);
-	information_imu = preint_imu->preintMeasCov().inverse();
-
-	ImuFactor imu_factor(X(0), V(0),
-						 X(1), V(1),
-						 B(0),
-						 *preint_imu);
+	information_imu = newFrame->getIMUcovariance().inverse();
 
 	// relative pose wrt IMU
-	gtsam::Pose3 relativePose(dso_vi::IMUData::convertCamFrame2IMUFrame(
+	SE3 relativePose(dso_vi::IMUData::convertCamFrame2IMUFrame(
 			previousToNew.inverse().matrix(), fullSystem->getTbc()
 	));
 
-	gtsam::Vector3 velocity;
-	velocity << 1, 1, 1;
-
-	Values initial_values;
-	initial_values.insert(X(0), gtsam::Pose3::identity());
-	initial_values.insert(V(0), gtsam::zero(3));
-	initial_values.insert(B(0), lastRef->bias1);
-	initial_values.insert(X(1), relativePose);
-	initial_values.insert(V(1), velocity);
-
-	boost::shared_ptr<GaussianFactor> linearFactor = imu_factor.linearize(initial_values);
 	// useless Jacobians of reference frame (cuz we're not optimizing reference frame)
 	gtsam::Matrix  J_imu_Rt_i, J_imu_v_i;
-
-	res_imu = imu_factor.evaluateError(
-			gtsam::Pose3::identity(), gtsam::zero(3), relativePose, velocity, lastRef->bias1,
-			J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
+	newFrame->velocity << 1, 1, 1;
+	// TODO: save pointer to last frame so that you can get its velocity
+	res_imu = newFrame->evaluateIMUerrors(
+			SE3(), Vec3::Zero(), relativePose, newFrame->velocity, lastRef->bias1,
+			fullSystem->getTbc(), J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
 	);
 
 	std::cout << "----------------------------------IMU----------------------------------" << std::endl;

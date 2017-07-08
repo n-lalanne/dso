@@ -190,6 +190,55 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib, std::vector<ds
 	}
 }
 
+Mat99 FrameHessian::getIMUcovariance()
+{
+	PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_);
+	return preint_imu->preintMeasCov().inverse();
+}
+Vector9 FrameHessian::evaluateIMUerrors(
+		SE3 initial_cam_2_world,
+		Vec3 initial_velocity,
+		SE3 final_cam_2_world,
+		Vec3 final_velocity,
+		gtsam::imuBias::ConstantBias bias,
+		Mat44 Tbc,
+		gtsam::Matrix &J_imu_Rt_i,
+		gtsam::Matrix &J_imu_v_i,
+		gtsam::Matrix &J_imu_Rt_j,
+		gtsam::Matrix &J_imu_v_j,
+		gtsam::Matrix &J_imu_bias
+)
+{
+	PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_);
+
+	ImuFactor imu_factor(X(0), V(0),
+						 X(1), V(1),
+						 B(0),
+						 *preint_imu);
+
+	Values initial_values;
+	initial_values.insert(X(0), gtsam::Pose3(initial_cam_2_world.matrix()));
+	initial_values.insert(V(0), initial_velocity);
+	initial_values.insert(B(0), bias);
+	initial_values.insert(X(1), gtsam::Pose3(final_cam_2_world.matrix()));
+	initial_values.insert(V(1), final_velocity);
+
+	imu_factor.linearize(initial_values);
+
+	// relative pose wrt IMU
+	gtsam::Pose3 initial_imu_2_world(dso_vi::IMUData::convertCamFrame2IMUFrame(
+			initial_cam_2_world.matrix(), Tbc
+	));
+
+	gtsam::Pose3 final_imu_2_world(dso_vi::IMUData::convertCamFrame2IMUFrame(
+			final_cam_2_world.matrix(), Tbc
+	));
+
+	return imu_factor.evaluateError(
+			initial_imu_2_world, initial_velocity, final_imu_2_world, final_velocity, bias,
+			J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias
+	);
+}
 SE3 FrameHessian::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, std::vector<dso_vi::IMUData> mvIMUSinceLastF, Mat44 Tbc){
 
 	for (size_t i = 0; i < mvIMUSinceLastF.size(); i++)

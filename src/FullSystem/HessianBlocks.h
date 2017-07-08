@@ -49,6 +49,10 @@
 #include "IMU/imudata.h"
 #include "GroundTruthIterator/GroundTruthIterator.h"
 
+using gtsam::symbol_shorthand::X; // Pose3 (x,y,z,r,p,y)
+using gtsam::symbol_shorthand::V; // Vel   (xdot,ydot,zdot)
+using gtsam::symbol_shorthand::B; // Bias  (ax,ay,az,gx,gy,gz)
+
 using namespace gtsam;
 
 namespace dso
@@ -224,6 +228,24 @@ struct FrameHessian
 	 */
 	SE3 PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat44 Tbc);
 
+	Mat99 getIMUcovariance();
+	/**
+	 *
+	 * @return IMU residuals (9x1 vector)
+	 */
+	Vector9 evaluateIMUerrors(
+			SE3 initial_cam_2_world,
+			Vec3 initial_velocity,
+			SE3 final_cam_2_world,
+			Vec3 final_velocity,
+			gtsam::imuBias::ConstantBias bias,
+			Mat44 Tbc,
+			gtsam::Matrix &J_imu_Rt_i,
+			gtsam::Matrix &J_imu_v_i,
+			gtsam::Matrix &J_imu_Rt_j,
+			gtsam::Matrix &J_imu_v_j,
+			gtsam::Matrix &J_imu_bias
+	);
 
 	//photometric fucitons
 
