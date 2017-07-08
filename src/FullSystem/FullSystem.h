@@ -285,6 +285,7 @@ private:
 
 	//==================== Save all the IMU raw data here===============================
 	std::vector<dso_vi::IMUData> mvIMUSinceLastKF;
+	std::vector<dso_vi::IMUData> mvIMUSinceLastF;
 
     Mat44 Tbc;
 

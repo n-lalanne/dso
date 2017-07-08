@@ -562,6 +562,8 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 	Mat33 information_r = information_imu.block<3, 3>(6, 6);
 	double IMUenergy = imu_error_r.transpose() * information_r * imu_error_r;
 
+	std::cout << "Normalized Residue: " << E / numTermsInE << std::endl;
+
     //E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)
@@ -804,6 +806,8 @@ void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::ve
 		}
 		std::sort(allID.begin(), allID.end());
 		int n = allID.size()-1;
+
+		if (n<=0) return;
 
 		float minID_new = allID[(int)(n*0.05)];
 		float maxID_new = allID[(int)(n*0.95)];

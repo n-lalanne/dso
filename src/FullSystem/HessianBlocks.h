@@ -182,6 +182,8 @@ struct FrameHessian
 	std::vector<FrameFramePrecalc,Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc;
 	MinimalImageB3* debugImage;
 
+	// mutex for camToWorl's in shells (these are always in a good configuration).
+	boost::mutex shellPoseMutex;
 
 	//===========================================IMU data ==========================================================
 	// data for imu integration
@@ -191,17 +193,6 @@ struct FrameHessian
 
 	// Predicted pose/biases ;
 	gtsam::Velocity3 velocity;
-
-	/**
-	 *
-	 * @param Tbc
-	 * @return NavState in IMU frame (transformation from current frame to world frame)
-	 */
-	gtsam::NavState getNavState(Mat44 &Tbc)
-	{
-		Mat44 cam2WorldIMU = dso_vi::IMUData::convertCamFrame2IMUFrame(shell->camToWorld.inverse().matrix(), Tbc);
-		return gtsam::NavState(gtsam::Pose3(cam2WorldIMU), Vector3::Zero());
-	}
 
 	//SE3 prop_pose;
 
@@ -231,7 +222,7 @@ struct FrameHessian
 	 * @param Rbc
 	 * @return transformation from current frame to last kf
 	 */
-	SE3 PredictPose(FrameHessian* lastkf, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat44 Tbc);
+	SE3 PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat44 Tbc);
 
 
 	//photometric fucitons

@@ -188,34 +188,50 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib, std::vector<ds
 			}
 		}
 	}
-
-
-
 }
 
-SE3 FrameHessian::PredictPose(FrameHessian* lastRef, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat44 Tbc){
+SE3 FrameHessian::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, std::vector<dso_vi::IMUData> mvIMUSinceLastF, Mat44 Tbc){
 
-	// initialize some IMU parameters
-
-	// preintegrate imu data from previous frame
-	double old_timestamp = lastRef->timestamp;
-	for(dso_vi::IMUData  imudata: mvIMUSinceLastKF)
+	for (size_t i = 0; i < mvIMUSinceLastF.size(); i++)
 	{
+		dso_vi::IMUData imudata = mvIMUSinceLastF[i];
+
 		Mat61 rawimudata;
 		rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
 						imudata._g(0), imudata._g(1), imudata._g(2);
-//        rawimudata.head<3>() =  Rbc * rawimudata.head<3>();
-//        rawimudata.tail<3>() =  Rbc * rawimudata.tail<3>();
+
+		double dt = 0;
+		// interpolate readings
+		if (i == mvIMUSinceLastF.size() - 1)
+		{
+			dt = timestamp - imudata._t;
+		}
+		else
+		{
+			dt = mvIMUSinceLastF[i+1]._t - imudata._t;
+		}
+
+		if (i == 0)
+		{
+			// assuming the missing imu reading between the previous frame and first IMU
+			dt += (imudata._t - lastTimestamp);
+		}
+
+		assert(dt >= 0);
+
 		imu_preintegrated_->integrateMeasurement(
 				rawimudata.block<3,1>(0,0),
 				rawimudata.block<3,1>(3,0),
-				imudata._t - old_timestamp
+				dt
 		);
-		old_timestamp = imudata._t;
 	}
 
-	gtsam::NavState ref_pose_imu = lastRef->getNavState(Tbc);
+	gtsam::NavState ref_pose_imu = gtsam::NavState(
+			gtsam::Pose3( dso_vi::IMUData::convertCamFrame2IMUFrame(lastPose.matrix(), Tbc) ),
+			lastVelocity
+	);
 	gtsam::NavState predicted_pose_imu = imu_preintegrated_->predict(ref_pose_imu, bias1);
+
 	Mat44 predicted_pose_camera = dso_vi::IMUData::convertIMUFrame2CamFrame(predicted_pose_imu.pose().matrix(), Tbc);
 	return SE3(predicted_pose_camera);
 }
