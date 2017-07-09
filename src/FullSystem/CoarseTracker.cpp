@@ -375,17 +375,13 @@ Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 {
 	information_imu = newFrame->getIMUcovariance().inverse();
 
-	// relative pose wrt IMU
-	SE3 relativePose(dso_vi::IMUData::convertCamFrame2IMUFrame(
-			previousToNew.inverse().matrix(), fullSystem->getTbc()
-	));
-
 	// useless Jacobians of reference frame (cuz we're not optimizing reference frame)
 	gtsam::Matrix  J_imu_Rt_i, J_imu_v_i;
 	newFrame->velocity << 1, 1, 1;
+
 	// TODO: save pointer to last frame so that you can get its velocity
 	res_imu = newFrame->evaluateIMUerrors(
-			SE3(), Vec3::Zero(), relativePose, newFrame->velocity, lastRef->bias1,
+			SE3(), Vec3::Zero(), previousToNew.inverse(), newFrame->velocity, lastRef->bias1,
 			fullSystem->getTbc(), J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
 	);
 

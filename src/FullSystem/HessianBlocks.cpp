@@ -234,6 +234,14 @@ Vector9 FrameHessian::evaluateIMUerrors(
 			final_cam_2_world.matrix(), Tbc
 	));
 
+	// temporary stuffs
+//	gtsam::Pose3 relative_pose = initial_imu_2_world.inverse().compose(final_imu_2_world);
+//
+//	return imu_factor.evaluateError(
+//			gtsam::Pose3(), initial_velocity, relative_pose, final_velocity, bias,
+//			J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias
+//	);
+
 	return imu_factor.evaluateError(
 			initial_imu_2_world, initial_velocity, final_imu_2_world, final_velocity, bias,
 			J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias
