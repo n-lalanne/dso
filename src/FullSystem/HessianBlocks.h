@@ -191,8 +191,8 @@ struct FrameHessian
 
 	//===========================================IMU data ==========================================================
 	// data for imu integration
-	PreintegrationType *imu_preintegrated_;
-
+	PreintegrationType *imu_preintegrated_last_frame_;
+	PreintegrationType *imu_preintegrated_last_kf_;
 	double timestamp;
 
 	// Predicted pose/biases ;
@@ -205,8 +205,6 @@ struct FrameHessian
 	// Vector3 velocity;
 
     imuBias::ConstantBias bias1;
-
-	boost::shared_ptr<PreintegratedCombinedMeasurements::Params> imuParams;
 
 	// groundtruth measurement
 	dso_vi::GroundTruthIterator::ground_truth_measurement_t groundtruth;
@@ -221,16 +219,14 @@ struct FrameHessian
 	//==========================================IMU related methods==================================================
 	/**
 	 *
-	 * @param lastkf
-	 * @param mvIMUSinceLastKF
-	 * @param Rbc
-	 * @return transformation from current frame to last kf
+	 * @return transformation from current frame to last frame
 	 */
-	SE3 PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, std::vector<dso_vi::IMUData> mvIMUSinceLastKF, Mat44 Tbc);
+	SE3 PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, Mat44 Tbc);
 
 	Mat99 getIMUcovariance();
 	/**
 	 *
+	 * @param J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias: output jacobians
 	 * @return IMU residuals (9x1 vector)
 	 */
 	Vector9 evaluateIMUerrors(
@@ -246,6 +242,13 @@ struct FrameHessian
 			gtsam::Matrix &J_imu_v_j,
 			gtsam::Matrix &J_imu_bias
 	);
+
+	/**
+	 *
+	 * @param mvIMUSinceLastKF
+	 * @param lastTimestamp timestamp of the last frame from which we want the IMU factor to be (for interpolation)
+	 */
+	void updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF, double lastTimestamp);
 
 	//photometric fucitons
 
@@ -333,25 +336,6 @@ struct FrameHessian
 
 		debugImage=0;
 
-        imuParams = PreintegratedCombinedMeasurements::Params::MakeSharedD(0.0);
-
-        Mat33 measured_acc_cov = Mat33::Identity(3,3) * pow(dso_vi::accel_noise_sigma,2);
-        Mat33 measured_omega_cov = Mat33::Identity(3,3) * pow(dso_vi::gyro_noise_sigma,2);
-        Mat33 integration_error_cov = Mat33::Identity(3,3)*1e-8; // error committed in integrating position from velocities
-        Mat33 bias_acc_cov = Mat33::Identity(3,3) * pow(dso_vi::accel_bias_rw_sigma,2);
-        Mat33 bias_omega_cov = Mat33::Identity(3,3) * pow(dso_vi::gyro_bias_rw_sigma,2);
-        Mat66 bias_acc_omega_int = Mat66::Identity(6,6)*1e-5; // error in the bias used for preintegration
-
-        imuParams->accelerometerCovariance = measured_acc_cov; // acc white noise in continuous
-        imuParams->integrationCovariance = integration_error_cov; // integration uncertainty continuous
-        // should be using 2nd order integration
-        // PreintegratedRotation params:
-        imuParams->gyroscopeCovariance = measured_omega_cov; // gyro white noise in continuous
-        // PreintegrationCombinedMeasurements params:
-        imuParams->biasAccCovariance = bias_acc_cov; // acc bias in continuous
-        imuParams->biasOmegaCovariance = bias_omega_cov; // gyro bias in continuous
-        imuParams->biasAccOmegaInt = bias_acc_omega_int;
-
         gtsam::Vector3 gyroBias(-0.002153, 0.020744, 0.075806);
         gtsam::Vector3 acceleroBias(-0.013337, 0.103464, 0.093086);
         gtsam::imuBias::ConstantBias biasPrior(acceleroBias, gyroBias);
@@ -359,9 +343,11 @@ struct FrameHessian
 		bias1 = biasPrior;
 
 #ifdef USE_COMBINED
-		imu_preintegrated_ = new PreintegratedCombinedMeasurements(imuParams, bias1);
+		imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(boost::shared_ptr<PreintegratedCombinedMeasurements::Params>(dso_vi::imuParams), bias1);
+		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(boost::shared_ptr<PreintegratedCombinedMeasurements::Params>(dso_vi::imuParams), bias1);
 #else
-		imu_preintegrated_ = new PreintegratedImuMeasurements(imuParams, biasPrior);
+		imu_preintegrated_last_frame_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), biasPrior);
+		imu_preintegrated_last_kf_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), biasPrior);
 #endif
 
 

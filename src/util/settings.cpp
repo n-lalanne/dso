@@ -24,7 +24,10 @@
 
 
 #include "util/settings.h"
+#include "util/NumType.h"
 #include <boost/bind.hpp>
+
+using namespace dso;
 
 namespace dso_vi
 {
@@ -32,6 +35,35 @@ namespace dso_vi
 	double gyro_noise_sigma = 0.000205689024915;
 	double accel_bias_rw_sigma = 0.004905;
 	double gyro_bias_rw_sigma = 0.000001454441043;
+	boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> imuParams;
+
+	void initializeIMUParams()
+	{
+		imuParams = gtsam::PreintegratedCombinedMeasurements::Params::MakeSharedD(0.0);
+		Mat33 measured_acc_cov = Mat33::Identity(3,3) * pow(dso_vi::accel_noise_sigma,2);
+		Mat33 measured_omega_cov = Mat33::Identity(3,3) * pow(dso_vi::gyro_noise_sigma,2);
+		Mat33 integration_error_cov = Mat33::Identity(3,3)*1e-8; // error committed in integrating position from velocities
+		Mat33 bias_acc_cov = Mat33::Identity(3,3) * pow(dso_vi::accel_bias_rw_sigma,2);
+		Mat33 bias_omega_cov = Mat33::Identity(3,3) * pow(dso_vi::gyro_bias_rw_sigma,2);
+		Mat66 bias_acc_omega_int = Mat66::Identity(6,6)*1e-5; // error in the bias used for preintegration
+
+		imuParams->accelerometerCovariance = measured_acc_cov; // acc white noise in continuous
+		imuParams->integrationCovariance = integration_error_cov; // integration uncertainty continuous
+		// should be using 2nd order integration
+		// PreintegratedRotation params:
+		imuParams->gyroscopeCovariance = measured_omega_cov; // gyro white noise in continuous
+		// PreintegrationCombinedMeasurements params:
+		imuParams->biasAccCovariance = bias_acc_cov; // acc bias in continuous
+		imuParams->biasOmegaCovariance = bias_omega_cov; // gyro bias in continuous
+		imuParams->biasAccOmegaInt = bias_acc_omega_int;
+		imuParams->biasAccOmegaInt = bias_acc_omega_int;
+		imuParams->biasAccOmegaInt = bias_acc_omega_int;
+	}
+
+	boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getIMUParams()
+	{
+		return boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params>(imuParams);
+	}
 } //namespace dso_vi
 
 namespace dso

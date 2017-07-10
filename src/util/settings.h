@@ -28,6 +28,10 @@
 #include <string.h>
 #include <string>
 #include <cmath>
+#include <gtsam/navigation/CombinedImuFactor.h>
+#include <gtsam/navigation/ImuFactor.h>
+#include <gtsam/slam/BetweenFactor.h>
+#include <gtsam/slam/PriorFactor.h>
 
 namespace  dso_vi
 {
@@ -35,7 +39,11 @@ namespace  dso_vi
     extern double gyro_noise_sigma;
     extern double accel_bias_rw_sigma;
     extern double gyro_bias_rw_sigma;
+    extern boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> imuParams;
+    boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getIMUParams();
+    void initializeIMUParams();
 } // namespace dso_vi
+
 namespace dso
 {
 #define SOLVER_SVD (int)1

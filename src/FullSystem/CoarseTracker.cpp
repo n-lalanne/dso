@@ -308,7 +308,6 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 	__m128 one = _mm_set1_ps(1);
 	__m128 minusOne = _mm_set1_ps(-1);
 	__m128 zero = _mm_set1_ps(0);
-//    newFrame->imu_preintegrated_->computeErrorAndJacobians()
 
 	int n = buf_warped_n;
 	assert(n%4==0);

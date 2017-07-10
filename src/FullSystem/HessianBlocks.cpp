@@ -192,9 +192,10 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib, std::vector<ds
 
 Mat99 FrameHessian::getIMUcovariance()
 {
-	PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_);
+	PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_last_frame_);
 	return preint_imu->preintMeasCov().inverse();
 }
+
 Vector9 FrameHessian::evaluateIMUerrors(
 		SE3 initial_cam_2_world,
 		Vec3 initial_velocity,
@@ -209,7 +210,7 @@ Vector9 FrameHessian::evaluateIMUerrors(
 		gtsam::Matrix &J_imu_bias
 )
 {
-	PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_);
+	PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_last_frame_);
 
 	ImuFactor imu_factor(X(0), V(0),
 						 X(1), V(1),
@@ -247,15 +248,16 @@ Vector9 FrameHessian::evaluateIMUerrors(
 			J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias
 	);
 }
-SE3 FrameHessian::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, std::vector<dso_vi::IMUData> mvIMUSinceLastF, Mat44 Tbc){
 
+void FrameHessian::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF, double lastTimestamp)
+{
 	for (size_t i = 0; i < mvIMUSinceLastF.size(); i++)
 	{
 		dso_vi::IMUData imudata = mvIMUSinceLastF[i];
 
 		Mat61 rawimudata;
 		rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
-						imudata._g(0), imudata._g(1), imudata._g(2);
+				imudata._g(0), imudata._g(1), imudata._g(2);
 
 		double dt = 0;
 		// interpolate readings
@@ -276,18 +278,22 @@ SE3 FrameHessian::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimest
 
 		assert(dt >= 0);
 
-		imu_preintegrated_->integrateMeasurement(
+		imu_preintegrated_last_frame_->integrateMeasurement(
 				rawimudata.block<3,1>(0,0),
 				rawimudata.block<3,1>(3,0),
 				dt
 		);
 	}
+}
 
+
+SE3 FrameHessian::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, Mat44 Tbc)
+{
 	gtsam::NavState ref_pose_imu = gtsam::NavState(
 			gtsam::Pose3( dso_vi::IMUData::convertCamFrame2IMUFrame(lastPose.matrix(), Tbc) ),
 			lastVelocity
 	);
-	gtsam::NavState predicted_pose_imu = imu_preintegrated_->predict(ref_pose_imu, bias1);
+	gtsam::NavState predicted_pose_imu = imu_preintegrated_last_frame_->predict(ref_pose_imu, bias1);
 
 	Mat44 mat_pose_imu = predicted_pose_imu.pose().matrix();
 	if

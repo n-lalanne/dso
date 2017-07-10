@@ -68,7 +68,7 @@ int CalibHessian::instanceCounter=0;
 
 FullSystem::FullSystem()
 {
-
+	dso_vi::initializeIMUParams();
 	int retstat =0;
 	if(setting_logStuff)
 	{
@@ -332,7 +332,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 			//just use the initial pose from IMU
 			//when we determine the last key frame, we will propagate the pose by using the preintegration measurement and the pose of the last key frame
-			SE3 prop_fh_2_world = fh->PredictPose(slast_2_world, slast_velocity, slast_timestamp, mvIMUSinceLastF, getTbc());
+			SE3 prop_fh_2_world = fh->PredictPose(slast_2_world, slast_velocity, slast_timestamp, getTbc());
 			SE3 prop_lastF_2_fh_r = prop_fh_2_world.inverse() * lastF_2_world;
 			SE3 prop_slast_2_fh = prop_fh_2_world.inverse() * slast_2_world;
 
@@ -985,13 +985,17 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
     allFrameHistory.push_back(shell);
 
 	//============================ accumulate  IMU data=====================================
-	fh->timestamp = ftimestamp;
 
 	mvIMUSinceLastF.clear();
 	for(dso_vi::IMUData rawimudata : vimuData)
 	{
 		mvIMUSinceLastKF.push_back(rawimudata);
 		mvIMUSinceLastF.push_back(rawimudata);
+	}
+
+	if (initialized && allFrameHistory.size() > 1)
+	{
+		fh->updateIMUmeasurements(mvIMUSinceLastF, allFrameHistory[allFrameHistory.size()-2]->viTimestamp);
 	}
 
 	// =========================== make Images / derivatives etc. =========================

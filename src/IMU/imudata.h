@@ -56,6 +56,7 @@ public:
 //        Tcb.block<3, 1>(0, 3).noalias() = -Tcb.block<3, 3>(0, 0) * Tcb.block<3, 1>(0, 3);
         return Tcb * imuPose * Tbc;
     }
+
 };
 
 }
