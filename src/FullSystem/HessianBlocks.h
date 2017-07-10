@@ -212,8 +212,8 @@ struct FrameHessian
 
 
 	// last keyframe
-	//FrameHessian * lastkf;
-
+	FrameHessian * last_kf;
+	FrameHessian * last_frame;
 
 
 	//==========================================IMU related methods==================================================
@@ -248,7 +248,7 @@ struct FrameHessian
 	 * @param mvIMUSinceLastKF
 	 * @param lastTimestamp timestamp of the last frame from which we want the IMU factor to be (for interpolation)
 	 */
-	void updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF, double lastTimestamp);
+	void updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF);
 
 	//photometric fucitons
 

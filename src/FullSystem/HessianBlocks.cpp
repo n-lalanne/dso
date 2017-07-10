@@ -249,8 +249,48 @@ Vector9 FrameHessian::evaluateIMUerrors(
 	);
 }
 
-void FrameHessian::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF, double lastTimestamp)
+void FrameHessian::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF)
 {
+	double lastTimestamp;
+
+	// IMU factors from the keyframe to last frame
+	std::vector<PreintegrationType*> keyframe2LastFrameFactors;
+
+	{
+		// lock on shell for consistency!
+		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+		lastTimestamp = last_frame->shell->viTimestamp;
+
+		std::cout << "last frame/keyframe: " <<  last_frame->shell->id << ", " << last_kf->shell->id << std::endl;
+		if (last_frame->last_kf && last_frame->last_kf->shell->id == last_kf->shell->id)
+		{
+			// KF hasn't changed, get the preintegrated values since the last KF from last frame
+			keyframe2LastFrameFactors.push_back(last_frame->imu_preintegrated_last_kf_);
+			std::cout << "IMU measurements: integrating till keyframe " << last_frame->shell->id << std::endl;
+		}
+		else
+		{
+			std::cout << "IMU measurements: integrating frames ";
+			// integrate all the imu factors between previous keyframe and previous frame
+			// need to to this in reverse order first because we only have pointers to previous frame, not previous keyframe
+			for
+			(
+					FrameHessian *previousFramePointer = last_frame;
+					previousFramePointer->shell->id > last_kf->shell->id;
+					previousFramePointer = previousFramePointer->last_frame
+			)
+			{
+				std::cout << previousFramePointer->shell->id << ", ";
+				keyframe2LastFrameFactors.push_back(previousFramePointer->imu_preintegrated_last_frame_);
+				// make sure that the frame ids are going down
+				assert(previousFramePointer->shell->id > previousFramePointer->last_frame->shell->id);
+			}
+			// reverse to get in right order (new keyframe to previous frame)
+			std::reverse(keyframe2LastFrameFactors.begin(), keyframe2LastFrameFactors.end());
+			std::cout << std::endl;
+		}
+	}
+
 	for (size_t i = 0; i < mvIMUSinceLastF.size(); i++)
 	{
 		dso_vi::IMUData imudata = mvIMUSinceLastF[i];
@@ -284,6 +324,15 @@ void FrameHessian::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSince
 				dt
 		);
 	}
+
+	Matrix9 H1, H2;
+
+	for (PreintegrationType *&intermediate_factor: keyframe2LastFrameFactors)
+	{
+		imu_preintegrated_last_kf_->mergeWith(*intermediate_factor, &H1, &H2);
+	}
+
+	imu_preintegrated_last_kf_->mergeWith(*imu_preintegrated_last_frame_, &H1, &H2);
 }
 
 

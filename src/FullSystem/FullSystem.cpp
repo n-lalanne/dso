@@ -986,16 +986,25 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 
 	//============================ accumulate  IMU data=====================================
 
-	mvIMUSinceLastF.clear();
+	mvIMUSinceLastF = vimuData;
 	for(dso_vi::IMUData rawimudata : vimuData)
 	{
 		mvIMUSinceLastKF.push_back(rawimudata);
-		mvIMUSinceLastF.push_back(rawimudata);
 	}
 
-	if (initialized && allFrameHistory.size() > 1)
 	{
-		fh->updateIMUmeasurements(mvIMUSinceLastF, allFrameHistory[allFrameHistory.size()-2]->viTimestamp);
+		boost::unique_lock<boost::mutex> crlock(coarseTrackerSwapMutex);
+		fh->last_kf = (coarseTracker_forNewKF->refFrameID > coarseTracker->refFrameID) ? coarseTracker_forNewKF->lastRef
+																					   : coarseTracker->lastRef;
+	}
+
+	if (allFrameHistory.size() > 1)
+	{
+		fh->last_frame = allFrameHistory[allFrameHistory.size()-2]->correspondingfh;
+		if (fh->last_kf)
+		{
+			fh->updateIMUmeasurements(mvIMUSinceLastF);
+		}
 	}
 
 	// =========================== make Images / derivatives etc. =========================
@@ -1372,6 +1381,8 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
     //printEigenValLine();
 
 // 	=========================== Clear the IMU buffer for next round ===========
+	// This is wrong. The new keyframe will not be the current frame, but something between the previous keyframe and the current frame
+	// Hence, the IMU measurements since last keyframe is not empty
 	mvIMUSinceLastKF.clear();
 }
 
