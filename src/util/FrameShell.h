@@ -26,6 +26,18 @@
 
 #include "util/NumType.h"
 #include "algorithm"
+#include "util/settings.h"
+
+// Need to add IMU data for each frame
+#include "IMU/imudata.h"
+#include "GroundTruthIterator/GroundTruthIterator.h"
+
+using gtsam::symbol_shorthand::X; // Pose3 (x,y,z,r,p,y)
+using gtsam::symbol_shorthand::V; // Vel   (xdot,ydot,zdot)
+using gtsam::symbol_shorthand::B; // Bias  (ax,ay,az,gx,gy,gz)
+
+using namespace dso;
+using namespace gtsam;
 
 namespace dso
 {
@@ -44,7 +56,6 @@ public:
 	// set once after tracking
 	SE3 camToTrackingRef;
 	FrameShell* trackingRef;
-    FrameHessian* correspondingfh;
 
 	// constantly adapted.
 	SE3 camToWorld;				// Write: TRACKING, while frame is still fresh; MAPPING: only when locked [shellPoseMutex].
@@ -57,6 +68,28 @@ public:
 	int marginalizedAt;
 	double movedByOpt;
 
+	//===========================================IMU data ==========================================================
+	// data for imu integration
+	PreintegrationType *imu_preintegrated_last_frame_;
+	PreintegrationType *imu_preintegrated_last_kf_;
+
+	// Predicted pose/biases ;
+	gtsam::Velocity3 velocity;
+
+	//SE3 prop_pose;
+
+	// the pose of the frame
+	// Pose3 pose;
+	// Vector3 velocity;
+
+	imuBias::ConstantBias bias;
+
+	// groundtruth measurement
+	dso_vi::GroundTruthIterator::ground_truth_measurement_t groundtruth;
+
+	// last keyframe
+	FrameShell * last_kf;
+	FrameShell * last_frame;
 
 	inline FrameShell()
 	{
@@ -69,7 +102,55 @@ public:
 		statistics_outlierResOnThis=statistics_goodResOnThis=0;
 		trackingRef=0;
 		camToTrackingRef = SE3();
+
+		gtsam::Vector3 gyroBias(-0.002153, 0.020744, 0.075806);
+		gtsam::Vector3 acceleroBias(-0.013337, 0.103464, 0.093086);
+		gtsam::imuBias::ConstantBias biasPrior(acceleroBias, gyroBias);
+
+		bias = biasPrior;
+
+#ifdef USE_COMBINED
+		imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(boost::shared_ptr<PreintegratedCombinedMeasurements::Params>(dso_vi::imuParams), bias1);
+		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(boost::shared_ptr<PreintegratedCombinedMeasurements::Params>(dso_vi::imuParams), bias1);
+#else
+		imu_preintegrated_last_frame_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), biasPrior);
+		imu_preintegrated_last_kf_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), biasPrior);
+#endif
 	}
+
+	//==========================================IMU related methods==================================================
+	/**
+	 *
+	 * @return transformation from current frame to last frame
+	 */
+	SE3 PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, Mat44 Tbc);
+
+	Mat99 getIMUcovariance();
+	/**
+	 *
+	 * @param J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias: output jacobians
+	 * @return IMU residuals (9x1 vector)
+	 */
+	Vector9 evaluateIMUerrors(
+			SE3 initial_cam_2_world,
+			Vec3 initial_velocity,
+			SE3 final_cam_2_world,
+			Vec3 final_velocity,
+			gtsam::imuBias::ConstantBias bias,
+			Mat44 Tbc,
+			gtsam::Matrix &J_imu_Rt_i,
+			gtsam::Matrix &J_imu_v_i,
+			gtsam::Matrix &J_imu_Rt_j,
+			gtsam::Matrix &J_imu_v_j,
+			gtsam::Matrix &J_imu_bias
+	);
+
+	/**
+	 *
+	 * @param mvIMUSinceLastKF
+	 * @param lastTimestamp timestamp of the last frame from which we want the IMU factor to be (for interpolation)
+	 */
+	void updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF);
 };
 
 

@@ -350,11 +350,11 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 
 	Mat33 information_r = information_imu.block<3, 3>(6, 6).inverse();
 
-	H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
-	b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
-
-	//H_out.block<3,3>(0,0) += H_imu_rot;
-	//b_out.segment<3>(0) += b_imu_rot;
+//	H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
+//	b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
+//
+//	H_out.block<3,3>(0,0) += H_imu_rot;
+//	b_out.segment<3>(0) += b_imu_rot;
 
 	H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
 	H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;
@@ -372,15 +372,15 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 
 Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 {
-	information_imu = newFrame->getIMUcovariance().inverse();
+	information_imu = newFrame->shell->getIMUcovariance().inverse();
 
 	// useless Jacobians of reference frame (cuz we're not optimizing reference frame)
 	gtsam::Matrix  J_imu_Rt_i, J_imu_v_i;
-	newFrame->velocity << 1, 1, 1;
+	newFrame->shell->velocity << 1, 1, 1;
 
 	// TODO: save pointer to last frame so that you can get its velocity
-	res_imu = newFrame->evaluateIMUerrors(
-			SE3(), Vec3::Zero(), previousToNew.inverse(), newFrame->velocity, lastRef->bias1,
+	res_imu = newFrame->shell->evaluateIMUerrors(
+			SE3(), Vec3::Zero(), previousToNew.inverse(), newFrame->shell->velocity, lastRef->shell->bias,
 			fullSystem->getTbc(), J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
 	);
 
