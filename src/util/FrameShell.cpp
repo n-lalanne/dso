@@ -3,7 +3,7 @@
 Mat99 FrameShell::getIMUcovariance()
 {
     PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_last_frame_);
-    return preint_imu->preintMeasCov().inverse();
+    return preint_imu->preintMeasCov();
 }
 
 Vector9 FrameShell::evaluateIMUerrors(
@@ -62,39 +62,39 @@ Vector9 FrameShell::evaluateIMUerrors(
 void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF)
 {
     // IMU factors from the keyframe to last frame
-//    std::vector<PreintegrationType*> keyframe2LastFrameFactors;
-//
-//    std::cout << "last frame/keyframe: " <<  last_frame->id << ", " << last_kf->id << std::endl;
-//    std::cout << "Frame ID: " << id << std::endl;
-//    if (id > last_kf->id + 1)
-//    { // only if the last kf is not the previous frame
-//        if (last_frame->last_kf && last_frame->last_kf->id == last_kf->id)
-//        {
-//            // KF hasn't changed, get the preintegrated values since the last KF from last frame
-//            keyframe2LastFrameFactors.push_back(last_frame->imu_preintegrated_last_kf_);
-//            std::cout << "IMU measurements: integrating till keyframe of " << last_frame->id << std::endl;
-//        }
-//        else
-//        {
-//            std::cout << "IMU measurements: integrating frames ";
-//            // integrate all the imu factors between previous keyframe and previous frame
-//            // need to to this in reverse order first because we only have pointers to previous frame, not previous keyframe
-//            for (
-//                    FrameShell *previousFramePointer = last_frame;
-//                    previousFramePointer->id > last_kf->id;
-//                    previousFramePointer = previousFramePointer->last_frame
-//                )
-//            {
-//                std::cout << previousFramePointer->id << ", ";
-//                keyframe2LastFrameFactors.push_back(previousFramePointer->imu_preintegrated_last_frame_);
-//                // make sure that the frame ids are going down
-//                assert(previousFramePointer->->id > previousFramePointer->last_frame->id);
-//            }
-//            // reverse to get in right order (new keyframe to previous frame)
-//            std::reverse(keyframe2LastFrameFactors.begin(), keyframe2LastFrameFactors.end());
-//            std::cout << std::endl;
-//        }
-//    }
+    std::vector<PreintegrationType*> keyframe2LastFrameFactors;
+
+    std::cout << "last frame/keyframe: " <<  last_frame->id << ", " << last_kf->id << std::endl;
+    std::cout << "Frame ID: " << id << std::endl;
+    if (id > last_kf->id + 1)
+    { // only if the last kf is not the previous frame
+        if (last_frame->last_kf && last_frame->last_kf->id == last_kf->id)
+        {
+            // KF hasn't changed, get the preintegrated values since the last KF from last frame
+            keyframe2LastFrameFactors.push_back(last_frame->imu_preintegrated_last_kf_);
+            std::cout << "IMU measurements: integrating till keyframe of " << last_frame->id << std::endl;
+        }
+        else
+        {
+            std::cout << "IMU measurements: integrating frames ";
+            // integrate all the imu factors between previous keyframe and previous frame
+            // need to to this in reverse order first because we only have pointers to previous frame, not previous keyframe
+            for (
+                    FrameShell *previousFramePointer = last_frame;
+                    previousFramePointer->id > last_kf->id;
+                    previousFramePointer = previousFramePointer->last_frame
+                )
+            {
+                std::cout << previousFramePointer->id << ", ";
+                keyframe2LastFrameFactors.push_back(previousFramePointer->imu_preintegrated_last_frame_);
+                // make sure that the frame ids are going down
+                assert(previousFramePointer->id > previousFramePointer->last_frame->id);
+            }
+            // reverse to get in right order (new keyframe to previous frame)
+            std::reverse(keyframe2LastFrameFactors.begin(), keyframe2LastFrameFactors.end());
+            std::cout << std::endl;
+        }
+    }
 
     printf("Between: %.7f, %.7f", last_frame->viTimestamp, viTimestamp);
     std::cout << "IMU count: " << mvIMUSinceLastF.size() << std::endl;
@@ -125,7 +125,11 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
 
         assert(dt >= 0);
 
-        printf("%.7f: %f\n", imudata._t, dt);
+        //printf("%.7f: %f\n", imudata._t, dt);
+
+        mIMUPreInt.update(rawimudata.block<3,1>(3,0),
+                          rawimudata.block<3,1>(0,0),
+                          dt);
 
         imu_preintegrated_last_frame_->integrateMeasurement(
                 rawimudata.block<3,1>(0,0),
@@ -134,14 +138,14 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
         );
     }
 
-//    Matrix9 H1, H2;
-//
-//    for (PreintegrationType *&intermediate_factor: keyframe2LastFrameFactors)
-//    {
-//        imu_preintegrated_last_kf_->mergeWith(*intermediate_factor, &H1, &H2);
-//    }
-//
-//    imu_preintegrated_last_kf_->mergeWith(*imu_preintegrated_last_frame_, &H1, &H2);
+    Matrix9 H1, H2;
+
+    for (PreintegrationType *&intermediate_factor: keyframe2LastFrameFactors)
+    {
+        imu_preintegrated_last_kf_->mergeWith(*intermediate_factor, &H1, &H2);
+    }
+
+    imu_preintegrated_last_kf_->mergeWith(*imu_preintegrated_last_frame_, &H1, &H2);
 }
 
 

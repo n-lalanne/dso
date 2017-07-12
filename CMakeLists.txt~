@@ -70,7 +70,7 @@ set(dso_SOURCE_FILES
   # VI
   ${PROJECT_SOURCE_DIR}/src/IMU/imudata.cpp
   ${PROJECT_SOURCE_DIR}/src/IMU/configparam.cpp
-  ${PROJECT_SOURCE_DIR}/src/IMU/Preintegrator.cpp
+  $${PROJECT_SOURCE_DIR}/src/IMU/Preintegrator.cpp
 
   # Groundtruth 
   ${PROJECT_SOURCE_DIR}/src/GroundTruthIterator/GroundTruthIterator.cpp

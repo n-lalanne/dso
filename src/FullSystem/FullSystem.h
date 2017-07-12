@@ -314,6 +314,9 @@ private:
 	void makeNonKeyFrame( FrameHessian* fh);
 	void deliverTrackedFrame(FrameHessian* fh, bool needKF);
 	void mappingLoop();
+    void solveGyroscopeBias();
+    void solveGyroscopeBiasbyGTSAM();
+
 
 	// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
 	boost::mutex trackMapSyncMutex;
@@ -326,7 +329,8 @@ private:
 	bool needToKetchupMapping;
 
 	int lastRefStopID;
-
+    int viframe=0;
+    bool IMUinitialized = false;
 	//gravity respect to inertial frame
 	Vec3b gravity;
 

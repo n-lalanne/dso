@@ -43,6 +43,7 @@
 #include "FullSystem/PixelSelector2.h"
 #include "FullSystem/ResidualProjections.h"
 #include "FullSystem/ImmaturePoint.h"
+#include "IMU/Preintegrator.h"
 
 #include "FullSystem/CoarseTracker.h"
 #include "FullSystem/CoarseInitializer.h"
@@ -993,6 +994,178 @@ void FullSystem::flagPointsForRemoval()
 
 }
 
+void FullSystem::solveGyroscopeBiasbyGTSAM()
+{
+	int WINDOW_SIZE = 20;
+
+	for (int iter_idx = 0; iter_idx < 6; iter_idx++)
+	{
+		Mat33 A;
+		Vec3 b;
+		Vec3 delta_bg;
+		A.setZero();
+		b.setZero();
+		for (int index_i = allKeyFramesHistory.size() - 1;
+			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE; index_i--)
+		{
+			Mat33 resR;
+			FrameShell *frame_i = allKeyFramesHistory[index_i - 1];
+			FrameShell *frame_j = allKeyFramesHistory[index_i];
+			SE3 Ti = frame_i->camToWorld;
+			SE3 Tj = frame_j->camToWorld;
+			SE3 Tij = frame_i->camToWorld.inverse() * frame_j->camToWorld;
+			Mat33 Ri = dso_vi::IMUData::convertCamFrame2IMUFrame(Ti.matrix(), getTbc()).block<3, 3>(0, 0);
+			Mat33 Rj = dso_vi::IMUData::convertCamFrame2IMUFrame(Tj.matrix(), getTbc()).block<3, 3>(0, 0);
+			Mat33 R_ij = Ri.inverse() * Rj;
+
+			Mat33 tmp_A(3, 3);
+			tmp_A.setZero();
+			Vec3 tmp_b(3);
+			tmp_b.setZero();
+
+			//============================================for the jacobian of rotation=================================================
+			PreintegratedImuMeasurements *preint_imu = dynamic_cast<PreintegratedImuMeasurements *>(frame_j->imu_preintegrated_last_kf_);
+			ImuFactor imu_factor(X(0), V(0),
+								 X(1), V(1),
+								 B(0),
+								 *preint_imu);
+
+			// relative pose wrt IMU
+			gtsam::Pose3 relativePose(dso_vi::IMUData::convertCamFrame2IMUFrame(Tij.matrix(), getTbc()));
+
+			gtsam::Vector3 velocity;
+			velocity << 0, 0, 0;
+
+			Values initial_values;
+			initial_values.insert(X(0), gtsam::Pose3::identity());
+			initial_values.insert(V(0), gtsam::zero(3));
+			initial_values.insert(B(0), frame_i->bias);
+			initial_values.insert(X(1), relativePose);
+			initial_values.insert(V(1), velocity);
+
+			//boost::shared_ptr<GaussianFactor> linearFactor =
+			imu_factor.linearize(initial_values);
+			// useless Jacobians of reference frame (cuz we're not optimizing reference frame)
+			gtsam::Matrix J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias;
+			Vector9 res_imu = imu_factor.evaluateError(
+					gtsam::Pose3::identity(), gtsam::zero(3), relativePose, velocity, frame_i->bias,
+					J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
+			);
+			//=======================================================================================================================
+
+			tmp_A = J_imu_bias.block<3, 3>(0, 3);
+			tmp_A = tmp_A;
+//			std::cout << "J_imu_bias bg =  \n" << J_imu_bias << std::endl;
+//			std::cout << "J_imu_bias bg =  " << std::endl << tmp_A << std::endl;
+			tmp_b = res_imu.block<3, 1>(0, 0);
+//			std::cout << "the realtive rotation se3 is :\n" << tmp_b << std::endl;
+			A += tmp_A.transpose() * tmp_A;
+			b -= tmp_A.transpose() * tmp_b;
+
+		}
+		delta_bg = A.ldlt().solve(b);
+
+		Vec6 agbias;
+		agbias.setZero();
+		agbias.tail<3>() = delta_bg;
+		for (int index_i = allKeyFramesHistory.size() - 1;
+			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE; index_i--)
+		{
+			FrameShell *frame_i = allKeyFramesHistory[index_i];
+			frame_i->bias = frame_i->bias + agbias;
+			frame_i->imu_preintegrated_last_kf_->biasCorrectedDelta(frame_i->bias);
+		}
+
+//		std::cout << "\"gyroscope bias initial calibration::::::; " << delta_bg.transpose() << std::endl;
+		std::cout << "\"gyroscope bias initial calibration::::::; " << allKeyFramesHistory.back()->bias.gyroscope().transpose() << std::endl;
+
+
+	}
+	IMUinitialized = true;
+}
+
+
+void FullSystem::solveGyroscopeBias()
+{
+	int WINDOW_SIZE = 20;
+	Mat33 A;
+	Vec3 b;
+	Vec3 delta_bg;
+	A.setZero();
+	b.setZero();
+	for (int index_i = allFrameHistory.size()-1; index_i >= allFrameHistory.size()-WINDOW_SIZE ; index_i--)
+	{
+		Mat33 resR;
+		FrameShell* frame_i = allFrameHistory[index_i-1];
+		FrameShell* frame_j = allFrameHistory[index_i];
+		SE3 Ti = frame_i->camToWorld;
+		SE3 Tj = frame_j->camToWorld;
+		SE3 Tij =  frame_i->camToWorld * frame_j->camToWorld.inverse();
+
+
+		Mat33 tmp_A(3, 3);
+		tmp_A.setZero();
+		Vec3 tmp_b(3);
+		tmp_b.setZero();
+
+		//========================================= jacobian implementation without GTSAM===========================================
+		Mat33 dRbij;
+		Mat33 J_dR_bg;
+
+		dRbij = frame_j->mIMUPreInt.getDeltaR();
+		J_dR_bg = frame_j->mIMUPreInt.getJPBiasg();
+		Mat33 Rcwi = Ti.matrix().block<3,3>(0,0);
+		Mat33 Rwci = Rcwi.inverse();
+		Mat33 Rwbi = Rwci * getRbc().inverse();
+
+		std::cout<< "\"dRbij: \n"<< dRbij<<std::endl;
+		std::cout<< "\"J_dR_bg: \n"<< J_dR_bg<<std::endl;
+
+		std::cout<< "\"Rcwi: \n"<< Rcwi<<std::endl;
+		std::cout<< "\"Rwci: \n"<< Rwci<<std::endl;
+		std::cout<< "\"Rwbi: \n"<< Rwbi<<std::endl;
+
+		Mat33 Rcwj = Tj.matrix().block<3,3>(0,0);
+		Mat33 Rwcj = Rcwj.inverse();
+		Mat33 Rwbj = Rwcj * getRbc().inverse();
+
+		std::cout<< "\"Rcwj: \n"<< Rcwj<<std::endl;
+		std::cout<< "\"Rwcj: \n"<< Rwcj<<std::endl;
+		std::cout<< "\"Rwbj: \n"<< Rwbj<<std::endl;
+
+		//============================================for the jacobian of rotation=================================================
+		//frame_j->imu_preintegrated_last_frame_->computeErrorAndJacobians(pose_i,vel_i,pose_j,vel_j,bias_i,)
+		SO3 errR(dRbij.transpose() * Rwbi.transpose() * Rwbj);
+		Mat33 Jlinv = dso_vi::JacobianRInv(errR.log());
+
+		std::cout<< "\"Jlinv: \n"<< Jlinv<<std::endl;
+		tmp_A = - Jlinv * J_dR_bg;
+
+		Mat33 dRbg = Sophus::SO3::exp(J_dR_bg * frame_j->bias.gyroscope()).matrix();
+		SO3 errR1((dRbij * dRbg ) * dRbij.transpose() * Rwbi.transpose() * Rwbj);
+		tmp_b = errR1.log();
+		std::cout<< "\"Jacobian: \n"<< tmp_A<<std::endl;
+		std::cout<< "\"gyro error: \n"<< tmp_b<<std::endl;
+
+
+		A += tmp_A.transpose() * tmp_A;
+		b -= tmp_A.transpose() * tmp_b;
+	}
+	delta_bg = A.ldlt().solve(b);
+	std::cout<< "\"gyroscope bias initial calibration "<< delta_bg.transpose()<<std::endl;
+
+	Vec6 agbias;
+	agbias.setZero();
+	agbias.tail<3>() = delta_bg;
+	for (int index_i = allFrameHistory.size()-1; index_i >= allFrameHistory.size()-WINDOW_SIZE ; index_i--)
+	{
+		FrameShell* frame_i = allFrameHistory[index_i];
+		frame_i->bias = frame_i->bias + agbias;
+		frame_i->imu_preintegrated_last_frame_->biasCorrectedDelta(frame_i->bias);
+	}
+	IMUinitialized = true;
+}
+
 
 void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<dso_vi::IMUData> vimuData, double ftimestamp,
 								 dso_vi::ConfigParam &config , dso_vi::GroundTruthIterator::ground_truth_measurement_t groundtruth )
@@ -1000,7 +1173,8 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 
     if(isLost) return;
 	boost::unique_lock<boost::mutex> lock(trackMutex);
-
+	if(!IMUinitialized && allKeyFramesHistory.size() > 50)
+		solveGyroscopeBiasbyGTSAM();
 
 	// =========================== add into allFrameHistory =========================
 	FrameHessian* fh = new FrameHessian();
@@ -1020,6 +1194,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 	mvIMUSinceLastF = vimuData;
 	for(dso_vi::IMUData rawimudata : vimuData)
 	{
+		shell->vimuData.push_back(rawimudata);
 		mvIMUSinceLastKF.push_back(rawimudata);
 	}
 
@@ -1127,6 +1302,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		lock.unlock();
 		deliverTrackedFrame(fh, needToMakeKF);
 		mvIMUSinceLastF.clear();
+		viframe++;
 		return;
 	}
 }

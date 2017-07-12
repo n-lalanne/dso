@@ -27,6 +27,7 @@
 #include "util/NumType.h"
 #include "algorithm"
 #include "util/settings.h"
+#include "IMU/Preintegrator.h"
 
 // Need to add IMU data for each frame
 #include "IMU/imudata.h"
@@ -73,6 +74,12 @@ public:
 	PreintegrationType *imu_preintegrated_last_frame_;
 	PreintegrationType *imu_preintegrated_last_kf_;
 
+    std::vector<dso_vi::IMUData> vimuData;
+
+    dso_vi::IMUPreintegrator mIMUPreInt;
+
+    bool afterinitialized = false;
+
 	// Predicted pose/biases ;
 	gtsam::Velocity3 velocity;
 
@@ -103,7 +110,7 @@ public:
 		trackingRef=0;
 		camToTrackingRef = SE3();
 
-		gtsam::Vector3 gyroBias(-0.002153, 0.020744, 0.075806);
+		gtsam::Vector3 gyroBias(0, 0 ,0);//(-0.002153, 0.020744, 0.075806);
 		gtsam::Vector3 acceleroBias(-0.013337, 0.103464, 0.093086);
 		gtsam::imuBias::ConstantBias biasPrior(acceleroBias, gyroBias);
 
