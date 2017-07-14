@@ -439,13 +439,13 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 				lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
 			}
 
-//			lastF_2_fh_tries.push_back(const_vel_lastF_2_fh);    // assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() *
-//									   lastF_2_slast);    // assume double motion (frame skipped)
-//			lastF_2_fh_tries.push_back(
-//					SE3::exp(fh_2_slast.log() * 0.5).inverse() * lastF_2_slast); // assume half motion.
-//			lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
-//			lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
+			lastF_2_fh_tries.push_back(const_vel_lastF_2_fh);    // assume constant motion.
+			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() *
+									   lastF_2_slast);    // assume double motion (frame skipped)
+			lastF_2_fh_tries.push_back(
+					SE3::exp(fh_2_slast.log() * 0.5).inverse() * lastF_2_slast); // assume half motion.
+			lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
+			lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
 //
 ////			 just try a TON of different initializations (all rotations). In the end,
 ////			 if they don't work they will only be tried on the coarsest level, which is super fast anyway.
@@ -994,10 +994,177 @@ void FullSystem::flagPointsForRemoval()
 
 }
 
+bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
+{
+    Eigen::Vector3d G{0.0, 0.0, 9.8};
+    int n_state = WINDOW_SIZE * 3 + 3 + 1;
+
+    Eigen::MatrixXd A{n_state, n_state};
+    A.setZero();
+    Eigen::VectorXd b{n_state};
+    b.setZero();
+    int firstindex = allKeyFramesHistory.size()-WINDOW_SIZE;
+
+    for (int i = 0; i < WINDOW_SIZE-1; i++)
+    {
+        FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
+        FrameShell *frame_j = allKeyFramesHistory[i+firstindex+1];
+
+        SE3 Twi = frame_i->camToWorld;
+        SE3 Twj = frame_j->camToWorld;
+        SE3 Tij_cam = Twi.inverse() * Twj;
+
+        Eigen::MatrixXd tmp_A(6, 10);
+        tmp_A.setZero();
+        Eigen::VectorXd tmp_b(6);
+        tmp_b.setZero();
+
+        double dt = frame_j->imu_preintegrated_last_frame_->deltaTij();
+
+        tmp_A.block<3, 3>(0, 0) = -dt * Mat33::Identity();
+        tmp_A.block<3, 3>(0, 6) = frame_i->RBW(getTbc()) * dt * dt / 2 * Mat33::Identity();
+        tmp_A.block<3, 1>(0, 9) = frame_i->RBW(getTbc()) * ( frame_j->TWC() - frame_i->TWC()); // / 100
+        tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3);
+        //cout << "delta_p   " << frame_j->second.pre_integration->delta_p.transpose() << endl;
+        tmp_A.block<3, 3>(3, 0) = -Mat33::Identity();
+        tmp_A.block<3, 3>(3, 3) = frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose();
+        tmp_A.block<3, 3>(3, 6) = frame_i->RBW(getTbc()) * dt * Mat33::Identity();
+        tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij();
+        //cout << "delta_v   " << frame_j->second.pre_integration->delta_v.transpose() << endl;
+
+        Mat66 cov_inv;
+        //cov.block<6, 6>(0, 0) = IMU_cov[i + 1];
+        //MatrixXd cov_inv = cov.inverse();
+        cov_inv.setIdentity();
+
+        Eigen::MatrixXd r_A = tmp_A.transpose() * cov_inv * tmp_A;
+        Eigen::VectorXd r_b = tmp_A.transpose() * cov_inv * tmp_b;
+
+        A.block<6, 6>(i * 3, i * 3) += r_A.topLeftCorner<6, 6>();
+        b.segment<6>(i * 3) += r_b.head<6>();
+
+        A.bottomRightCorner<4, 4>() += r_A.bottomRightCorner<4, 4>();
+        b.tail<4>() += r_b.tail<4>();
+
+        A.block<6, 4>(i * 3, n_state - 4) += r_A.topRightCorner<6, 4>();
+        A.block<4, 6>(n_state - 4, i * 3) += r_A.bottomLeftCorner<4, 6>();
+    }
+//    A = A * 1000.0;
+//    b = b * 1000.0;
+    x = A.ldlt().solve(b);
+    double s = x(n_state - 1); // / 100.0;
+    std::cout<<"estimated scale:"<<s<<std::endl;
+    g = x.segment<3>(n_state - 4);
+    std::cout<<" result g.norm:" << g.norm() << " g:" << g.transpose()<<std::endl;
+    //" result g     " << g.norm() << " " << g.transpose());
+    if(fabs(g.norm() - G.norm()) > 1.0 || s < 0)
+    {
+        return false;
+    }
+
+    //RefineGravity(all_image_frame, g, x);
+    s = (x.tail<1>())(0) / 100.0;
+    (x.tail<1>())(0) = s;
+    //ROS_DEBUG("refine estimated scale: %f", s);
+    //ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
+    if(s > 0.0 )
+    {
+        //ROS_DEBUG("initial succ!");
+    }
+    else
+    {
+       //ROS_DEBUG("initial fail");
+        return false;
+    }
+    return true;
+}
+
+MatXX TangentBasis(Vec3 &g0)
+{
+    Vec3 b, c;
+    Vec3 a = g0.normalized();
+    Vec3 tmp(0, 0, 1);
+    if(a == tmp)
+        tmp << 1, 0, 0;
+    b = (tmp - a * (a.transpose() * tmp)).normalized();
+    c = a.cross(b);
+    MatXX bc(3, 2);
+    bc.block<3, 1>(0, 0) = b;
+    bc.block<3, 1>(0, 1) = c;
+    return bc;
+}
+
+void FullSystem::RefineGravity(Vec3 &g, VecX &x)
+{
+    Eigen::Vector3d G{0.0, 0.0, 9.8};
+    Vec3 g0 = g.normalized() * G.norm();
+    Vec3 lx, ly;
+    //VectorXd x;
+    int n_state = WINDOW_SIZE * 3 + 2 + 1;
+
+    Eigen::MatrixXd A{n_state, n_state};
+    A.setZero();
+    Eigen::VectorXd b{n_state};
+    b.setZero();
+
+    for(int k = 0; k < 4; k++)
+    {
+        Eigen::MatrixXd lxly(3, 2);
+        lxly = TangentBasis(g0);
+
+        int firstindex = allKeyFramesHistory.size()-WINDOW_SIZE;
+        for (int i = 0; i < WINDOW_SIZE-1; i++)
+        {
+            FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
+            FrameShell *frame_j = allKeyFramesHistory[i+firstindex+1];
+            Eigen::MatrixXd tmp_A(6, 9);
+            tmp_A.setZero();
+            Eigen::VectorXd tmp_b(6);
+            tmp_b.setZero();
+
+            double dt = frame_j->imu_preintegrated_last_kf_->deltaTij();
+
+
+            tmp_A.block<3, 3>(0, 0) = -dt * Mat33::Identity();
+            tmp_A.block<3, 2>(0, 6) = frame_i->RCW().transpose() * dt * dt / 2 * Mat33::Identity() * lxly;
+            tmp_A.block<3, 1>(0, 8) = frame_i->RCW().transpose() * (frame_j->TCW() - frame_i->TCW()) / 100.0;
+            tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + frame_i->RCW().transpose() * frame_j->RCW() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3) - frame_i->RCW().transpose() * dt * dt / 2 * g0;
+
+            tmp_A.block<3, 3>(3, 0) = -Mat33::Identity();
+            tmp_A.block<3, 3>(3, 3) = frame_i->RCW().transpose() * frame_j->RCW();
+            tmp_A.block<3, 2>(3, 6) = frame_i->RCW().transpose() * dt * Mat33::Identity() * lxly;
+            tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij() - frame_i->RCW().transpose() * dt * Mat33::Identity() * g0;
+
+
+            Mat66 cov_inv;
+            //cov.block<6, 6>(0, 0) = IMU_cov[i + 1];
+            //MatrixXd cov_inv = cov.inverse();
+            cov_inv.setIdentity();
+
+            Eigen::MatrixXd r_A = tmp_A.transpose() * cov_inv * tmp_A;
+            Eigen::VectorXd r_b = tmp_A.transpose() * cov_inv * tmp_b;
+
+            A.block<6, 6>(i * 3, i * 3) += r_A.topLeftCorner<6, 6>();
+            b.segment<6>(i * 3) += r_b.head<6>();
+
+            A.bottomRightCorner<3, 3>() += r_A.bottomRightCorner<3, 3>();
+            b.tail<3>() += r_b.tail<3>();
+
+            A.block<6, 3>(i * 3, n_state - 3) += r_A.topRightCorner<6, 3>();
+            A.block<3, 6>(n_state - 3, i * 3) += r_A.bottomLeftCorner<3, 6>();
+        }
+        A = A * 1000.0;
+        b = b * 1000.0;
+        x = A.ldlt().solve(b);
+        VecX dg = x.segment<2>(n_state - 3);
+        g0 = (g0 + lxly * dg).normalized() * G.norm();
+        //double s = x(n_state - 1);
+    }
+    g = g0;
+}
+
 void FullSystem::solveGyroscopeBiasbyGTSAM()
 {
-	int WINDOW_SIZE = 20;
-
 	for (int iter_idx = 0; iter_idx < 6; iter_idx++)
 	{
 		Mat33 A;
@@ -1174,7 +1341,12 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
     if(isLost) return;
 	boost::unique_lock<boost::mutex> lock(trackMutex);
 	if(!IMUinitialized && allKeyFramesHistory.size() > 50)
+    {
+        Vec3 g;
+        Eigen::VectorXd initialstates;
 		solveGyroscopeBiasbyGTSAM();
+        SolveScale(g, initialstates);
+    }
 
 	// =========================== add into allFrameHistory =========================
 	FrameHessian* fh = new FrameHessian();

@@ -110,7 +110,7 @@ public:
 		trackingRef=0;
 		camToTrackingRef = SE3();
 
-		gtsam::Vector3 gyroBias(0, 0 ,0);//(-0.002153, 0.020744, 0.075806);
+		gtsam::Vector3 gyroBias(0.0 ,0.0 ,0.0);//(-0.002153, 0.020744, 0.075806);
 		gtsam::Vector3 acceleroBias(-0.013337, 0.103464, 0.093086);
 		gtsam::imuBias::ConstantBias biasPrior(acceleroBias, gyroBias);
 
@@ -158,6 +158,30 @@ public:
 	 * @param lastTimestamp timestamp of the last frame from which we want the IMU factor to be (for interpolation)
 	 */
 	void updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF);
+    inline Mat33 RWC()
+    {
+        return camToWorld.matrix().block<3,3>(0,0);
+    }
+
+    inline Vec3 TWC()
+    {
+        return camToWorld.matrix().block<3,1>(0,3);
+    }
+
+    inline Mat33 RCW()
+    {
+        return RWC().transpose();
+    }
+
+    inline Vec3 TCW()
+    {
+        return camToWorld.matrix().inverse().block<3,1>(0,3);
+    }
+
+	inline Mat33 RBW(Matrix44 Tbc)
+	{
+		return Tbc.block<3,3>(0,0) * RCW();
+	}
 };
 
 

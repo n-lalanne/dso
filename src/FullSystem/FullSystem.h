@@ -128,8 +128,7 @@ inline bool eigenTestNan(const MatXX &m, std::string msg)
 	return foundNan;
 }
 
-
-
+MatXX TangentBasis(Vec3 &g0);
 
 
 class FullSystem {
@@ -316,7 +315,8 @@ private:
 	void mappingLoop();
     void solveGyroscopeBias();
     void solveGyroscopeBiasbyGTSAM();
-
+    bool SolveScale(Vec3 &g, Eigen::VectorXd &x);
+    void RefineGravity(Vec3 &g, VecX &x);
 
 	// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
 	boost::mutex trackMapSyncMutex;
@@ -331,6 +331,7 @@ private:
 	int lastRefStopID;
     int viframe=0;
     bool IMUinitialized = false;
+	int WINDOW_SIZE = 30; //just for initializaztion
 	//gravity respect to inertial frame
 	Vec3b gravity;
 
