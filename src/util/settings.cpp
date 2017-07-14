@@ -64,6 +64,7 @@ namespace dso_vi
 	{
 		return boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params>(imuParams);
 	}
+
 } //namespace dso_vi
 
 namespace dso

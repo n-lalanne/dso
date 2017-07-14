@@ -3,7 +3,7 @@
 Mat99 FrameShell::getIMUcovariance()
 {
     PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_last_frame_);
-    return preint_imu->preintMeasCov().inverse();
+    return preint_imu->preintMeasCov();
 }
 
 Vector9 FrameShell::evaluateIMUerrors(

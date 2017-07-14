@@ -348,13 +348,13 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 	J_imu_rot = J_imu_Rt.block<3, 3>(0, 0);
 	r_imu_rot = res_imu.segment(0, 2);
 
-	Mat33 information_r = information_imu.block<3, 3>(6, 6).inverse();
+	Mat33 information_r = Mat33::Identity(); // information_imu.block<3, 3>(6, 6);
 
-//	H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
-//	b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
-//
-//	H_out.block<3,3>(0,0) += H_imu_rot;
-//	b_out.segment<3>(0) += b_imu_rot;
+	H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
+	b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
+
+	H_out.block<3,3>(0,0) += H_imu_rot;
+	b_out.segment<3>(0) += b_imu_rot;
 
 	H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
 	H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;
@@ -387,6 +387,7 @@ Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 	std::cout << "----------------------------------IMU----------------------------------" << std::endl;
 	std::cout << "IMU Error: \n" << res_imu.segment<3>(0).transpose() << std::endl << std::endl;
 	std::cout << "Jacobian: \n" << J_imu_Rt.block<3, 3>(0, 0) << std::endl;
+	std::cout << "Jacobian: \n" << J_imu_Rt_i.block<3, 3>(0, 0) << std::endl;
 	std::cout << "----------------------------------IMU----------------------------------" << std::endl;
 
 	return res_imu;

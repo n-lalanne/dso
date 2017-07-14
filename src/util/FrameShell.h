@@ -110,8 +110,8 @@ public:
 		bias = biasPrior;
 
 #ifdef USE_COMBINED
-		imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(boost::shared_ptr<PreintegratedCombinedMeasurements::Params>(dso_vi::imuParams), bias1);
-		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(boost::shared_ptr<PreintegratedCombinedMeasurements::Params>(dso_vi::imuParams), bias1);
+		imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias1);
+		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias1);
 #else
 		imu_preintegrated_last_frame_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), biasPrior);
 		imu_preintegrated_last_kf_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), biasPrior);
