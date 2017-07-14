@@ -369,39 +369,39 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 					  << std::endl;
 
 			// relative rotation wrt to KF compared to groundtruth
-//			SE3 rotation_error = groundtruth_lastF_2_fh.inverse() * prop_lastF_2_fh;
-//			Quaternion quaternion_error = rotation_error.unit_quaternion();
-//
-//			std::cout << "Rotation KF error imu: " << quaternion_error.x() << ", "
-//					  << quaternion_error.y() << ", "
-//					  << quaternion_error.z()
-//					  << std::endl;
-//
-//			rotation_error = groundtruth_lastF_2_fh.inverse() * const_vel_lastF_2_fh;
-//			quaternion_error = rotation_error.unit_quaternion();
-//			std::cout << "Rotation kF error cvm: " << quaternion_error.x() << ", "
-//					  << quaternion_error.y() << ", "
-//					  << quaternion_error.z()
-//					  << std::endl;
-//
-//			// relative rotation wrt to previous frame compared to groundtruth
-//			SE3 groundtruth_slast_2_fh(dso_vi::IMUData::convertIMUFrame2CamFrame(
-//					fh->shell->groundtruth.pose.inverse().compose(slast->groundtruth.pose).matrix(), getTbc()
-//			));
-//
-//			rotation_error = groundtruth_slast_2_fh.inverse() * prop_slast_2_fh;
-//			quaternion_error = rotation_error.unit_quaternion();
-//			std::cout << "Rotation error imu: " << quaternion_error.x() << ", "
-//					  << quaternion_error.y() << ", "
-//					  << quaternion_error.z()
-//					  << std::endl;
-//
-//			rotation_error = groundtruth_slast_2_fh.inverse() * fh_2_slast.inverse();
-//			quaternion_error = rotation_error.unit_quaternion();
-//			std::cout << "Rotation error cvm : " << quaternion_error.x() << ", "
-//					  << quaternion_error.y() << ", "
-//					  << quaternion_error.z()
-//					  << std::endl;
+			SE3 rotation_error = groundtruth_lastF_2_fh.inverse() * prop_lastF_2_fh;
+			Quaternion quaternion_error = rotation_error.unit_quaternion();
+
+			std::cout << "Rotation KF error imu: " << quaternion_error.x() << ", "
+					  << quaternion_error.y() << ", "
+					  << quaternion_error.z()
+					  << std::endl;
+
+			rotation_error = groundtruth_lastF_2_fh.inverse() * const_vel_lastF_2_fh;
+			quaternion_error = rotation_error.unit_quaternion();
+			std::cout << "Rotation kF error cvm: " << quaternion_error.x() << ", "
+					  << quaternion_error.y() << ", "
+					  << quaternion_error.z()
+					  << std::endl;
+
+			// relative rotation wrt to previous frame compared to groundtruth
+			SE3 groundtruth_slast_2_fh(dso_vi::IMUData::convertIMUFrame2CamFrame(
+					fh->shell->groundtruth.pose.inverse().compose(slast->groundtruth.pose).matrix(), getTbc()
+			));
+
+			rotation_error = groundtruth_slast_2_fh.inverse() * prop_slast_2_fh;
+			quaternion_error = rotation_error.unit_quaternion();
+			std::cout << "Rotation error imu: " << quaternion_error.x() << ", "
+					  << quaternion_error.y() << ", "
+					  << quaternion_error.z()
+					  << std::endl;
+
+			rotation_error = groundtruth_slast_2_fh.inverse() * fh_2_slast.inverse();
+			quaternion_error = rotation_error.unit_quaternion();
+			std::cout << "Rotation error cvm : " << quaternion_error.x() << ", "
+					  << quaternion_error.y() << ", "
+					  << quaternion_error.z()
+					  << std::endl;
 
 			lastF_2_fh_tries.push_back(prop_slast_2_fh * prop_slast_2_fh * lastF_2_slast);    // assume double motion (frame skipped)
 			lastF_2_fh_tries.push_back(
@@ -439,13 +439,13 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 				lastF_2_fh_tries.push_back(prop_lastF_2_fh * SE3(Sophus::Quaterniond(1,rotDelta,rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
 			}
 
-			lastF_2_fh_tries.push_back(const_vel_lastF_2_fh);    // assume constant motion.
-			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() *
-									   lastF_2_slast);    // assume double motion (frame skipped)
-			lastF_2_fh_tries.push_back(
-					SE3::exp(fh_2_slast.log() * 0.5).inverse() * lastF_2_slast); // assume half motion.
-			lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
-			lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
+//			lastF_2_fh_tries.push_back(const_vel_lastF_2_fh);    // assume constant motion.
+//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() *
+//									   lastF_2_slast);    // assume double motion (frame skipped)
+//			lastF_2_fh_tries.push_back(
+//					SE3::exp(fh_2_slast.log() * 0.5).inverse() * lastF_2_slast); // assume half motion.
+//			lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
+//			lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
 //
 ////			 just try a TON of different initializations (all rotations). In the end,
 ////			 if they don't work they will only be tried on the coarsest level, which is super fast anyway.
@@ -996,6 +996,8 @@ void FullSystem::flagPointsForRemoval()
 
 bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 {
+	boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+
     Eigen::Vector3d G{0.0, 0.0, 9.8};
     int n_state = WINDOW_SIZE * 3 + 3 + 1;
 
@@ -1010,28 +1012,49 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
         FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
         FrameShell *frame_j = allKeyFramesHistory[i+firstindex+1];
 
-        SE3 Twi = frame_i->camToWorld;
-        SE3 Twj = frame_j->camToWorld;
-        SE3 Tij_cam = Twi.inverse() * Twj;
-
         Eigen::MatrixXd tmp_A(6, 10);
         tmp_A.setZero();
         Eigen::VectorXd tmp_b(6);
         tmp_b.setZero();
 
-        double dt = frame_j->imu_preintegrated_last_frame_->deltaTij();
+        double dt = frame_j->imu_preintegrated_last_kf_->deltaTij();
+        std::cout<<"estimated dt: "<<dt<<" groundturth dt: "<<frame_j->viTimestamp-frame_i->viTimestamp<<std::endl;
 
         tmp_A.block<3, 3>(0, 0) = -dt * Mat33::Identity();
         tmp_A.block<3, 3>(0, 6) = frame_i->RBW(getTbc()) * dt * dt / 2 * Mat33::Identity();
-        tmp_A.block<3, 1>(0, 9) = frame_i->RBW(getTbc()) * ( frame_j->TWC() - frame_i->TWC()); // / 100
+        tmp_A.block<3, 1>(0, 9) = frame_i->RBW(getTbc()) * ( frame_j->TWC() - frame_i->TWC()) / 100.0;
         tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3);
         //cout << "delta_p   " << frame_j->second.pre_integration->delta_p.transpose() << endl;
         tmp_A.block<3, 3>(3, 0) = -Mat33::Identity();
         tmp_A.block<3, 3>(3, 3) = frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose();
         tmp_A.block<3, 3>(3, 6) = frame_i->RBW(getTbc()) * dt * Mat33::Identity();
         tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij();
-        //cout << "delta_v   " << frame_j->second.pre_integration->delta_v.transpose() << endl;
 
+//		Mat44 fi_TIB = frame_i->groundtruth.pose.matrix();
+//		Mat44 fi_TWC = dso_vi::IMUData::convertIMUFrame2CamFrame(fi_TIB, getTbc());
+//		Mat44 fi_TWB = fi_TWC * getTbc().inverse();
+//		Mat33 fi_RBW = fi_TWB.block<3,3>(0,0).transpose();
+//		Vec3 fi_tWC = fi_TWC.block<3,1>(0,3);
+//
+//		Mat44 fj_TIB = frame_j->groundtruth.pose.matrix();
+//		Mat44 fj_TWC = dso_vi::IMUData::convertIMUFrame2CamFrame(fj_TIB, getTbc());
+//		Mat44 fj_TWB = fj_TWC * getTbc().inverse();
+//		Mat33 fj_RBW = fj_TWB.block<3,3>(0,0).transpose();
+//		Vec3 fj_tWC = fj_TWC.block<3,1>(0,3);
+//
+//
+//		tmp_A.block<3, 3>(0, 0) = -dt * Mat33::Identity();
+//		tmp_A.block<3, 3>(0, 6) = fi_RBW * dt * dt / 2 * Mat33::Identity();
+//		tmp_A.block<3, 1>(0, 9) = fi_RBW * ( fj_tWC - fi_tWC) / 100.0;
+//		tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + fi_RBW * fj_RBW.transpose() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3);
+//		//cout << "delta_p   " << frame_j->second.pre_integration->delta_p.transpose() << endl;
+//		tmp_A.block<3, 3>(3, 0) = -Mat33::Identity();
+//		tmp_A.block<3, 3>(3, 3) = fi_RBW * fj_RBW.transpose();
+//		tmp_A.block<3, 3>(3, 6) = fi_RBW * dt * Mat33::Identity();
+//		tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij();
+
+        //cout << "delta_v   " << frame_j->second.pre_integration->delta_v.transpose() << endl;
+//        std::cout<<"dt:\n"<<dt<<"\ntem_A: \n"<<tmp_A<<"\ntem_b:\n"<<tmp_b<<std::endl;
         Mat66 cov_inv;
         //cov.block<6, 6>(0, 0) = IMU_cov[i + 1];
         //MatrixXd cov_inv = cov.inverse();
@@ -1052,7 +1075,7 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 //    A = A * 1000.0;
 //    b = b * 1000.0;
     x = A.ldlt().solve(b);
-    double s = x(n_state - 1); // / 100.0;
+    double s = x(n_state - 1) / 100.0;
     std::cout<<"estimated scale:"<<s<<std::endl;
     g = x.segment<3>(n_state - 4);
     std::cout<<" result g.norm:" << g.norm() << " g:" << g.transpose()<<std::endl;
@@ -1062,9 +1085,36 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
         return false;
     }
 
-    //RefineGravity(all_image_frame, g, x);
+	// compute the gravity direction from groundtruth
+	Mat33 R_b0_bx = dso_vi::IMUData::convertCamFrame2IMUFrame(allKeyFramesHistory[0]->camToWorld.matrix(), getTbc()).block<3,3>(0, 0);
+	Mat33 R_I_bx = allKeyFramesHistory[0]->groundtruth.pose.rotation().matrix();
+	Mat33 R_I_b0 =  R_I_bx * R_b0_bx.transpose();
+
+	Vec3 g_b0 = getRbc() * g;
+	Vec3 g_I = R_I_b0 * g_b0;
+
+	std::cout << "Before refinement Inertial g: " << g_I << std::endl;
+
+	for (int i = 0; i < WINDOW_SIZE-1; i++)
+	{
+		Vec3 velocity = x.segment<3>(i * 3);
+		FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
+		std::cout << "GT v: " << frame_i->groundtruth.velocity.norm() << " calc v: " << velocity.norm() << std::endl;
+	}
+
+
+
+    RefineGravity(g, x);
     s = (x.tail<1>())(0) / 100.0;
     (x.tail<1>())(0) = s;
+
+	for (int i = 0; i < WINDOW_SIZE-1; i++)
+	{
+		Vec3 velocity = x.segment<3>(i * 3);
+		FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
+		std::cout << "GT v: " << frame_i->groundtruth.velocity.norm() << " calc v: " << velocity.norm() << std::endl;
+	}
+
     //ROS_DEBUG("refine estimated scale: %f", s);
     //ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
     if(s > 0.0 )
@@ -1098,7 +1148,6 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
 {
     Eigen::Vector3d G{0.0, 0.0, 9.8};
     Vec3 g0 = g.normalized() * G.norm();
-    Vec3 lx, ly;
     //VectorXd x;
     int n_state = WINDOW_SIZE * 3 + 2 + 1;
 
@@ -1106,6 +1155,8 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
     A.setZero();
     Eigen::VectorXd b{n_state};
     b.setZero();
+	Matrix69 tmp_A;
+	Vec6 tmp_b;
 
     for(int k = 0; k < 4; k++)
     {
@@ -1115,25 +1166,25 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
         int firstindex = allKeyFramesHistory.size()-WINDOW_SIZE;
         for (int i = 0; i < WINDOW_SIZE-1; i++)
         {
+
             FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
             FrameShell *frame_j = allKeyFramesHistory[i+firstindex+1];
-            Eigen::MatrixXd tmp_A(6, 9);
+
             tmp_A.setZero();
-            Eigen::VectorXd tmp_b(6);
+
             tmp_b.setZero();
 
             double dt = frame_j->imu_preintegrated_last_kf_->deltaTij();
 
-
             tmp_A.block<3, 3>(0, 0) = -dt * Mat33::Identity();
-            tmp_A.block<3, 2>(0, 6) = frame_i->RCW().transpose() * dt * dt / 2 * Mat33::Identity() * lxly;
-            tmp_A.block<3, 1>(0, 8) = frame_i->RCW().transpose() * (frame_j->TCW() - frame_i->TCW()) / 100.0;
-            tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + frame_i->RCW().transpose() * frame_j->RCW() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3) - frame_i->RCW().transpose() * dt * dt / 2 * g0;
-
+            tmp_A.block<3, 2>(0, 6) = frame_i->RBW(getTbc()) * dt * dt / 2 * Mat33::Identity()* lxly;
+            tmp_A.block<3, 1>(0, 8) = frame_i->RBW(getTbc()) * ( frame_j->TWC() - frame_i->TWC()) / 100.0;
+            tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3) - frame_i->RBW(getTbc()) * dt * dt / 2 * g0;
+            //cout << "delta_p   " << frame_j->second.pre_integration->delta_p.transpose() << endl;
             tmp_A.block<3, 3>(3, 0) = -Mat33::Identity();
-            tmp_A.block<3, 3>(3, 3) = frame_i->RCW().transpose() * frame_j->RCW();
-            tmp_A.block<3, 2>(3, 6) = frame_i->RCW().transpose() * dt * Mat33::Identity() * lxly;
-            tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij() - frame_i->RCW().transpose() * dt * Mat33::Identity() * g0;
+            tmp_A.block<3, 3>(3, 3) = frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose();
+            tmp_A.block<3, 2>(3, 6) = frame_i->RBW(getTbc()) * dt * Mat33::Identity()* lxly;
+            tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij() - frame_i->RBW(getTbc()) * dt * Mat33::Identity() * g0;
 
 
             Mat66 cov_inv;
@@ -1151,7 +1202,15 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
             b.tail<3>() += r_b.tail<3>();
 
             A.block<6, 3>(i * 3, n_state - 3) += r_A.topRightCorner<6, 3>();
-            A.block<3, 6>(n_state - 3, i * 3) += r_A.bottomLeftCorner<3, 6>();
+			A.block<3, 6>(n_state - 3, i * 3) += r_A.bottomLeftCorner<3, 6>();
+
+//			std::cout << "A: \n" << A << std::endl;
+//			std::cout << "rA: \n" << r_A << std::endl;
+//			std::cout << "i: " << i << " n_state: " << n_state << std::endl;
+//			std::cout << "A_block: \n" << A.block<3, 6>(n_state - 3, i * 3) << std::endl;
+//			std::cout << "rA_block: \n" << r_A.bottomLeftCorner<3, 6>() << std::endl;
+
+//			std::cout<<"goes here!"<<std::endl;
         }
         A = A * 1000.0;
         b = b * 1000.0;
@@ -1159,8 +1218,33 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
         VecX dg = x.segment<2>(n_state - 3);
         g0 = (g0 + lxly * dg).normalized() * G.norm();
         //double s = x(n_state - 1);
+
+		std::cout<<"Refined g: \n"<< g0<<std::endl;
+
+		// compute the gravity direction from groundtruth
+		Mat33 R_b0_bx = dso_vi::IMUData::convertCamFrame2IMUFrame(allKeyFramesHistory[0]->camToWorld.matrix(), getTbc()).block<3,3>(0, 0);
+		Mat33 R_I_bx = allKeyFramesHistory[0]->groundtruth.pose.rotation().matrix();
+		Mat33 R_I_b0 =  R_I_bx * R_b0_bx.transpose();
+
+		Vec3 g_b0 = getRbc() * g0;
+		Vec3 g_I = R_I_b0 * g_b0;
+
+		std::cout << "Final Inertial gravity: " << g_I << std::endl;
     }
     g = g0;
+	gravity = g;
+//    std::cout<<"Refined g: \n"<< g<<std::endl;
+//
+//	// compute the gravity direction from groundtruth
+//    Mat33 R_b0_bx = dso_vi::IMUData::convertCamFrame2IMUFrame(allKeyFramesHistory[0]->camToWorld.matrix(), getTbc()).block<3,3>(0, 0);
+//    Mat33 R_I_bx = allKeyFramesHistory[0]->groundtruth.pose.rotation().matrix();
+//    Mat33 R_I_b0 =  R_I_bx * R_b0_bx.transpose();
+//
+//    Vec3 g_b0 = getRbc() * g;
+//    Vec3 g_I = R_I_b0 * g_b0;
+//
+//    std::cout << "Final Inertial gravity: " << g_I << std::endl;
+
 }
 
 void FullSystem::solveGyroscopeBiasbyGTSAM()
@@ -1235,20 +1319,19 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		Vec6 agbias;
 		agbias.setZero();
 		agbias.tail<3>() = delta_bg;
-		for (int index_i = allKeyFramesHistory.size() - 1;
-			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE; index_i--)
-		{
-			FrameShell *frame_i = allKeyFramesHistory[index_i];
-			frame_i->bias = frame_i->bias + agbias;
-			frame_i->imu_preintegrated_last_kf_->biasCorrectedDelta(frame_i->bias);
-		}
+//		for (int index_i = allKeyFramesHistory.size() - 1;
+//			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE; index_i--)
+//		{
+//			FrameShell *frame_i = allKeyFramesHistory[index_i];
+//			frame_i->bias = frame_i->bias + agbias;
+//			frame_i->imu_preintegrated_last_kf_->biasCorrectedDelta(frame_i->bias);
+//		}
 
 //		std::cout << "\"gyroscope bias initial calibration::::::; " << delta_bg.transpose() << std::endl;
 		std::cout << "\"gyroscope bias initial calibration::::::; " << allKeyFramesHistory.back()->bias.gyroscope().transpose() << std::endl;
 
 
 	}
-	IMUinitialized = true;
 }
 
 
@@ -1340,13 +1423,13 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 
     if(isLost) return;
 	boost::unique_lock<boost::mutex> lock(trackMutex);
-	if(!IMUinitialized && allKeyFramesHistory.size() > 50)
-    {
-        Vec3 g;
-        Eigen::VectorXd initialstates;
-		solveGyroscopeBiasbyGTSAM();
-        SolveScale(g, initialstates);
-    }
+//	if(!IMUinitialized && allKeyFramesHistory.size() > 70)
+//    {
+//        Vec3 g;
+//        Eigen::VectorXd initialstates;
+//		solveGyroscopeBiasbyGTSAM();
+//        if(SolveScale(g, initialstates))IMUinitialized = true;
+//    }
 
 	// =========================== add into allFrameHistory =========================
 	FrameHessian* fh = new FrameHessian();
@@ -1366,7 +1449,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 	mvIMUSinceLastF = vimuData;
 	for(dso_vi::IMUData rawimudata : vimuData)
 	{
-		shell->vimuData.push_back(rawimudata);
+		//shell->vimuData.push_back(rawimudata);
 		mvIMUSinceLastKF.push_back(rawimudata);
 	}
 

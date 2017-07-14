@@ -331,9 +331,9 @@ private:
 	int lastRefStopID;
     int viframe=0;
     bool IMUinitialized = false;
-	int WINDOW_SIZE = 30; //just for initializaztion
+	int WINDOW_SIZE = 50; //just for initializaztion
 	//gravity respect to inertial frame
-	Vec3b gravity;
+	Vec3 gravity;
 
 };
 }

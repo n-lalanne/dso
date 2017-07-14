@@ -110,7 +110,7 @@ public:
 		trackingRef=0;
 		camToTrackingRef = SE3();
 
-		gtsam::Vector3 gyroBias(0.0 ,0.0 ,0.0);//(-0.002153, 0.020744, 0.075806);
+		gtsam::Vector3 gyroBias(-0.002153, 0.020744, 0.075806);
 		gtsam::Vector3 acceleroBias(-0.013337, 0.103464, 0.093086);
 		gtsam::imuBias::ConstantBias biasPrior(acceleroBias, gyroBias);
 

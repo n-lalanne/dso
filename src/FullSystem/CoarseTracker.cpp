@@ -384,10 +384,10 @@ Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 			fullSystem->getTbc(), J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
 	);
 
-	std::cout << "----------------------------------IMU----------------------------------" << std::endl;
-	std::cout << "IMU Error: \n" << res_imu.segment<3>(0).transpose() << std::endl << std::endl;
-	std::cout << "Jacobian: \n" << J_imu_Rt.block<3, 3>(0, 0) << std::endl;
-	std::cout << "----------------------------------IMU----------------------------------" << std::endl;
+//	std::cout << "----------------------------------IMU----------------------------------" << std::endl;
+//	std::cout << "IMU Error: \n" << res_imu.segment<3>(0).transpose() << std::endl << std::endl;
+//	std::cout << "Jacobian: \n" << J_imu_Rt.block<3, 3>(0, 0) << std::endl;
+//	std::cout << "----------------------------------IMU----------------------------------" << std::endl;
 
 	return res_imu;
 }
@@ -540,7 +540,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 	Mat33 information_r = information_imu.block<3, 3>(6, 6);
 	double IMUenergy = imu_error_r.transpose() * information_r * imu_error_r;
 
-	std::cout << "Normalized Residue: " << E / numTermsInE << std::endl;
+//	std::cout << "Normalized Residue: " << E / numTermsInE << std::endl;
 
     //E += IMUenergy;
 //=============================================================================================================
