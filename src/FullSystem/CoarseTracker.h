@@ -101,7 +101,9 @@ private:
 	Vec6 calcResAndGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
 	Vec6 calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToNew, AffLight aff_g2l, float cutoffTH);
 	void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
+	void calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
+	void calcGSSSEst(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 
     // for imu errors
     Vec9 calcIMURes(const SE3 &refToNew);
@@ -117,6 +119,13 @@ private:
 	int pc_n[PYR_LEVELS];
 
 	// warped buffers
+	float* buf_warped_cx;
+	float* buf_warped_cy;
+	float* buf_warped_cz;
+    float* buf_warped_rx;
+    float* buf_warped_ry;
+    float* buf_warped_rz;
+	float* buf_warped_lpc_idepth;
 	float* buf_warped_idepth;
 	float* buf_warped_u;
 	float* buf_warped_v;
@@ -127,6 +136,8 @@ private:
 	float* buf_warped_refColor;
 	int buf_warped_n;
 
+    SE3 camtoimu;
+    SE3 imutocam;
 
     std::vector<float*> ptrToDelete;
 

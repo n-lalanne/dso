@@ -128,8 +128,10 @@ inline bool eigenTestNan(const MatXX &m, std::string msg)
 	return foundNan;
 }
 
-
-
+MatXX TangentBasis(Vec3 &g0);
+Mat33 g2R(const Eigen::Vector3d &g);
+Vec3 R2ypr(const Eigen::Matrix3d &R);
+Mat33 ypr2R(const Vec3 &ypr);
 
 
 class FullSystem {
@@ -314,6 +316,10 @@ private:
 	void makeNonKeyFrame( FrameHessian* fh);
 	void deliverTrackedFrame(FrameHessian* fh, bool needKF);
 	void mappingLoop();
+    void solveGyroscopeBiasbyGTSAM();
+    bool SolveScale(Vec3 &g, Eigen::VectorXd &x);
+    void RefineGravity(Vec3 &g, VecX &x);
+    void UpdateState(Vec3 &g, VecX &x);
 
 	// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
 	boost::mutex trackMapSyncMutex;
@@ -326,9 +332,11 @@ private:
 	bool needToKetchupMapping;
 
 	int lastRefStopID;
+    bool IMUinitialized = false;
+    int WINDOW_SIZE = 30;
 
 	//gravity respect to inertial frame
-	Vec3b gravity;
+	Vec3 gravity;
 
 };
 }
