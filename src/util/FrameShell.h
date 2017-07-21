@@ -184,6 +184,8 @@ public:
     }
     Vec3 TWB(Matrix44 Tbc);
 
+	void setNavstate(Mat33 Rs,Vec3 Ps,Vec3 Vs);
+
 };
 
 

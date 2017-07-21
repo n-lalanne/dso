@@ -305,14 +305,14 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
 
         acc.initialize();
         int n = buf_warped_n;
-		Mat44 Trb;
+		SE3 Trb;
 		Mat33 Rcb,Rrb;
 		Vec3 Prb;
         SE3 NewToref = refToNew.inverse();
 		Rcb = imutocam.rotationMatrix();
-		Trb = NewToref.matrix() * imutocam.matrix();
-		Rrb = Trb.block<3,3>(0,0);
-		Prb = Trb.block<3,1>(0,3);
+		Trb = NewToref * imutocam;
+//		Rrb = Trb.block<3,3>(0,0);
+//		Prb = Trb.block<3,1>(0,3);
         for(int i=0;i<n;i++)
         {
                 Vec3 Pr;
@@ -330,7 +330,7 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
 				Pr(1) = *(buf_warped_ry+i);
 				Pr(2) = *(buf_warped_rz+i);
 
-					// Jacobian of camera projection
+			    // Jacobian of camera projection
                 Matrix23 Maux;
                 Maux.setZero();
                 Maux(0,0) = fx[lvl];
@@ -341,7 +341,7 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
                 Maux(1,2) = -v * fy[lvl];
                 Matrix23 Jpi = Maux * id;
 				Jab.head(3) = dxdy.transpose() * Jpi * (-Rcb);
-                Jab.tail(3) = dxdy.transpose() * Jpi * Rcb * SO3::hat(Rrb.transpose()*(Pr-Prb));
+                Jab.tail(3) = dxdy.transpose() * Jpi * Rcb * SO3::hat(Trb.inverse() * Pr); //Rrb.transpose()*(Pr-Prb));
 //			Vector3d Paux = Rcb*Rwb.transpose()*(Pw-Pwb);
 //			//Matrix3d J_Pc_dRwb = Sophus::SO3::hat(Paux) * Rcb;
 //			Matrix<double,2,3> JdRwb = - Jpi * (Sophus::SO3::hat(Paux) * Rcb);
@@ -365,19 +365,19 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
         H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
         b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
 
-        //Mat33 J_imu_rot,H_imu_rot;
-        //Vec3 r_imu_rot,b_imu_rot;
+        Mat33 J_imu_rot,H_imu_rot;
+        Vec3 r_imu_rot,b_imu_rot;
 
-       // J_imu_rot = J_imu_Rt.block<3, 3>(0, 0);
-       // r_imu_rot = res_imu.segment(0, 2);
+        J_imu_rot = J_imu_Rt.block<3, 3>(0, 0);
+        r_imu_rot = res_imu.segment(0, 2);
 
-       // Mat33 information_r = Mat33::Identity(); // information_imu.block<3, 3>(6, 6);
+        Mat33 information_r = information_imu.block<3, 3>(6, 6);
 
-//        H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
-//        b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
+        H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
+        b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
 
-//    H_out.block<3,3>(0,0) += H_imu_rot;
-//    b_out.segment<3>(0) += b_imu_rot;
+//    	H_out.block<3,3>(0,0) += H_imu_rot;
+//    	b_out.segment<3>(0) += b_imu_rot;
 
         H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
         H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;
@@ -781,7 +781,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 
 	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<< std::endl;
 
-    //E += IMUenergy;
+//    E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)
 	{
@@ -841,8 +841,10 @@ bool CoarseTracker::trackNewestCoarse(
 	int maxIterations[] = {10,20,50,50,50};
 	float lambdaExtrapolationLimit = 0.001;
 
+	SE3 previousToNew_current = previousToNew_out;
 	SE3 refToNew_current = lastToNew_out;
 	SE3 IMUToref_current = refToNew_current.inverse() * imutocam;
+	SE3 previousToref = refToNew_current.inverse() * previousToNew_current;
 	//SE3 IMUToref_current = refToIMU_current.inverse();
 	//SE3 test = imutocam * IMUToref_current.inverse();
 	//std::cout<<"test: \n"<< test.matrix()<<"refToNew_current:\n"<<refToNew_current.matrix()<<std::endl;
@@ -855,11 +857,11 @@ bool CoarseTracker::trackNewestCoarse(
 	{
 		Mat88 H; Vec8 b;
 		float levelCutoffRepeat=1;
-		Vec6 resOld = calcRes(lvl, refToNew_current, previousToNew_out, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
+		Vec6 resOld = calcRes(lvl, refToNew_current, previousToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
 		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
 		{
 			levelCutoffRepeat*=2;
-			resOld = calcRes(lvl, refToNew_current, previousToNew_out, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
+			resOld = calcRes(lvl, refToNew_current, previousToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
 
             if(!setting_debugout_runquiet)
                 printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
@@ -931,16 +933,18 @@ bool CoarseTracker::trackNewestCoarse(
 
             if(!std::isfinite(incScaled.sum())) incScaled.setZero();
 
+
 			SE3 IMUToref_new = IMUToref_current * SE3::exp((Vec6)(incScaled.head<6>()));
 			SE3 refToIMU_new = IMUToref_new.inverse();
 			SE3 refToNew_new = imutocam * refToIMU_new;
+			SE3 previousToNew_new = refToNew_new * previousToref;
 
 			//SE3 refToNew_new = SE3::exp((Vec6)(incScaled.head<6>())) * refToNew_current;
 			AffLight aff_g2l_new = aff_g2l_current;
 			aff_g2l_new.a += incScaled[6];
 			aff_g2l_new.b += incScaled[7];
 
-			Vec6 resNew = calcRes(lvl, refToNew_new, previousToNew_out, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
+			Vec6 resNew = calcRes(lvl, refToNew_new, previousToNew_current, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
 
 			bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
 
@@ -964,6 +968,7 @@ bool CoarseTracker::trackNewestCoarse(
 				aff_g2l_current = aff_g2l_new;
 				refToNew_current = refToNew_new;
 				IMUToref_current = IMUToref_new;
+				previousToNew_current = previousToNew_new;
 				lambda *= 0.5;
 			}
 			else

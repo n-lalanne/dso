@@ -195,3 +195,14 @@ SE3 FrameShell::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestam
     Mat44 predicted_pose_camera = dso_vi::IMUData::convertIMUFrame2CamFrame(mat_pose_imu, Tbc);
     return SE3(predicted_pose_camera);
 }
+
+void FrameShell::setNavstate(Mat33 Rs,Vec3 Ps,Vec3 Vs)
+{
+    Mat44 w2c;
+    w2c.setIdentity();
+    w2c.block<3,3>(0,0) = Rs;
+    w2c.block<3,1>(0,3) = Ps;
+    SE3 worldTocamnew(w2c);
+    camToWorld = worldTocamnew.inverse();
+    velocity = Vs;
+}

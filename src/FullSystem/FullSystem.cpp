@@ -1387,18 +1387,23 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 
 void FullSystem::UpdateState(Vec3 &g, VecX &x)
 {
+	// here Rs, Ps in vins are all from imu to world;
 	std::vector<Mat33 >Rs;
+
 	std::vector<Vec3> Ps;
 	std::vector<Vec3> Vs;
+    double scale = x(allKeyFramesHistory.size()-1);
 
 	for (int i = 0; i <allKeyFramesHistory.size() ; i++)
-	{
-		Mat33 Ri = allKeyFramesHistory[i]->RCW();
-		Vec3 Pi = allKeyFramesHistory[i]->TCW();
-		Ps.push_back(Pi);
-		Rs.push_back(Ri);
+    {
+        SE3 TCB(getTbc());
+        TCB = TCB.inverse();
+		SE3 Twci = allKeyFramesHistory[i]->camToWorld;
+        SE3 Twbi = Twci * TCB;
+		Ps.push_back(Twbi.translation());
+		Rs.push_back(Twbi.rotationMatrix());
 		//Vs[kv] = frame_i->second.R * x.segment<3>(i * 3)
-		Vs.push_back(Ri * x.segment<3>(i * 3));
+		Vs.push_back(Twbi.rotationMatrix() * x.segment<3>(i * 3));
 	}
 	Mat33 R0 = g2R(g);
 	std::cout<< "g: "<<g<<"\nR0: "<<R0<<std::endl;
@@ -1406,15 +1411,42 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	double yaw = R2ypr(R0 * Rs[0]).x();
 	R0 = ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
 	g = R0 * g;
+    gravity = g;
 	std::cout<< "yaw: "<<yaw << "\n R0: \n"<<R0<<std::endl;
 	std::cout<< "g: "<<g<<std::endl;
 	Mat33 rot_diff = R0;
+
+    // Rescale the camera position
+    for (int i = allKeyFramesHistory.size(); i >= 0; i--)
+        Ps[i] = scale * Ps[i] - Rs[i] * getTbc().block<3,1>(0,3) - (scale * Ps[0] - Rs[0] * getTbc().block<3,1>(0,3));
+
+
 	for (int i = 0; i <allKeyFramesHistory.size() ; i++)
 	{
 		Ps[i] = rot_diff * Ps[i];
 		Rs[i] = rot_diff * Rs[i];
 		Vs[i] = rot_diff * Vs[i];
 	}
+
+    for (int i = 0; i <allKeyFramesHistory.size() ; i++)
+    {
+        Ps[i] = rot_diff * Ps[i];
+        Rs[i] = rot_diff * Rs[i];
+        Vs[i] = rot_diff * Vs[i];
+        //allKeyFramesHistory[i]->setNavstate(Rs[i],Ps[i],Vs[i]);
+    }
+
+
+	// Rescale the depth
+
+//	for(FrameShell* fs : allKeyFramesHistory)		// go through all active frames
+//	{
+//		for(PointHessian* ph : fs->)
+//		{
+//
+//		}
+//	}
+
 //	for (int i = 0; i <= frame_count; i++)
 //	{
 //		Mat33 Ri = allFrameHistory[i]->RCW();
