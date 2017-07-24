@@ -86,7 +86,7 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
         {
             // KF hasn't changed, get the preintegrated values since the last KF from last frame
             keyframe2LastFrameFactors.push_back(last_frame->imu_preintegrated_last_kf_);
-            std::cout << "IMU measurements: integrating till keyframe of " << last_frame->id << std::endl;
+            std::cout << "IMU measurements: integrating till keyframe of " << last_frame->id << "(" << last_frame->last_kf->id << ")" << std::endl;
         }
         else
         {
@@ -156,6 +156,7 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
     }
 
     imu_preintegrated_last_kf_->mergeWith(*imu_preintegrated_last_frame_, &H1, &H2);
+    assert(imu_preintegrated_last_kf_->deltaTij() > 0.0);
 }
 
 
@@ -169,10 +170,10 @@ SE3 FrameShell::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestam
 
     Mat44 mat_pose_imu = predicted_pose_imu.pose().matrix();
     if (
-        !std::isfinite(predicted_pose_imu.pose().translation().x()) ||
-        !std::isfinite(predicted_pose_imu.pose().translation().y()) ||
-        !std::isfinite(predicted_pose_imu.pose().translation().z())
-       )
+            !std::isfinite(predicted_pose_imu.pose().translation().x()) ||
+            !std::isfinite(predicted_pose_imu.pose().translation().y()) ||
+            !std::isfinite(predicted_pose_imu.pose().translation().z())
+            )
     {
         if (!setting_debugout_runquiet)
         {

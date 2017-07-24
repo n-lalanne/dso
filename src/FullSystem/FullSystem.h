@@ -281,8 +281,7 @@ private:
 	std::vector<PointFrameResidual*> activeResiduals;
 	float currentMinActDist;
 
-
-	std::vector<float> allResVec;
+    std::vector<float> allResVec;
 
 	//==================== Save all the IMU raw data here===============================
 	std::vector<dso_vi::IMUData> mvIMUSinceLastKF;
@@ -337,6 +336,17 @@ private:
 
 	//gravity respect to inertial frame
 	Vec3 gravity;
+
+    Vec3 accBiasEstimate;
+	Vec3 gyroBiasEstimate;
+
+public:
+
+    void setBiasEstimate(Vec3 accBias, Vec3 gyroBias)
+    {
+        accBiasEstimate = accBias;
+		gyroBiasEstimate = gyroBias;
+	}
 
 };
 }

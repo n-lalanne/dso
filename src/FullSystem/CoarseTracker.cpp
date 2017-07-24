@@ -376,8 +376,8 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
         H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
         b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
 
-//    	H_out.block<3,3>(0,0) += H_imu_rot;
-//    	b_out.segment<3>(0) += b_imu_rot;
+    	//H_out.block<3,3>(0,0) += H_imu_rot;
+    	//b_out.segment<3>(0) += b_imu_rot;
 
         H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
         H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;
@@ -606,11 +606,11 @@ Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 
 	// useless Jacobians of reference frame (cuz we're not optimizing reference frame)
 	gtsam::Matrix  J_imu_Rt_i, J_imu_v_i;
-	newFrame->shell->velocity << 1, 1, 1;
+	//newFrame->shell->velocity << 1, 1, 1;
 
 	// TODO: save pointer to last frame so that you can get its velocity
 	res_imu = newFrame->shell->evaluateIMUerrors(
-			SE3(), Vec3::Zero(), previousToNew.inverse(), newFrame->shell->velocity, lastRef->shell->bias,
+			SE3(), lastRef->shell->velocity, previousToNew.inverse(), newFrame->shell->velocity, lastRef->shell->bias,
 			fullSystem->getTbc(), J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
 	);
 
@@ -653,7 +653,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 	float maxEnergy = 2*setting_huberTH*cutoffTH-setting_huberTH*setting_huberTH;	// energy for r=setting_coarseCutoffTH.
 
 
-    MinimalImageB3* resImage = 0;
+	MinimalImageB3* resImage = 0;
 	if(debugPlot)
 	{
 		resImage = new MinimalImageB3(wl,hl);
@@ -673,7 +673,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 		float x = lpc_u[i];
 		float y = lpc_v[i];
 
-        Vec3f pr = Ki[lvl] * Vec3f(x, y, 1) / id;
+		Vec3f pr = Ki[lvl] * Vec3f(x, y, 1) / id;
 		Vec3f pt = RKi * Vec3f(x, y, 1) + t*id;
 		float u = pt[0] / pt[2];
 		float v = pt[1] / pt[2];
@@ -719,10 +719,10 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 
 
 		float refColor = lpc_color[i];
-        Vec3f hitColor = getInterpolatedElement33(dINewl, Ku, Kv, wl);
-        if(!std::isfinite((float)hitColor[0])) continue;
-        float residual = hitColor[0] - (float)(affLL[0] * refColor + affLL[1]);
-        float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
+		Vec3f hitColor = getInterpolatedElement33(dINewl, Ku, Kv, wl);
+		if(!std::isfinite((float)hitColor[0])) continue;
+		float residual = hitColor[0] - (float)(affLL[0] * refColor + affLL[1]);
+		float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
 
 
 		if(fabs(residual) > cutoffTH)

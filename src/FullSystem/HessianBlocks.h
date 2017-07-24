@@ -27,6 +27,7 @@
 
  
 #include "util/globalCalib.h"
+#include "IMU/imudata.h"
 #include "vector"
  
 #include <iostream>

@@ -30,11 +30,17 @@ public:
     static double GetImageDelayToIMU();
     static bool GetAccMultiply9p8();
     
-    // static cv::Mat GetMatAccBias();
-    // static Eigen::Vector3d GetEigAccBias();
+    static cv::Mat GetMatAccBias();
+    static Eigen::Vector3d GetEigAccBias();
+
+    static cv::Mat GetMatGyroBias();
+    static Eigen::Vector3d GetEigGyroBias();
 
     static cv::Mat _MatAccBias;
     static Eigen::Vector3d _EigAccBias;
+
+    static cv::Mat _MatGyroBias;
+    static Eigen::Vector3d _EigGyroBias;
 
     static double GetG(){return _g;}
 

@@ -8,6 +8,7 @@ Eigen::Matrix4d ConfigParam::_EigTbc = Eigen::Matrix4d::Identity();
 cv::Mat ConfigParam::_MatTbc = cv::Mat::eye(4,4,CV_32F);
 Eigen::Matrix4d ConfigParam::_EigTcb = Eigen::Matrix4d::Identity();
 cv::Mat ConfigParam::_MatTcb = cv::Mat::eye(4,4,CV_32F);
+
 int ConfigParam::_LocalWindowSize = 10;
 double ConfigParam::_ImageDelayToIMU = 0;
 bool ConfigParam::_bAccMultiply9p8 = false;
@@ -15,6 +16,9 @@ double ConfigParam::_nVINSInitTime = 15;
 
 Eigen::Vector3d ConfigParam::_EigAccBias = Eigen::Vector3d::Zero();
 cv::Mat ConfigParam::_MatAccBias = cv::Mat::zeros(3, 1, CV_32F);
+
+Eigen::Vector3d ConfigParam::_EigGyroBias = Eigen::Vector3d::Zero();
+cv::Mat ConfigParam::_MatGyroBias = cv::Mat::zeros(3, 1, CV_32F);
 
 ConfigParam::ConfigParam(std::string configfile)
 {
@@ -95,6 +99,26 @@ ConfigParam::ConfigParam(std::string configfile)
         _EigAccBias = Eigen::Vector3d::Zero();
         _MatAccBias = cv::Mat::zeros(3, 1, CV_32F);
     }
+
+    // gyro bias
+    cv::FileNode gyroBias_ = fSettings["IMU.gyroBias"];
+    if ( !gyroBias_.isNone() && (gyroBias_.size() == 3) )
+    {
+        _EigGyroBias << gyroBias_[0], gyroBias_[1], gyroBias_[2];
+        _MatGyroBias = cv::Mat::zeros(3, 1, CV_32F);
+        for (int i = 0; i < 3; i++)
+        {
+            _MatGyroBias.at<float>(i, 0) = _EigGyroBias(i);
+        }
+
+        std::cout << "Gyro Bias: " << _EigGyroBias.transpose() << std::endl;
+    }
+    else
+    {
+        std::cerr << "Gyroscope bias not in config: setting to zero!!!!" << std::endl;
+        _EigGyroBias = Eigen::Vector3d::Zero();
+        _MatGyroBias = cv::Mat::zeros(3, 1, CV_32F);
+    }
 }
 
 
@@ -133,14 +157,24 @@ bool ConfigParam::GetAccMultiply9p8()
     return _bAccMultiply9p8;
 }
 
-// cv::Mat ConfigParam::GetMatAccBias()
-// {
-//     return _MatAccBias;
-// }
+cv::Mat ConfigParam::GetMatAccBias()
+{
+    return _MatAccBias;
+}
 
-// Eigen::Vector3d ConfigParam::GetEigAccBias()
-// {
-//     return _EigAccBias;
-// }
+Eigen::Vector3d ConfigParam::GetEigAccBias()
+{
+    return _EigAccBias;
+}
+
+cv::Mat ConfigParam::GetMatGyroBias()
+{
+    return _MatGyroBias;
+}
+
+Eigen::Vector3d ConfigParam::GetEigGyroBias()
+{
+    return _EigGyroBias;
+}
 
 }

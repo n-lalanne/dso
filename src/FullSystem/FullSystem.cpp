@@ -328,8 +328,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	assert(allFrameHistory.size() > 0);
 	// set pose initialization.
 
-    for(IOWrap::Output3DWrapper* ow : outputWrapper)
-        ow->pushLiveFrame(fh);
+	for(IOWrap::Output3DWrapper* ow : outputWrapper)
+		ow->pushLiveFrame(fh);
 
 
 
@@ -621,19 +621,19 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		if(i != 0)
 		{
 			printf("RE-TRACK ATTEMPT %d with initOption %d and start-lvl %d (ab %f %f): %f %f %f %f %f -> %f %f %f %f %f \n",
-					i,
-					i, pyrLevelsUsed-1,
-					aff_g2l_this.a,aff_g2l_this.b,
-					achievedRes[0],
-					achievedRes[1],
-					achievedRes[2],
-					achievedRes[3],
-					achievedRes[4],
-					coarseTracker->lastResiduals[0],
-					coarseTracker->lastResiduals[1],
-					coarseTracker->lastResiduals[2],
-					coarseTracker->lastResiduals[3],
-					coarseTracker->lastResiduals[4]);
+				   i,
+				   i, pyrLevelsUsed-1,
+				   aff_g2l_this.a,aff_g2l_this.b,
+				   achievedRes[0],
+				   achievedRes[1],
+				   achievedRes[2],
+				   achievedRes[3],
+				   achievedRes[4],
+				   coarseTracker->lastResiduals[0],
+				   coarseTracker->lastResiduals[1],
+				   coarseTracker->lastResiduals[2],
+				   coarseTracker->lastResiduals[3],
+				   coarseTracker->lastResiduals[4]);
 		}
 
 
@@ -658,14 +658,14 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		}
 
 
-        if(haveOneGood &&  achievedRes[0] < lastCoarseRMSE[0]*setting_reTrackThreshold)
-            break;
+		if(haveOneGood &&  achievedRes[0] < lastCoarseRMSE[0]*setting_reTrackThreshold)
+			break;
 
 	}
 
 	if(!haveOneGood)
 	{
-        printf("BIG ERROR! tracking failed entirely. Take predictred pose and hope we may somehow recover.\n");
+		printf("BIG ERROR! tracking failed entirely. Take predictred pose and hope we may somehow recover.\n");
 		flowVecs = Vec3(0,0,0);
 		aff_g2l = aff_last_2_l;
 		lastF_2_fh = lastF_2_fh_tries[0];
@@ -685,27 +685,28 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	if(coarseTracker->firstCoarseRMSE < 0)
 		coarseTracker->firstCoarseRMSE = achievedRes[0];
 
-    if(!setting_debugout_runquiet)
-        printf("Coarse Tracker tracked ab = %f %f (exp %f). Res %f!\n", aff_g2l.a, aff_g2l.b, fh->ab_exposure, achievedRes[0]);
+	if(!setting_debugout_runquiet)
+		printf("Coarse Tracker tracked ab = %f %f (exp %f). Res %f!\n", aff_g2l.a, aff_g2l.b, fh->ab_exposure, achievedRes[0]);
 
 
 
 	if(setting_logStuff)
 	{
 		(*coarseTrackingLog) << std::setprecision(16)
-						<< fh->shell->id << " "
-						<< fh->shell->timestamp << " "
-						<< fh->ab_exposure << " "
-						<< fh->shell->camToWorld.log().transpose() << " "
-						<< aff_g2l.a << " "
-						<< aff_g2l.b << " "
-						<< achievedRes[0] << " "
-						<< tryIterations << "\n";
+							 << fh->shell->id << " "
+							 << fh->shell->timestamp << " "
+							 << fh->ab_exposure << " "
+							 << fh->shell->camToWorld.log().transpose() << " "
+							 << aff_g2l.a << " "
+							 << aff_g2l.b << " "
+							 << achievedRes[0] << " "
+							 << tryIterations << "\n";
 	}
 
 
 	return Vec4(achievedRes[0], flowVecs[0], flowVecs[1], flowVecs[2]);
 }
+
 
 void FullSystem::traceNewCoarse(FrameHessian* fh)
 {
@@ -1058,7 +1059,7 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 	b.setZero();
 	int firstindex = allKeyFramesHistory.size()-WINDOW_SIZE;
 
-	for (int i = 0; i < WINDOW_SIZE-1; i++)
+	for (int i = 0; i < WINDOW_SIZE - 1; i++)
 	{
 		FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
 		FrameShell *frame_j = allKeyFramesHistory[i+firstindex+1];
@@ -1069,7 +1070,7 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 		tmp_b.setZero();
 
 		double dt = frame_j->imu_preintegrated_last_kf_->deltaTij();
-		std::cout<<"estimated dt: "<<dt<<" groundturth dt: "<<frame_j->viTimestamp-frame_i->viTimestamp<<std::endl;
+		std::cout << "Frame ID: " << frame_j->id << " to " << frame_i->id <<", estimated dt: "<<dt<<" groundtruth dt: "<<frame_j->viTimestamp-frame_i->viTimestamp<<std::endl;
 
 		tmp_A.block<3, 3>(0, 0) = -dt * Mat33::Identity();
 		tmp_A.block<3, 3>(0, 6) = frame_i->RBW(getTbc()) * dt * dt / 2 * Mat33::Identity();
@@ -1308,7 +1309,7 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		A.setZero();
 		b.setZero();
 		for (int index_i = allKeyFramesHistory.size() - 1;
-			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE; index_i--)
+			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE + 1; index_i--)
 		{
 			Mat33 resR;
 			FrameShell *frame_i = allKeyFramesHistory[index_i - 1];
@@ -1371,15 +1372,19 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		agbias.setZero();
 		agbias.tail<3>() = delta_bg;
 		for (int index_i = allKeyFramesHistory.size() - 1;
-			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE; index_i--)
+			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE + 1; index_i--)
 		{
 			FrameShell *frame_i = allKeyFramesHistory[index_i];
 			frame_i->bias = frame_i->bias + agbias;
 			frame_i->imu_preintegrated_last_kf_->biasCorrectedDelta(frame_i->bias);
 		}
 
+        gyroBiasEstimate = allKeyFramesHistory.back()->bias.gyroscope();
+
 //		std::cout << "\"gyroscope bias initial calibration::::::; " << delta_bg.transpose() << std::endl;
-		std::cout << "\"gyroscope bias initial calibration::::::; " << allKeyFramesHistory.back()->bias.gyroscope().transpose() << std::endl;
+		std::cout << "\"gyroscope bias initial calibration::::::; " << gyroBiasEstimate.transpose() << std::endl;
+
+
 
 
 	}
@@ -1393,12 +1398,12 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	std::vector<Vec3> Ps;
 	std::vector<Vec3> Vs;
     double scale = x(allKeyFramesHistory.size()-1);
+	SE3 TBC(getTbc());
+	SE3 TCB = TBC.inverse();
 
 	for (int i = 0; i <allKeyFramesHistory.size() ; i++)
     {
-        SE3 TCB(getTbc());
-        TCB = TCB.inverse();
-		SE3 Twci = allKeyFramesHistory[i]->camToWorld;
+        SE3 Twci = allKeyFramesHistory[i]->camToWorld;
         SE3 Twbi = Twci * TCB;
 		Ps.push_back(Twbi.translation());
 		Rs.push_back(Twbi.rotationMatrix());
@@ -1416,34 +1421,97 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	std::cout<< "g: "<<g<<std::endl;
 	Mat33 rot_diff = R0;
 
+	Mat33 initial_R = Rs[0];
+	Vec3 initial_P = Ps[0];
+
     // Rescale the camera position
     for (int i = allKeyFramesHistory.size(); i >= 0; i--)
-        Ps[i] = scale * Ps[i] - Rs[i] * getTbc().block<3,1>(0,3) - (scale * Ps[0] - Rs[0] * getTbc().block<3,1>(0,3));
-
+	{
+		Ps[i] = scale * Ps[i] - Rs[i] * getTbc().block<3, 1>(0, 3) -
+				(scale * Ps[0] - Rs[0] * getTbc().block<3, 1>(0, 3));
+	}
 
 	for (int i = 0; i <allKeyFramesHistory.size() ; i++)
 	{
 		Ps[i] = rot_diff * Ps[i];
 		Rs[i] = rot_diff * Rs[i];
 		Vs[i] = rot_diff * Vs[i];
+		//allKeyFramesHistory[i]->setNavstate(Rs[i],Ps[i],Vs[i]);
 	}
 
-    for (int i = 0; i <allKeyFramesHistory.size() ; i++)
+
+	std::cout<<"scale is : "<<scale<<std::endl;
+	// Rescale the depth
+
+	// keep a log of rescaled points (TODO: find if we can just read the points without any duplicates)
+    std::map<PointHessian*, bool> rescaled_points;
+    for (int i = frameHessians.size()-1; i > 0  ; i--)
     {
-        Ps[i] = rot_diff * Ps[i];
-        Rs[i] = rot_diff * Rs[i];
-        Vs[i] = rot_diff * Vs[i];
-        //allKeyFramesHistory[i]->setNavstate(Rs[i],Ps[i],Vs[i]);
+        //if(allKeyFramesHistory[i]->fh == NULL) continue;
+        //boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+        //std::cout<<"i: "<< i <<std::endl;
+        assert( frameHessians[i] == allKeyFramesHistory[i]->fh );
+
+        FrameHessian *fh = frameHessians[i];
+
+        SE3 imuToWorld = SE3(Rs[i], Ps[i]);
+        SE3 camToWorld = imuToWorld * TBC;
+
+        fh->shell->camToWorld = camToWorld;
+        fh->shell->velocity = Vs[i];
+        fh->PRE_camToWorld = camToWorld;
+        fh->PRE_worldToCam = camToWorld.inverse();
+        for(PointHessian* ph : fh->pointHessians)
+        {
+            if ( rescaled_points.find(ph) != rescaled_points.end() )
+            {
+                // the point has already been rescaled before
+                continue;
+            }
+
+            // the point hasn't been rescaled before
+            // the depth is in the co-ordinate of the host frame. But the scaling is required in global frame
+
+            float new_depth = ph->idepth * scale;
+            ph->setIdepth(new_depth);
+            ph->setIdepthZero(new_depth);
+
+            rescaled_points.insert(std::make_pair(ph, true));
+        }
     }
 
 
-	// Rescale the depth
-
-//	for(FrameShell* fs : allKeyFramesHistory)		// go through all active frames
+//	std::map<PointHessian*, bool> rescaled_points;
+//	for (int i = frameHessians.size()-1; i > 0  ; i--)
 //	{
-//		for(PointHessian* ph : fs->)
-//		{
+//        //if(allKeyFramesHistory[i]->fh == NULL) continue;
+//		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+//        //std::cout<<"i: "<< i <<std::endl;
+//		FrameHessian *fh = frameHessians[i];
 //
+//		SE3 imuToWorld = SE3(Rs[i], Ps[i]);
+//		SE3 camToWorld = imuToWorld * TBC;
+//
+//		fh->shell->camToWorld = camToWorld;
+//        fh->shell->velocity = Vs[i];
+//		fh->PRE_camToWorld = camToWorld;
+//		fh->PRE_worldToCam = camToWorld.inverse();
+//		for(PointHessian* ph : fh->pointHessians)
+//		{
+//			if ( rescaled_points.find(ph) != rescaled_points.end() )
+//			{
+//				// the point has already been rescaled before
+//				continue;
+//			}
+//
+//			// the point hasn't been rescaled before
+//			// the depth is in the co-ordinate of the host frame. But the scaling is required in global frame
+//
+//			float new_depth = ph->idepth * scale;
+//			ph->setIdepth(new_depth);
+//			ph->setIdepthZero(new_depth);
+//
+//			rescaled_points.insert(std::make_pair(ph, true));
 //		}
 //	}
 
@@ -1471,21 +1539,26 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
     if(isLost) return;
 	boost::unique_lock<boost::mutex> lock(trackMutex);
 
-	if(!IMUinitialized && allKeyFramesHistory.size() > 35)
+	if(!IMUinitialized && allKeyFramesHistory.size() >= WINDOW_SIZE)
     {
         Vec3 g;
         Eigen::VectorXd initialstates;
 		solveGyroscopeBiasbyGTSAM();
         if(SolveScale(g, initialstates))
 		{
-			UpdateState(g,initialstates);
+//			UpdateState(g,initialstates);
 			IMUinitialized = true;
+		}
+		else
+		{
+			std::cout << "Failed to solve scale!!!" << std::endl;
+			exit(0);
 		}
     }
 
 	// =========================== add into allFrameHistory =========================
 	FrameHessian* fh = new FrameHessian();
-	FrameShell* shell = new FrameShell();
+	FrameShell* shell = new FrameShell(accBiasEstimate, gyroBiasEstimate);
 	shell->camToWorld = SE3(); 		// no lock required, as fh is not used anywhere yet.
 	shell->aff_g2l = AffLight(0,0);
     shell->marginalizedAt = shell->id = allFrameHistory.size();
@@ -1493,6 +1566,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
     shell->viTimestamp = ftimestamp;
     shell->incoming_id = id;
     shell->groundtruth = groundtruth;
+	shell->fh = fh;
 	fh->shell = shell;
 	allFrameHistory.push_back(shell);
 
@@ -1518,13 +1592,23 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 
 	if (allFrameHistory.size() > 1)
 	{
+		std::cout << "Frame: " << shell->id << std::endl;
+
 		shell->last_frame = allFrameHistory[allFrameHistory.size()-2];
 
 		assert(shell->last_frame);
 		assert(shell->id - shell->last_frame->id == 1);
 
+		if (!shell->last_kf)
+		{
+			// this condition is true when there is just one keyframe (frame id 0) in the keyframe history
+			std::cout << "Last KF swap" << std::endl;
+			shell->last_kf = shell->last_frame->last_kf;
+		}
+
 		if (shell->last_kf)
 		{ // this condition is false for the first tracked frame
+			std::cout << "Frame/Keyframe: " << shell->id << "/" << shell->last_kf->id << std::endl;
 			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 			shell->updateIMUmeasurements(mvIMUSinceLastF);
 		}
@@ -1542,6 +1626,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		{
 
 			coarseInitializer->setFirst(&Hcalib, fh);
+			shell->last_kf = shell;
 		}
 		else if(coarseInitializer->trackFrame(fh, outputWrapper))	// if SNAPPED
 		{
