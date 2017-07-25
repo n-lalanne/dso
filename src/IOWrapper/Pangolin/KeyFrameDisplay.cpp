@@ -82,6 +82,15 @@ void KeyFrameDisplay::setFromF(FrameShell* frame, CalibHessian* HCalib)
 	needRefresh=true;
 }
 
+void KeyFrameDisplay::resetFromKF(FrameHessian* fh, float scale)
+{
+	InputPointSparse<MAX_RES_PER_POINT>* pc = originalInputSparse;
+	for(int i=0;i<numSparsePoints;i++)
+		pc[i].idpeth *= scale;
+	camToWorld = fh->PRE_camToWorld;
+	needRefresh=true;
+}
+
 void KeyFrameDisplay::setFromKF(FrameHessian* fh, CalibHessian* HCalib)
 {
 	setFromF(fh->shell, HCalib);

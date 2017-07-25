@@ -150,7 +150,7 @@ public:
 
 
 
-
+        virtual void resetKeyframes(int frameID,FrameHessian* fh,CalibHessian* HCalib, float scale) {}
 
         /* Usage:
          * Called once for each tracked frame, with the real-time, low-delay frame pose.

@@ -72,7 +72,10 @@ public:
             }
         }
 
-
+        virtual void resetKeyframes(int frameID,FrameHessian* fh, float scale)
+        {
+            //keyframesByKFID[fh->frameID]->resetFromKF(fh, scale);
+        }
 
         virtual void publishKeyframes( std::vector<FrameHessian*> &frames, bool final, CalibHessian* HCalib)
         {

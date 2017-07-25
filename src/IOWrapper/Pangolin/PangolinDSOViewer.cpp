@@ -463,6 +463,12 @@ void PangolinDSOViewer::publishGraph(const std::map<uint64_t,Eigen::Vector2i> &c
 
 	model3DMutex.unlock();
 }
+
+void PangolinDSOViewer::resetKeyframes(int frameID,FrameHessian* fh, float scale)
+{
+	keyframesByKFID[fh->frameID]->resetFromKF(fh, scale);
+}
+
 void PangolinDSOViewer::publishKeyframes(
 		std::vector<FrameHessian*> &frames,
 		bool final,

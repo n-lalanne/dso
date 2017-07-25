@@ -73,6 +73,8 @@ public:
 	// keeping some additional information so we can render it differently.
 	void setFromKF(FrameHessian* fh, CalibHessian* HCalib);
 
+	void resetFromKF(FrameHessian* fh, float scale);
+
 	// copies points from KF over to internal buffer,
 	// keeping some additional information so we can render it differently.
 	void setFromF(FrameShell* fs, CalibHessian* HCalib);

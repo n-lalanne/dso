@@ -1397,7 +1397,8 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 
 	std::vector<Vec3> Ps;
 	std::vector<Vec3> Vs;
-    double scale = x(allKeyFramesHistory.size()-1);
+    double scale = 10; // (x.tail<1>())(0);
+
 	SE3 TBC(getTbc());
 	SE3 TCB = TBC.inverse();
 
@@ -1410,6 +1411,29 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 		//Vs[kv] = frame_i->second.R * x.segment<3>(i * 3)
 		Vs.push_back(Twbi.rotationMatrix() * x.segment<3>(i * 3));
 	}
+
+	std::cout << "Pre-update" << std::endl;
+	for (int i = 1; i < allKeyFramesHistory.size(); i++)
+	{
+		SE3 groundtruth_T0(allKeyFramesHistory[i-1]->groundtruth.pose.matrix());
+		SE3 estimated_T0(Rs[i-1], Ps[i-1]);
+
+		SE3 groundtruth_Ti(allKeyFramesHistory[i]->groundtruth.pose.matrix());
+		SE3 estimated_Ti(Rs[i], Ps[i]);
+
+		SE3 groundtruth_relative_pose = groundtruth_T0.inverse() * groundtruth_Ti;
+		SE3 estimated_relative_pose = estimated_T0.inverse() * estimated_Ti;
+
+		double translation_direction_error = acos(
+				estimated_relative_pose.translation().normalized().dot(groundtruth_relative_pose.translation().normalized())
+		) * 180 / M_PI;
+
+		std::cout 	<< "Scale: "
+					 << groundtruth_relative_pose.translation().norm() / estimated_relative_pose.translation().norm() << ", "
+					 << "translation dir error: " << translation_direction_error
+					 << std::endl;
+	}
+
 	Mat33 R0 = g2R(g);
 	std::cout<< "g: "<<g<<"\nR0: "<<R0<<std::endl;
 
@@ -1424,11 +1448,32 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	Mat33 initial_R = Rs[0];
 	Vec3 initial_P = Ps[0];
 
-    // Rescale the camera position
+    // Rescale the camera position (origin is now at keyframe 0, but KF 0 has orientation wrt inertial frame)
+//	for (int i = 0; i < allFrameHistory.size(); i++)
+//	{
+//		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+//
+//		SE3 imu2World = allFrameHistory[i]->camToWorld * TCB;
+//
+//		// rescale and center at first keyframe
+//		allFrameHistory[i]->imuToWorld = SE3(
+//				imu2World.rotationMatrix(), scale * (imu2World.translation() - Ps[0])
+//		);
+//
+//		// make the orientation wrt inertial frame
+//		allFrameHistory[i]->imuToWorld = SE3(
+//				rot_diff * allFrameHistory[i]->imuToWorld.rotationMatrix(),
+//				rot_diff * allFrameHistory[i]->imuToWorld.translation()
+//		);
+//
+//		allFrameHistory[i]->camToWorld = allFrameHistory[i]->imuToWorld * TBC;
+//	}
+
     for (int i = allKeyFramesHistory.size(); i >= 0; i--)
 	{
-		Ps[i] = scale * Ps[i] - Rs[i] * getTbc().block<3, 1>(0, 3) -
-				(scale * Ps[0] - Rs[0] * getTbc().block<3, 1>(0, 3));
+//		Ps[i] = scale * Ps[i] - Rs[i] * getTbc().block<3, 1>(0, 3) -
+//				(scale * Ps[0] - Rs[0] * getTbc().block<3, 1>(0, 3));
+		Ps[i] = scale * Ps[i] - scale * Ps[0];
 	}
 
 	for (int i = 0; i <allKeyFramesHistory.size() ; i++)
@@ -1439,46 +1484,121 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 		//allKeyFramesHistory[i]->setNavstate(Rs[i],Ps[i],Vs[i]);
 	}
 
+	std::cout << "First KF: " << Rs[0] << ", " << Ps[0].transpose() << std::endl;
+
+	// verify with the groundtruth that the scaling is right
+
+	for (int i = 1; i < allKeyFramesHistory.size(); i++)
+	{
+		SE3 groundtruth_T0(allKeyFramesHistory[i-1]->groundtruth.pose.matrix());
+		SE3 estimated_T0(Rs[i-1], Ps[i-1]);
+
+		SE3 groundtruth_Ti(allKeyFramesHistory[i]->groundtruth.pose.matrix());
+		SE3 estimated_Ti(Rs[i], Ps[i]);
+
+		SE3 groundtruth_relative_pose = groundtruth_T0.inverse() * groundtruth_Ti;
+		SE3 estimated_relative_pose = estimated_T0.inverse() * estimated_Ti;
+
+		double translation_direction_error = acos(
+				estimated_relative_pose.translation().normalized().dot(groundtruth_relative_pose.translation().normalized())
+		) * 180 / M_PI;
+
+		std::cout 	<< "Scale: "
+					 << groundtruth_relative_pose.translation().norm() / estimated_relative_pose.translation().norm() << ", "
+					 << "translation dir error: " << translation_direction_error
+					 << std::endl;
+	}
+
 
 	std::cout<<"scale is : "<<scale<<std::endl;
 	// Rescale the depth
 
 	// keep a log of rescaled points (TODO: find if we can just read the points without any duplicates)
-    std::map<PointHessian*, bool> rescaled_points;
-    for (int i = frameHessians.size()-1; i > 0  ; i--)
-    {
-        //if(allKeyFramesHistory[i]->fh == NULL) continue;
-        //boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
-        //std::cout<<"i: "<< i <<std::endl;
-        assert( frameHessians[i] == allKeyFramesHistory[i]->fh );
+//	std::map<PointHessian*, bool> rescaled_points;
+//	for (int fh_idx = frameHessians.size()-1; fh_idx > 0  ; fh_idx--)
+//	{
+//		//if(allKeyFramesHistory[i]->fh == NULL) continue;
+//		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+//		//std::cout<<"i: "<< i <<std::endl;
+//
+//		FrameHessian *fh = frameHessians[fh_idx];
+//
+//		for (int i = 0; i < allKeyFramesHistory.size(); i++)
+//		{
+//			if (allKeyFramesHistory[i]->fh == fh)
+//			{
+//				int shell_idx = i;
+//				SE3 imuToWorld = SE3(Rs[shell_idx], Ps[shell_idx]);
+//				SE3 camToWorld = imuToWorld * TBC;
+//
+////				fh->shell->camToWorld = camToWorld;
+////				fh->shell->velocity = Vs[shell_idx];
+//				fh->PRE_camToWorld = camToWorld;
+//				fh->PRE_worldToCam = camToWorld.inverse();
+//				for(PointHessian* ph : fh->pointHessians)
+//				{
+//					if ( rescaled_points.find(ph) != rescaled_points.end() )
+//					{
+//						// the point has already been rescaled before
+//						continue;
+//					}
+//
+//					// the point hasn't been rescaled before
+//					// the depth is in the co-ordinate of the host frame. But the scaling is required in global frame
+//
+//					float new_depth = ph->idepth / scale;
+//					ph->setIdepth(new_depth);
+//					ph->setIdepthZero(new_depth);
+//					ph->idepth_backup = new_depth;
+//
+//					rescaled_points.insert(std::make_pair(ph, true));
+//				}
+//
+//				break;
+//			}
+//		}
+//	}
 
-        FrameHessian *fh = frameHessians[i];
-
-        SE3 imuToWorld = SE3(Rs[i], Ps[i]);
-        SE3 camToWorld = imuToWorld * TBC;
-
-        fh->shell->camToWorld = camToWorld;
-        fh->shell->velocity = Vs[i];
-        fh->PRE_camToWorld = camToWorld;
-        fh->PRE_worldToCam = camToWorld.inverse();
-        for(PointHessian* ph : fh->pointHessians)
-        {
-            if ( rescaled_points.find(ph) != rescaled_points.end() )
-            {
-                // the point has already been rescaled before
-                continue;
-            }
-
-            // the point hasn't been rescaled before
-            // the depth is in the co-ordinate of the host frame. But the scaling is required in global frame
-
-            float new_depth = ph->idepth * scale;
-            ph->setIdepth(new_depth);
-            ph->setIdepthZero(new_depth);
-
-            rescaled_points.insert(std::make_pair(ph, true));
-        }
-    }
+	// keep a log of rescaled points (TODO: find if we can just read the points without any duplicates)
+//    std::map<PointHessian*, bool> rescaled_points;
+//    for (int i = 0; i < 10  ; i++)
+//    {
+//        //if(allKeyFramesHistory[i]->fh == NULL) continue;
+//        //boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+//        //std::cout<<"i: "<< i <<std::endl;
+//        //assert( frameHessians[i] == allKeyFramesHistory[i]->fh );
+//
+//        FrameHessian *fh = allKeyFramesHistory[i]->fh;
+//
+//        SE3 imuToWorld = SE3(Rs[i], Ps[i]);
+//        SE3 camToWorld = imuToWorld * TBC;
+//
+////        fh->shell->camToWorld = camToWorld;
+////        fh->shell->velocity = Vs[i];
+//        fh->PRE_camToWorld = camToWorld;
+//        fh->PRE_worldToCam = camToWorld.inverse();
+//
+////        for(IOWrap::Output3DWrapper* ow : outputWrapper)
+////            ow->resetKeyframes(fh->frameID,fh,&Hcalib,scale);
+//		std::cout<<"update "<<i<<" frame!!"<<std::endl;
+////        for(PointHessian* ph : fh->pointHessians)
+////        {
+////            if ( rescaled_points.find(ph) != rescaled_points.end() )
+////            {
+////                // the point has already been rescaled before
+////                continue;
+////            }
+////
+////            // the point hasn't been rescaled before
+////            // the depth is in the co-ordinate of the host frame. But the scaling is required in global frame
+////
+////            float new_depth = ph->idepth * scale;
+////            ph->setIdepth(new_depth);
+////            ph->setIdepthZero(new_depth);
+////
+////            rescaled_points.insert(std::make_pair(ph, true));
+////        }
+//    }
 
 
 //	std::map<PointHessian*, bool> rescaled_points;

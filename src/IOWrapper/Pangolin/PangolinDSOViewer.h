@@ -70,6 +70,7 @@ public:
     virtual void publishGraph(const std::map<uint64_t,Eigen::Vector2i> &connectivity);
     virtual void publishKeyframes( std::vector<FrameHessian*> &frames, bool final, CalibHessian* HCalib);
     virtual void publishCamPose(FrameShell* frame, CalibHessian* HCalib);
+	virtual void resetKeyframes(int frameID,FrameHessian* fh, float scale);
 
 
 	virtual void pushLiveFrame(FrameHessian* image);
