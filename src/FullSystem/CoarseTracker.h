@@ -89,10 +89,12 @@ public:
 	Vec5 lastResiduals;
 	Vec3 lastFlowIndicators;
 	double firstCoarseRMSE;
+
+	void makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians);
+
 private:
 
 
-	void makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians);
 	float* idepth[PYR_LEVELS];
 	float* weightSums[PYR_LEVELS];
 	float* weightSums_bak[PYR_LEVELS];

@@ -371,6 +371,26 @@ void KeyFrameDisplay::drawCam(float lineWidth, float* color, float sizeFactor)
 
 		glEnd();
 	glPopMatrix();
+
+	glPushMatrix();
+
+		m.block<3,3>(0,0) = Sophus::Matrix3f::Identity();
+		glMultMatrixf((GLfloat*)m.data());
+
+		if(color == 0)
+		{
+			glColor3f(0,0,1);
+		}
+		else
+			glColor3f(color[2],color[1],color[1]);
+
+		glLineWidth(lineWidth);
+		glBegin(GL_LINES);
+		glVertex3f(0,0,0);
+		glVertex3f(0, 0, -sz * cx / fx * 50);
+
+		glEnd();
+	glPopMatrix();
 }
 
 

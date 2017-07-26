@@ -32,6 +32,7 @@
  
 #include <iostream>
 #include <fstream>
+#include <atomic>
 #include "util/NumType.h"
 #include "FullSystem/Residuals.h"
 #include "FullSystem/HessianBlocks.h"
@@ -339,6 +340,8 @@ private:
 
     Vec3 accBiasEstimate;
 	Vec3 gyroBiasEstimate;
+
+    std::atomic<bool> isLocalBADone;
 
 public:
 
