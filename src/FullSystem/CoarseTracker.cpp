@@ -355,7 +355,7 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
                                 a*(b0-buf_warped_refColor[i]),
                                 -1.0,
                                 buf_warped_residual[i],
-                                buf_warped_idepth[i]
+                                buf_warped_weight[i]
                 );
 
         }
