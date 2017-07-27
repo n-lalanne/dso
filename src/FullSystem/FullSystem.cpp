@@ -735,10 +735,18 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		AffLight aff_g2l_this = aff_last_2_l;
 		SE3 lastF_2_fh_this = lastF_2_fh_tries[i];
 		SE3 slast_2_fh_this = lastF_2_fh_this * lastF_2_slast.inverse();
-		bool trackingIsGood = coarseTracker->trackNewestCoarse(
+		bool trackingIsGood;
+		if(IMUinitialized)
+		trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
 				fh, lastF_2_fh_this, slast_2_fh_this,  aff_g2l_this,
 				pyrLevelsUsed-1,
-				achievedRes);	// in each level has to be at least as good as the last try.
+				achievedRes);// in each level has to be at least as good as the last try.
+		else
+		trackingIsGood = coarseTracker->trackNewestCoarse(
+				fh, lastF_2_fh_this, slast_2_fh_this,  aff_g2l_this,
+				pyrLevelsUsed-1,
+				achievedRes);// in each level has to be at least as good as the last try.
+
 		tryIterations++;
 
 		if(i != 0)
