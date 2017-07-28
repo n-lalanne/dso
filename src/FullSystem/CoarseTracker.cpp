@@ -300,6 +300,118 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 
 }
 
+void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l)
+{
+
+	acc.initialize();
+	int n = buf_warped_n;
+	SE3 Trb,Tib;
+	Mat33 Rcb,Rrb;
+	Vec3 Prb;
+	SE3 Tcb = imutocam;
+	SE3 Tref_new = refToNew.inverse();
+	SE3 Tw_ref = lastRef->shell->camToWorld;
+	Rcb = imutocam.rotationMatrix();
+	Trb = Tref_new * Tcb;
+	Tib = Tw_ref * Trb;
+
+	for(int i=0;i<n;i++)
+	{
+		Vec3 Pr,PI;
+		Vec6 Jab;
+		Vec2 dxdy;
+		dxdy(0) = *(buf_warped_dx+i);
+		dxdy(1)	= *(buf_warped_dy+i);
+		float b0 = lastRef_aff_g2l.b;
+		float a = (float)(AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l)[0]);
+
+		float id = *(buf_warped_idepth+i);
+		float u = *(buf_warped_u+i);
+		float v = *(buf_warped_v+i);
+		Pr(0) = *(buf_warped_rx+i);
+		Pr(1) = *(buf_warped_ry+i);
+		Pr(2) = *(buf_warped_rz+i);
+		PI = Tw_ref * Pr;
+		// Jacobian of camera projection
+		Matrix23 Maux;
+		Maux.setZero();
+		Maux(0,0) = fx[lvl];
+		Maux(0,1) = 0;
+		Maux(0,2) = -u *fx[lvl];
+		Maux(1,0) = 0;
+		Maux(1,1) = fy[lvl];
+		Maux(1,2) = -v * fy[lvl];
+		Matrix23 Jpi = Maux * id;
+		Jab.head(3) = dxdy.transpose() * Jpi * (-Rcb);
+		Jab.tail(3) = dxdy.transpose() * Jpi * Rcb * SO3::hat(Tib.inverse() * PI); //Rrb.transpose()*(Pr-Prb));
+//			Vector3d Paux = Rcb*Rwb.transpose()*(Pw-Pwb);
+//			//Matrix3d J_Pc_dRwb = Sophus::SO3::hat(Paux) * Rcb;
+//			Matrix<double,2,3> JdRwb = - Jpi * (Sophus::SO3::hat(Paux) * Rcb);
+		acc.updateSingleWeighted(
+				(float)Jab(0),
+				(float)Jab(1),
+				(float)Jab(2),
+				(float)Jab(3),
+				(float)Jab(4),
+				(float)Jab(5),
+				a*(b0-buf_warped_refColor[i]),
+				-1.0,
+				buf_warped_residual[i],
+				buf_warped_weight[i]
+		);
+
+	}
+
+	acc.finish();
+
+	H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
+	b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+
+//	Mat1717 H_imu_pvrb;
+//	Mat917 J_imu_rtvb;
+//	Mat33 J_bias_acce, J_bias_gyro, information_gyro, information_acce;
+//	Vec9 b_imu_pvrb;
+//	Vec3 r_imu_gyro;
+//	Vec3 r_imu_acce;
+//
+//	//     Adding preintegration constraints
+//	information_gyro.setIdentity();
+//	information_acce.setIdentity();
+//	J_imu_rtvb.setZero();
+//	J_imu_rtvb.block<9,6>(0,0) = J_imu_Rt;
+//	J_imu_rtvb.block<9,3>(6,0) = J_imu_v;
+//	J_imu_rtvb.block<9,6>(11,0) = J_imu_bias;
+//	r_imu_gyro = res_bias.segment<3>(0);
+//	r_imu_acce = res_bias.segment<3>(3);
+//
+//	H_imu_pvrb = J_imu_rtvb.transpose() * information_imu * J_imu_rtvb;
+//	b_imu_pvrb = J_imu_rtvb.transpose() * information_imu * res_imu;
+//
+//	//     Adding biases constraints, here gyro bias and acce bias are indenpendent
+//	H_out += H_imu_pvrb;
+//	b_out += b_imu_pvrb;
+//
+//	H_out.block<3,3>(11,11) += J_bias_gyro.transpose() * information_gyro * J_bias_gyro;
+//	H_out.block<3,3>(14,14) += J_bias_acce.transpose() * information_acce * J_bias_acce;
+//	b_out.block<3,1>(11,0)  += J_bias_gyro.transpose() * information_gyro * r_imu_gyro;
+//	b_out.tail(3) += J_bias_acce.transpose() * information_acce * r_imu_acce;
+
+	//H_out.block<3,3>(0,0) += H_imu_rot;
+	//b_out.segment<3>(0) += b_imu_rot;
+
+	H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
+	H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;
+	H_out.block<8,1>(0,6) *= SCALE_A;
+	H_out.block<8,1>(0,7) *= SCALE_B;
+	H_out.block<3,8>(0,0) *= SCALE_XI_ROT;
+	H_out.block<3,8>(3,0) *= SCALE_XI_TRANS;
+	H_out.block<1,8>(6,0) *= SCALE_A;
+	H_out.block<1,8>(7,0) *= SCALE_B;
+	b_out.segment<3>(0) *= SCALE_XI_ROT;
+	b_out.segment<3>(3) *= SCALE_XI_TRANS;
+	b_out.segment<1>(6) *= SCALE_A;
+	b_out.segment<1>(7) *= SCALE_B;
+}
 
 void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l){
 
@@ -308,11 +420,10 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
 		SE3 Trb;
 		Mat33 Rcb,Rrb;
 		Vec3 Prb;
-        SE3 NewToref = refToNew.inverse();
+        SE3 Tref_new = refToNew.inverse();
 		Rcb = imutocam.rotationMatrix();
-		Trb = NewToref * imutocam;
-//		Rrb = Trb.block<3,3>(0,0);
-//		Prb = Trb.block<3,1>(0,3);
+		Trb = Tref_new * imutocam;
+
         for(int i=0;i<n;i++)
         {
                 Vec3 Pr;
@@ -600,6 +711,12 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 	b_out.segment<1>(7) *= SCALE_B;
 }
 
+Vec6 CoarseTracker::calcBiasRes(){
+	res_bias = newFrame->shell->bias.vector() - newFrame->shell->last_frame->bias.vector();
+	return res_bias;
+}
+
+
 Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 {
 	information_imu = newFrame->shell->getIMUcovariance().inverse();
@@ -609,8 +726,13 @@ Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 	//newFrame->shell->velocity << 1, 1, 1;
 
 	// TODO: save pointer to last frame so that you can get its velocity
+//	res_imu = newFrame->shell->evaluateIMUerrors(
+//			SE3(), lastRef->shell->velocity, previousToNew.inverse(), newFrame->shell->velocity, lastRef->shell->bias,
+//			fullSystem->getTbc(), J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
+//	);
+
 	res_imu = newFrame->shell->evaluateIMUerrors(
-			SE3(), lastRef->shell->velocity, previousToNew.inverse(), newFrame->shell->velocity, lastRef->shell->bias,
+			SE3(newFrame->shell->last_frame->navstate.pose().matrix()), lastRef->shell->velocity, SE3(newFrame->shell->navstate.pose().matrix()), newFrame->shell->velocity, lastRef->shell->bias,
 			fullSystem->getTbc(), J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
 	);
 
@@ -774,7 +896,8 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 
 
 
-	Vector9 imu_error = calcIMURes(previousToNew);
+	Vec9 imu_error = calcIMURes(previousToNew);
+	Vec6 bias_error = calcBiasRes();
 	Vector3 imu_error_r = imu_error.segment(0, 2);
 	Mat33 information_r = information_imu.block<3, 3>(6, 6);
 	double IMUenergy = imu_error_r.transpose() * information_r * imu_error_r;
@@ -944,7 +1067,7 @@ bool CoarseTracker::trackNewestCoarse(
 			aff_g2l_new.a += incScaled[6];
 			aff_g2l_new.b += incScaled[7];
 
-			Vec6 resNew = calcRes(lvl, refToNew_new, previousToNew_current, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
+			Vec6 resNew = calcRes(lvl, refToNew_new, previousToNew_new, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
 
 			bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
 
@@ -1022,7 +1145,200 @@ bool CoarseTracker::trackNewestCoarse(
 	return true;
 }
 
+bool CoarseTracker::trackNewestCoarsewithIMU(
+		FrameHessian* newFrameHessian,
+		SE3 &lastToNew_out, SE3 &previousToNew_out, AffLight &aff_g2l_out,
+		int coarsestLvl,
+		Vec5 minResForAbort,
+		IOWrap::Output3DWrapper* wrap)
+{
+	debugPlot = setting_render_displayCoarseTrackingFull;
+	debugPrint = false;
 
+	assert(coarsestLvl < 5 && coarsestLvl < pyrLevelsUsed);
+
+	lastResiduals.setConstant(NAN);
+	lastFlowIndicators.setConstant(1000);
+
+
+	newFrame = newFrameHessian;
+	int maxIterations[] = {10,20,50,50,50};
+	float lambdaExtrapolationLimit = 0.001;
+
+	SE3 Trb,Tib;
+	Mat33 Rcb,Rrb;
+	Vec3 Prb;
+	SE3 Tcb = imutocam;
+	SE3 Tref_new = lastToNew_out.inverse();
+	SE3 Tw_ref = lastRef->shell->camToWorld;
+	Rcb = imutocam.rotationMatrix();
+	Trb = Tref_new * Tcb;
+	Tib = Tw_ref * Trb;
+
+	SE3 previousToNew_current = previousToNew_out;
+	SE3 refToNew_current = lastToNew_out;
+
+	assert(newFrame->shell->last_kf->id == lastRef->shell->id);
+
+	SE3 previousTow = newFrame->shell->last_frame->camToWorld;
+	SE3 ImuTow_current = Tib;
+	SE3 previousToref = refToNew_current.inverse() * previousToNew_current;
+
+
+	AffLight aff_g2l_current = aff_g2l_out;
+
+	bool haveRepeated = false;
+
+
+	for(int lvl=coarsestLvl; lvl>=0; lvl--)
+	{
+		Mat88 H; Vec8 b;
+		float levelCutoffRepeat=1;
+		Vec6 resOld = calcRes(lvl, refToNew_current, previousToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
+		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
+		{
+			levelCutoffRepeat*=2;
+			resOld = calcRes(lvl, refToNew_current, previousToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
+
+			if(!setting_debugout_runquiet)
+				printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
+		}
+
+		calcGSSSESingleIMU(lvl, H, b, refToNew_current, aff_g2l_current);
+
+		float lambda = 0.01;
+
+
+		for(int iteration=0; iteration < maxIterations[lvl]; iteration++)
+		{
+			Mat88 Hl = H;
+			for(int i=0;i<17;i++) Hl(i,i) *= (1+lambda);
+			Vec8 inc = Hl.ldlt().solve(-b);
+
+			if(setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
+			{
+				inc.head<6>() = Hl.topLeftCorner<6,6>().ldlt().solve(-b.head<6>());
+				inc.tail<2>().setZero();
+			}
+			if(!(setting_affineOptModeA < 0) && setting_affineOptModeB < 0)	// fix b
+			{
+				inc.head<7>() = Hl.topLeftCorner<7,7>().ldlt().solve(-b.head<7>());
+				inc.tail<1>().setZero();
+			}
+			if(setting_affineOptModeA < 0 && !(setting_affineOptModeB < 0))	// fix a
+			{
+				Mat88 HlStitch = Hl;
+				Vec8 bStitch = b;
+				HlStitch.col(6) = HlStitch.col(7);
+				HlStitch.row(6) = HlStitch.row(7);
+				bStitch[6] = bStitch[7];
+				Vec7 incStitch = HlStitch.topLeftCorner<7,7>().ldlt().solve(-bStitch.head<7>());
+				inc.setZero();
+				inc.head<6>() = incStitch.head<6>();
+				inc[6] = 0;
+				inc[7] = incStitch[6];
+			}
+
+
+
+
+			float extrapFac = 1;
+			if(lambda < lambdaExtrapolationLimit) extrapFac = sqrt(sqrt(lambdaExtrapolationLimit / lambda));
+			inc *= extrapFac;
+
+			Vec8 incScaled = inc;
+			incScaled.segment<3>(0) *= SCALE_XI_ROT;
+			incScaled.segment<3>(3) *= SCALE_XI_TRANS;
+			incScaled.segment<1>(6) *= SCALE_A;
+			incScaled.segment<1>(7) *= SCALE_B;
+
+			std::cout<<"increment: \n"<<incScaled.transpose()<<std::endl;
+
+
+			if(!std::isfinite(incScaled.sum())) incScaled.setZero();
+
+
+			SE3 IMUTow_new = ImuTow_current * SE3::exp((Vec6)(incScaled.head<6>()));
+			SE3 wToIMU_new = IMUTow_new.inverse();
+			SE3 wToNew_new = imutocam * wToIMU_new;
+			SE3 refToNew_new = wToNew_new * Tw_ref;
+			SE3 previousToNew_new = wToNew_new * previousTow;
+			std::cout<<"IMUTow_new:\n"<<IMUTow_new.matrix()<<"\nImuTow_current:\n"<<ImuTow_current.matrix()<<std::endl;
+			//std::cout<<"wToIMU_new:\n"<<wToIMU_new.matrix()<<"\nwToIMU_current:\n"<<wToIMU_current.matrix()<<std::endl;
+			std::cout<<"wToNew_new:\n"<<wToNew_new.matrix()<<"\nwToNew_current:\n"<<wToNew_new.matrix()<<std::endl;
+			std::cout<<"refToNew_new:\n"<<refToNew_new.matrix()<<"\nrefToNew_old:\n"<<refToNew_current.matrix()<<std::endl;
+
+
+			//SE3 refToNew_new = SE3::exp((Vec6)(incScaled.head<6>())) * refToNew_current;
+			AffLight aff_g2l_new = aff_g2l_current;
+			aff_g2l_new.a += incScaled[6];
+			aff_g2l_new.b += incScaled[7];
+
+			Vec6 resNew = calcRes(lvl, refToNew_new, previousToNew_new, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
+
+			bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
+
+			if(accept)
+			{
+				calcGSSSESingleIMU(lvl, H, b, refToNew_new, aff_g2l_new);
+				resOld = resNew;
+				aff_g2l_current = aff_g2l_new;
+				refToNew_current = refToNew_new;
+				ImuTow_current = IMUTow_new;
+				previousToNew_current = previousToNew_new;
+				lambda *= 0.5;
+			}
+			else
+			{
+				lambda *= 4;
+				if(lambda < lambdaExtrapolationLimit) lambda = lambdaExtrapolationLimit;
+			}
+
+			if(!(inc.norm() > 1e-3))
+			{
+				if(debugPrint)
+					printf("inc too small, break!\n");
+				break;
+			}
+		}
+
+		// set last residual for that level, as well as flow indicators.
+		lastResiduals[lvl] = sqrtf((float)(resOld[0] / resOld[1]));
+		lastFlowIndicators = resOld.segment<3>(2);
+		if(lastResiduals[lvl] > 1.5*minResForAbort[lvl]) return false;
+
+
+		if(levelCutoffRepeat > 1 && !haveRepeated)
+		{
+			lvl++;
+			haveRepeated=true;
+			printf("REPEAT LEVEL!\n");
+		}
+	}
+
+	// set!
+	std::cout<< "lastToNew_out:= "<<refToNew_current.matrix()<<" lastToNew_in:= "<< lastToNew_out.matrix()<<std::endl;
+	lastToNew_out = refToNew_current;
+	aff_g2l_out = aff_g2l_current;
+
+
+	if((setting_affineOptModeA != 0 && (fabsf(aff_g2l_out.a) > 1.2))
+	   || (setting_affineOptModeB != 0 && (fabsf(aff_g2l_out.b) > 200)))
+		return false;
+
+	Vec2f relAff = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l_out).cast<float>();
+
+	if((setting_affineOptModeA == 0 && (fabsf(logf((float)relAff[0])) > 1.5))
+	   || (setting_affineOptModeB == 0 && (fabsf((float)relAff[1]) > 200)))
+		return false;
+
+
+
+	if(setting_affineOptModeA < 0) aff_g2l_out.a=0;
+	if(setting_affineOptModeB < 0) aff_g2l_out.b=0;
+
+	return true;
+}
 
 void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::vector<IOWrap::Output3DWrapper*> &wraps)
 {

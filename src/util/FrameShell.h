@@ -77,6 +77,7 @@ public:
 
 	// Predicted pose/biases ;
 	gtsam::Velocity3 velocity;
+	gtsam::NavState navstate;
 
 	//SE3 prop_pose;
 
