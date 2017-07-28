@@ -109,6 +109,7 @@ private:
 
 	Vec6 calcResAndGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
 	Vec6 calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToNew, AffLight aff_g2l, float cutoffTH);
+    Vec6 calcResIMU(int lvl, gtsam::NavState current_navstate, AffLight aff_g2l_current, Vec6 biases, float cutoffTH);
 	void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGSSSESingleIMU(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
@@ -117,8 +118,15 @@ private:
 
     // for imu errors
     Vec9 calcIMURes(const SE3 &refToNew);
+	Vec6 calcBiasRes();
     gtsam::Matrix  J_imu_Rt, J_imu_bias, J_imu_v;
-    Vector9 res_imu;
+
+    Vec9 res_imu;
+//    Vec15 res_imu;
+    Mat1515 J_imu_rtvb;
+//    Mat1515 information_imu;
+
+	Vector6 res_bias;
     Mat99 information_imu;
 
 	// pc buffers

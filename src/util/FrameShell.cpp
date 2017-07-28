@@ -3,8 +3,8 @@
 
 Mat99 FrameShell::getIMUcovariance()
 {
-    PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_last_frame_);
-    return preint_imu->preintMeasCov();
+    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
+    return preint_imu->preintMeasCov().block<9, 9>(0, 0);
 }
 
 Vec3 FrameShell::TWB(Matrix44 Tbc){
@@ -26,26 +26,28 @@ Vector9 FrameShell::evaluateIMUerrors(
         Vec3 initial_velocity,
         SE3 final_cam_2_world,
         Vec3 final_velocity,
-        gtsam::imuBias::ConstantBias bias,
+        gtsam::imuBias::ConstantBias initial_bias,
         Mat44 Tbc,
         gtsam::Matrix &J_imu_Rt_i,
         gtsam::Matrix &J_imu_v_i,
         gtsam::Matrix &J_imu_Rt_j,
         gtsam::Matrix &J_imu_v_j,
-        gtsam::Matrix &J_imu_bias
+        gtsam::Matrix &J_imu_bias_i,
+        gtsam::Matrix &J_imu_bias_j
 )
 {
-    PreintegratedImuMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_last_frame_);
+    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
 
-    ImuFactor imu_factor(X(0), V(0),
+    CombinedImuFactor imu_factor(X(0), V(0),
                          X(1), V(1),
-                         B(0),
+                         B(0), B(1),
                          *preint_imu);
 
     Values initial_values;
     initial_values.insert(X(0), gtsam::Pose3(initial_cam_2_world.matrix()));
     initial_values.insert(V(0), initial_velocity);
-    initial_values.insert(B(0), bias);
+    initial_values.insert(B(0), initial_bias);
+    initial_values.insert(B(1), this->bias);
     initial_values.insert(X(1), gtsam::Pose3(final_cam_2_world.matrix()));
     initial_values.insert(V(1), final_velocity);
 
@@ -60,17 +62,9 @@ Vector9 FrameShell::evaluateIMUerrors(
             final_cam_2_world.matrix(), Tbc
     ));
 
-    // temporary stuffs
-//	gtsam::Pose3 relative_pose = initial_imu_2_world.inverse().compose(final_imu_2_world);
-//
-//	return imu_factor.evaluateError(
-//			gtsam::Pose3(), initial_velocity, relative_pose, final_velocity, bias,
-//			J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias
-//	);
-
     return imu_factor.evaluateError(
-            initial_imu_2_world, initial_velocity, final_imu_2_world, final_velocity, bias,
-            J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias
+            initial_imu_2_world, initial_velocity, final_imu_2_world, final_velocity, initial_bias, this->bias,
+            J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
     );
 }
 

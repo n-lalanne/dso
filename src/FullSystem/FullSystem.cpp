@@ -1445,7 +1445,9 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
 
 void FullSystem::solveGyroscopeBiasbyGTSAM()
 {
-	for (int iter_idx = 0; iter_idx < 1; iter_idx++)
+    assert(allKeyFramesHistory.size());
+
+    for (int iter_idx = 0; iter_idx < 4; iter_idx++)
 	{
 		Mat33 A;
 		Vec3 b;
@@ -1458,6 +1460,11 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 			Mat33 resR;
 			FrameShell *frame_i = allKeyFramesHistory[index_i - 1];
 			FrameShell *frame_j = allKeyFramesHistory[index_i];
+
+            if (!frame_i || !frame_j)
+            {
+                continue;
+            }
 			SE3 Ti = frame_i->camToWorld;
 			SE3 Tj = frame_j->camToWorld;
 			SE3 Tij = frame_i->camToWorld.inverse() * frame_j->camToWorld;
@@ -1471,10 +1478,10 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 			tmp_b.setZero();
 
 			//============================================for the jacobian of rotation=================================================
-			PreintegratedImuMeasurements *preint_imu = dynamic_cast<PreintegratedImuMeasurements *>(frame_j->imu_preintegrated_last_kf_);
-			ImuFactor imu_factor(X(0), V(0),
+            PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<PreintegratedCombinedMeasurements *>(frame_j->imu_preintegrated_last_kf_);
+			CombinedImuFactor imu_factor(X(0), V(0),
 								 X(1), V(1),
-								 B(0),
+								 B(0), B(1),
 								 *preint_imu);
 
 			// relative pose wrt IMU
@@ -1487,20 +1494,26 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 			initial_values.insert(X(0), gtsam::Pose3::identity());
 			initial_values.insert(V(0), gtsam::zero(3));
 			initial_values.insert(B(0), frame_i->bias);
+            initial_values.insert(B(1), frame_j->bias);
 			initial_values.insert(X(1), relativePose);
 			initial_values.insert(V(1), velocity);
 
 			//boost::shared_ptr<GaussianFactor> linearFactor =
 			imu_factor.linearize(initial_values);
 			// useless Jacobians of reference frame (cuz we're not optimizing reference frame)
-			gtsam::Matrix J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias;
+			gtsam::Matrix J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias_i, J_imu_bias_j;
 			Vector9 res_imu = imu_factor.evaluateError(
-					gtsam::Pose3::identity(), gtsam::zero(3), relativePose, velocity, frame_i->bias,
-					J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
+					gtsam::Pose3::identity(), gtsam::zero(3), relativePose, velocity, allKeyFramesHistory[0]->bias, allKeyFramesHistory[0]->bias,
+					J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias_i, J_imu_bias_j
 			);
 			//=======================================================================================================================
 
-			tmp_A = J_imu_bias.block<3, 3>(0, 3);
+			std::cout 	<< "J_Rt_i：\n" << J_imu_Rt_i << std::endl
+						<< "J_Rt_j：\n" << J_imu_Rt << std::endl
+						<< "J_imu_bias_i：\n" << J_imu_bias_i << std::endl
+						<< "J_imu_bias_j：\n" << J_imu_bias_j << std::endl;
+
+			tmp_A = J_imu_bias_i.block<3,3>(0,3);
 			tmp_A = tmp_A;
 //			std::cout << "J_imu_bias bg =  \n" << J_imu_bias << std::endl;
 //			std::cout << "J_imu_bias bg =  " << std::endl << tmp_A << std::endl;
@@ -1515,8 +1528,9 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		Vec6 agbias;
 		agbias.setZero();
 		agbias.tail<3>() = delta_bg;
+
 		for (int index_i = allKeyFramesHistory.size() - 1;
-			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE + 1; index_i--)
+			 index_i >= 0; index_i--)
 		{
 			FrameShell *frame_i = allKeyFramesHistory[index_i];
 			frame_i->bias = frame_i->bias + agbias;
