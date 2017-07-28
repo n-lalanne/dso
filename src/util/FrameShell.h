@@ -116,13 +116,9 @@ public:
 
 		bias = biasPrior;
 
-#ifdef USE_COMBINED
-		imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias1);
-		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias1);
-#else
-		imu_preintegrated_last_frame_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), biasPrior);
-		imu_preintegrated_last_kf_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), biasPrior);
-#endif
+        imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
+		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
+
 	}
 
 	//==========================================IMU related methods==================================================
@@ -143,13 +139,14 @@ public:
 			Vec3 initial_velocity,
 			SE3 final_cam_2_world,
 			Vec3 final_velocity,
-			gtsam::imuBias::ConstantBias bias,
+			gtsam::imuBias::ConstantBias initial_bias,
 			Mat44 Tbc,
 			gtsam::Matrix &J_imu_Rt_i,
 			gtsam::Matrix &J_imu_v_i,
 			gtsam::Matrix &J_imu_Rt_j,
 			gtsam::Matrix &J_imu_v_j,
-			gtsam::Matrix &J_imu_bias
+			gtsam::Matrix &J_imu_bias_i,
+            gtsam::Matrix &J_imu_bias_j
 	);
 
 	/**

@@ -35,6 +35,7 @@
 
 namespace  dso_vi
 {
+#define USE_COMBINED
     extern double accel_noise_sigma;
     extern double gyro_noise_sigma;
     extern double accel_bias_rw_sigma;

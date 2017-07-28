@@ -722,7 +722,7 @@ Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 	information_imu = newFrame->shell->getIMUcovariance().inverse();
 
 	// useless Jacobians of reference frame (cuz we're not optimizing reference frame)
-	gtsam::Matrix  J_imu_Rt_i, J_imu_v_i;
+	gtsam::Matrix  J_imu_Rt_i, J_imu_v_i, J_imu_bias_i;
 	//newFrame->shell->velocity << 1, 1, 1;
 
 	// TODO: save pointer to last frame so that you can get its velocity
@@ -733,8 +733,10 @@ Vec9 CoarseTracker::calcIMURes(const SE3 &previousToNew)
 
 	res_imu = newFrame->shell->evaluateIMUerrors(
 			SE3(newFrame->shell->last_frame->navstate.pose().matrix()), lastRef->shell->velocity, SE3(newFrame->shell->navstate.pose().matrix()), newFrame->shell->velocity, lastRef->shell->bias,
-			fullSystem->getTbc(), J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias
+			fullSystem->getTbc(), J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias_i, this->J_imu_bias
 	);
+
+    res_imu.resize(9, 1);
 
 //	std::cout << "----------------------------------IMU----------------------------------" << std::endl;
 //	std::cout << "IMU Error: \n" << res_imu.segment<3>(0).transpose() << std::endl << std::endl;
