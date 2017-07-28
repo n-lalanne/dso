@@ -117,8 +117,10 @@ private:
 
     // for imu errors
     Vec9 calcIMURes(const SE3 &refToNew);
+	Vec6 calcBiasRes();
     gtsam::Matrix  J_imu_Rt, J_imu_bias, J_imu_v;
     Vector9 res_imu;
+	Vector6 res_bias;
     Mat99 information_imu;
 
 	// pc buffers

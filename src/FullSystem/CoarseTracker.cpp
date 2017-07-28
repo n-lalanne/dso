@@ -300,7 +300,7 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 
 }
 
-void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, const SE3 &refToNew, AffLight aff_g2l)
+void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l)
 {
 
 	acc.initialize();
@@ -367,34 +367,34 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
 	b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
 
-	Mat1717 H_imu_pvrb;
-	Mat917 J_imu_rtvb;
-	Mat33 J_bias_acce, J_bias_gyro, information_gyro, information_acce;
-	Vec9 b_imu_pvrb;
-	Vec3 r_imu_gyro;
-	Vec3 r_imu_acce;
-
-	//     Adding preintegration constraints
-	information_gyro.setIdentity();
-	information_acce.setIdentity();
-	J_imu_rtvb.setZero();
-	J_imu_rtvb.block<9,6>(0,0) = J_imu_Rt;
-	J_imu_rtvb.block<9,3>(6,0) = J_imu_v;
-	J_imu_rtvb.block<9,6>(11,0) = J_imu_bias;
-	r_imu_gyro = res_bias.segment<3>(0);
-	r_imu_acce = res_bias.segment<3>(3);
-
-	H_imu_pvrb = J_imu_rtvb.transpose() * information_imu * J_imu_rtvb;
-	b_imu_pvrb = J_imu_rtvb.transpose() * information_imu * res_imu;
-
-	//     Adding biases constraints, here gyro bias and acce bias are indenpendent
-	H_out += H_imu_pvrb;
-	b_out += b_imu_pvrb;
-
-	H_out.block<3,3>(11,11) += J_bias_gyro.transpose() * information_gyro * J_bias_gyro;
-	H_out.block<3,3>(14,14) += J_bias_acce.transpose() * information_acce * J_bias_acce;
-	b_out.block<3,1>(11,0)  += J_bias_gyro.transpose() * information_gyro * r_imu_gyro;
-	b_out.tail(3) += J_bias_acce.transpose() * information_acce * r_imu_acce;
+//	Mat1717 H_imu_pvrb;
+//	Mat917 J_imu_rtvb;
+//	Mat33 J_bias_acce, J_bias_gyro, information_gyro, information_acce;
+//	Vec9 b_imu_pvrb;
+//	Vec3 r_imu_gyro;
+//	Vec3 r_imu_acce;
+//
+//	//     Adding preintegration constraints
+//	information_gyro.setIdentity();
+//	information_acce.setIdentity();
+//	J_imu_rtvb.setZero();
+//	J_imu_rtvb.block<9,6>(0,0) = J_imu_Rt;
+//	J_imu_rtvb.block<9,3>(6,0) = J_imu_v;
+//	J_imu_rtvb.block<9,6>(11,0) = J_imu_bias;
+//	r_imu_gyro = res_bias.segment<3>(0);
+//	r_imu_acce = res_bias.segment<3>(3);
+//
+//	H_imu_pvrb = J_imu_rtvb.transpose() * information_imu * J_imu_rtvb;
+//	b_imu_pvrb = J_imu_rtvb.transpose() * information_imu * res_imu;
+//
+//	//     Adding biases constraints, here gyro bias and acce bias are indenpendent
+//	H_out += H_imu_pvrb;
+//	b_out += b_imu_pvrb;
+//
+//	H_out.block<3,3>(11,11) += J_bias_gyro.transpose() * information_gyro * J_bias_gyro;
+//	H_out.block<3,3>(14,14) += J_bias_acce.transpose() * information_acce * J_bias_acce;
+//	b_out.block<3,1>(11,0)  += J_bias_gyro.transpose() * information_gyro * r_imu_gyro;
+//	b_out.tail(3) += J_bias_acce.transpose() * information_acce * r_imu_acce;
 
 	//H_out.block<3,3>(0,0) += H_imu_rot;
 	//b_out.segment<3>(0) += b_imu_rot;
@@ -712,7 +712,7 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 }
 
 Vec6 CoarseTracker::calcBiasRes(){
-	res_bias = newFrame->shell->bias - newFrame->shell->last_frame->bias;
+	res_bias = newFrame->shell->bias.vector() - newFrame->shell->last_frame->bias.vector();
 	return res_bias;
 }
 
@@ -1192,7 +1192,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{
-		Mat1717 H; Vec17 b;
+		Mat88 H; Vec8 b;
 		float levelCutoffRepeat=1;
 		Vec6 resOld = calcRes(lvl, refToNew_current, previousToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
 		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
@@ -1211,7 +1211,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 		for(int iteration=0; iteration < maxIterations[lvl]; iteration++)
 		{
-			Mat1717 Hl = H;
+			Mat88 Hl = H;
 			for(int i=0;i<17;i++) Hl(i,i) *= (1+lambda);
 			Vec8 inc = Hl.ldlt().solve(-b);
 
