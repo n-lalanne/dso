@@ -347,6 +347,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	SE3 lastF_2_world;
 	SE3 slast_2_world;
 	Vec3 slast_velocity;
+	Vec3 shared_velociy;
 
 	if(allFrameHistory.size() == 2)
 	{
@@ -390,6 +391,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
             SE3 prop_lastF_2_fh_r = prop_fh_2_world.inverse() * lastF_2_world;
             SE3 prop_slast_2_fh = prop_fh_2_world.inverse() * slast_2_world;
             SE3 prop_lastF_2_slast = slast_2_world.inverse() * lastF_2_world;
+
             if (false) {
                 lastF_2_fh_tries.push_back(prop_lastF_2_fh_r);
                 lastF_2_fh_tries.push_back(
@@ -735,12 +737,26 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		AffLight aff_g2l_this = aff_last_2_l;
 		SE3 lastF_2_fh_this = lastF_2_fh_tries[i];
 		SE3 slast_2_fh_this = lastF_2_fh_this * lastF_2_slast.inverse();
+		gtsam::NavState navstate_this;
+		Vec6 biases_this = fh->shell->bias.vector();
 		bool trackingIsGood;
 		if(IMUinitialized)
-		trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
-				fh, lastF_2_fh_this, slast_2_fh_this,  aff_g2l_this,
-				pyrLevelsUsed-1,
-				achievedRes);// in each level has to be at least as good as the last try.
+		{
+			//navstate_this = (lastF->shell->camToWorld.inverse() * lastF_2_fh_tries[i]);
+
+			SE3 new2w = SE3(dso_vi::IMUData::convertCamFrame2IMUFrame(
+					((lastF->shell->camToWorld.inverse() * lastF_2_fh_tries[i].inverse()).matrix()),
+					getTbc()
+			));
+
+			navstate_this = gtsam::NavState(
+					gtsam::Pose3(new2w.matrix()),shared_velociy
+			);
+			trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
+					fh, navstate_this, biases_this, aff_g2l_this,
+					pyrLevelsUsed-1,
+					achievedRes);
+		}// in each level has to be at least as good as the last try.
 		else
 		trackingIsGood = coarseTracker->trackNewestCoarse(
 				fh, lastF_2_fh_this, slast_2_fh_this,  aff_g2l_this,
