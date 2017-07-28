@@ -126,19 +126,17 @@ public:
 	 *
 	 * @return transformation from current frame to last frame
 	 */
-	SE3 PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, Mat44 Tbc);
+    gtsam::NavState PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp, Mat44 Tbc);
 
-	Mat99 getIMUcovariance();
+	Mat1515 getIMUcovariance();
 	/**
 	 *
 	 * @param J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias: output jacobians
 	 * @return IMU residuals (9x1 vector)
 	 */
-	Vector9 evaluateIMUerrors(
-			SE3 initial_cam_2_world,
-			Vec3 initial_velocity,
-			SE3 final_cam_2_world,
-			Vec3 final_velocity,
+	Vec15 evaluateIMUerrors(
+			gtsam::NavState previous_navstate,
+			gtsam::NavState current_navstate,
 			gtsam::imuBias::ConstantBias initial_bias,
 			Mat44 Tbc,
 			gtsam::Matrix &J_imu_Rt_i,

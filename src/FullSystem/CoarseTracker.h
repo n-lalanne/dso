@@ -57,7 +57,7 @@ public:
 
 	bool trackNewestCoarsewithIMU(
 			FrameHessian* newFrameHessian,
-			SE3 &lastToNew_out, SE3 &previousToNew_out, AffLight &aff_g2l_out,
+			gtsam::NavState &navstate_out,  Vec6 &biases_out, AffLight &aff_g2l_out,
 			int coarsestLvl,
 			Vec5 minResForAbort,
 			IOWrap::Output3DWrapper* wrap=0);
@@ -109,25 +109,19 @@ private:
 
 	Vec6 calcResAndGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
 	Vec6 calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToNew, AffLight aff_g2l, float cutoffTH);
-    Vec6 calcResIMU(int lvl, gtsam::NavState current_navstate, AffLight aff_g2l_current, Vec6 biases, float cutoffTH);
+	Vec6 calcResIMU(int lvl,const gtsam::NavState current_navstate, AffLight aff_g2l,const Vec6 biases, float cutoffTH);
 	void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
-	void calcGSSSESingleIMU(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
+	void calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, const gtsam::NavState navState_, AffLight aff_g2l);
 	void calcGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGSSSEst(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 
     // for imu errors
-    Vec9 calcIMURes(const SE3 &refToNew);
-	Vec6 calcBiasRes();
+    Vec15 calcIMURes(gtsam::NavState current_navstate, Vec6 bias);
     gtsam::Matrix  J_imu_Rt, J_imu_bias, J_imu_v;
 
-    Vec9 res_imu;
-//    Vec15 res_imu;
-    Mat1515 J_imu_rtvb;
-//    Mat1515 information_imu;
-
-	Vector6 res_bias;
-    Mat99 information_imu;
+    Vec15 res_imu;
+    Mat1515 information_imu;
 
 	// pc buffers
 	float* pc_u[PYR_LEVELS];

@@ -1,10 +1,10 @@
 #include <GroundTruthIterator/GroundTruthIterator.h>
 #include "FrameShell.h"
 
-Mat99 FrameShell::getIMUcovariance()
+Mat1515 FrameShell::getIMUcovariance()
 {
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
-    return preint_imu->preintMeasCov().block<9, 9>(0, 0);
+    return preint_imu->preintMeasCov();
 }
 
 Vec3 FrameShell::TWB(Matrix44 Tbc){
@@ -21,11 +21,9 @@ Vec3 FrameShell::TWB(Matrix44 Tbc){
     return Twb.block<3,1>(0,3);
 }
 
-Vector9 FrameShell::evaluateIMUerrors(
-        SE3 initial_cam_2_world,
-        Vec3 initial_velocity,
-        SE3 final_cam_2_world,
-        Vec3 final_velocity,
+Vec15 FrameShell::evaluateIMUerrors(
+        gtsam::NavState previous_navstate,
+        gtsam::NavState current_navstate,
         gtsam::imuBias::ConstantBias initial_bias,
         Mat44 Tbc,
         gtsam::Matrix &J_imu_Rt_i,
@@ -44,26 +42,18 @@ Vector9 FrameShell::evaluateIMUerrors(
                          *preint_imu);
 
     Values initial_values;
-    initial_values.insert(X(0), gtsam::Pose3(initial_cam_2_world.matrix()));
-    initial_values.insert(V(0), initial_velocity);
+    initial_values.insert(X(0), previous_navstate.pose());
+    initial_values.insert(X(1), current_navstate.pose());
+    initial_values.insert(V(0), previous_navstate.velocity());
+    initial_values.insert(V(1), current_navstate.velocity());
     initial_values.insert(B(0), initial_bias);
     initial_values.insert(B(1), this->bias);
-    initial_values.insert(X(1), gtsam::Pose3(final_cam_2_world.matrix()));
-    initial_values.insert(V(1), final_velocity);
 
     imu_factor.linearize(initial_values);
 
-    // relative pose wrt IMU
-    gtsam::Pose3 initial_imu_2_world(dso_vi::IMUData::convertCamFrame2IMUFrame(
-            initial_cam_2_world.matrix(), Tbc
-    ));
-
-    gtsam::Pose3 final_imu_2_world(dso_vi::IMUData::convertCamFrame2IMUFrame(
-            final_cam_2_world.matrix(), Tbc
-    ));
-
     return imu_factor.evaluateError(
-            initial_imu_2_world, initial_velocity, final_imu_2_world, final_velocity, initial_bias, this->bias,
+            previous_navstate.pose(), previous_navstate.velocity(), current_navstate.pose(), current_navstate.velocity(),
+            initial_bias, this->bias,
             J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
     );
 }
@@ -155,7 +145,7 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
 }
 
 
-SE3 FrameShell::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, Mat44 Tbc)
+gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp, Mat44 Tbc)
 {
 
 //    gtsam::NavState ref_pose_imu = gtsam::NavState(
@@ -164,17 +154,16 @@ SE3 FrameShell::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestam
 //    );
 
     // conversion from EUROC reference to our reference
-    Mat44 T_dso_euroc = (lastPose.matrix() * Tbc.inverse()) * last_frame->groundtruth.pose.inverse().matrix();
-    std::cout << "DSO vs EuRoC rotation: \n" << T_dso_euroc.block<3,3>(0,0) << std::endl;
-
-    gtsam::NavState ref_pose_imu = gtsam::NavState(
-            gtsam::Pose3(lastPose.matrix() * Tbc.inverse()),
-            T_dso_euroc.block<3,3>(0,0).transpose() * last_frame->groundtruth.velocity
-    );
+//    Mat44 T_dso_euroc = (lastPose.matrix() * Tbc.inverse()) * last_frame->groundtruth.pose.inverse().matrix();
+//    std::cout << "DSO vs EuRoC rotation: \n" << T_dso_euroc.block<3,3>(0,0) << std::endl;
+//
+//    gtsam::NavState ref_pose_imu = gtsam::NavState(
+//            gtsam::Pose3(lastPose.matrix() * Tbc.inverse()),
+//            T_dso_euroc.block<3,3>(0,0).transpose() * last_frame->groundtruth.velocity
+//    );
 
     gtsam::NavState predicted_pose_imu = imu_preintegrated_last_frame_->predict(ref_pose_imu, bias);
 
-    Mat44 mat_pose_imu = predicted_pose_imu.pose().matrix();
     if (
             !std::isfinite(predicted_pose_imu.pose().translation().x()) ||
             !std::isfinite(predicted_pose_imu.pose().translation().y()) ||
@@ -185,21 +174,22 @@ SE3 FrameShell::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestam
         {
             std::cout << "IMU prediction nan for translation!!!" << std::endl;
         }
-        mat_pose_imu.block<3, 1>(0, 3) = Vec3::Zero();
+        predicted_pose_imu = gtsam::NavState(
+                gtsam::Pose3(predicted_pose_imu.pose().rotation(), Vec3::Zero()),
+                predicted_pose_imu.velocity()
+        );
     }
-
+    else
     {
-        gtsam::NavState predicted_state = imu_preintegrated_last_frame_->predict(
+        predicted_pose_imu = imu_preintegrated_last_frame_->predict(
                 gtsam::NavState(last_frame->groundtruth.pose, last_frame->groundtruth.velocity),
                 bias
         );
 
-        std::cout << "Prediction error: \n" << groundtruth.pose.inverse().compose(predicted_state.pose()).matrix() << std::endl;
+        std::cout << "Prediction error: \n" << groundtruth.pose.inverse().compose(predicted_pose_imu.pose()).matrix() << std::endl;
     }
 
-    Mat44 predicted_pose_camera = mat_pose_imu * Tbc;
-
-    return SE3(predicted_pose_camera);
+    return predicted_pose_imu;
 }
 
 void FrameShell::setNavstate(Mat33 Rs,Vec3 Ps,Vec3 Vs)

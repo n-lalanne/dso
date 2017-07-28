@@ -66,6 +66,7 @@ typedef Eigen::Matrix<double,10,10> Mat1010;
 typedef Eigen::Matrix<double,13,13> Mat1313;
 typedef Eigen::Matrix<double,15,15> Mat1515;
 typedef Eigen::Matrix<double,9,17> Mat917;
+typedef Eigen::Matrix<double,15,17> Mat1517;
 typedef Eigen::Matrix<double,17,17> Mat1717;
 typedef Eigen::Matrix<double,17,1> Vec17;
 
