@@ -492,8 +492,21 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
                         getTbc()
                 ));
 
-                std::cout << "Groundtruth translation: " << groundtruth_slast_2_sprelast.translation() << std::endl;
-                std::cout << "DSO translation: " << slast_2_sprelast.translation() << std::endl;
+				if (IMUinitialized)
+				{
+					// check the translation prediction the translation
+					SE3 estimatedRelativePose = slast->camToWorld.inverse() * prop_fh_2_world;
+					SE3 groundtruthRelativePose(dso_vi::IMUData::convertIMUFrame2CamFrame(
+						slast->groundtruth.pose.inverse().compose(fh->shell->groundtruth.pose).matrix(),
+						getTbc()
+					));
+
+					std::cout << "Estimated translation: " << estimatedRelativePose.translation().transpose() << std::endl;
+					std::cout << "Groundtruth translation: " << groundtruthRelativePose.translation().transpose() << std::endl;
+
+				}
+//                std::cout << "Groundtruth translation: " << groundtruth_slast_2_sprelast.translation() << std::endl;
+//                std::cout << "DSO translation: " << slast_2_sprelast.translation() << std::endl;
 
                 double translation_direction_error = acos(
                         slast_2_sprelast.translation().normalized().dot(groundtruth_slast_2_sprelast.translation().normalized())
@@ -1632,6 +1645,11 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 					 << groundtruth_relative_pose.translation().norm() / estimated_relative_pose.translation().norm() << ", "
 					 << "translation dir error: " << translation_direction_error
 					 << std::endl;
+
+		std::cout << "Velocity GT VS Our: \n"
+				  << allKeyFramesHistory[i]->groundtruth.velocity.transpose() << std::endl
+				  << Vs[i].transpose()
+				  << std::endl;
 	}
 
 	std::cout <<"----------------------normal frames--------------------------"<<std::endl;

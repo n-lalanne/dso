@@ -1,3 +1,4 @@
+#include <GroundTruthIterator/GroundTruthIterator.h>
 #include "FrameShell.h"
 
 Mat99 FrameShell::getIMUcovariance()
@@ -162,10 +163,21 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
 
 SE3 FrameShell::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestamp, Mat44 Tbc)
 {
+
+//    gtsam::NavState ref_pose_imu = gtsam::NavState(
+//            gtsam::Pose3( dso_vi::IMUData::convertCamFrame2IMUFrame(lastPose.matrix(), Tbc) ),
+//            lastVelocity
+//    );
+
+    // conversion from EUROC reference to our reference
+    Mat44 T_dso_euroc = (lastPose.matrix() * Tbc.inverse()) * last_frame->groundtruth.pose.inverse().matrix();
+    std::cout << "DSO vs EuRoC rotation: \n" << T_dso_euroc.block<3,3>(0,0) << std::endl;
+
     gtsam::NavState ref_pose_imu = gtsam::NavState(
-            gtsam::Pose3( dso_vi::IMUData::convertCamFrame2IMUFrame(lastPose.matrix(), Tbc) ),
-            lastVelocity
+            gtsam::Pose3(lastPose.matrix() * Tbc.inverse()),
+            T_dso_euroc.block<3,3>(0,0).transpose() * last_frame->groundtruth.velocity
     );
+
     gtsam::NavState predicted_pose_imu = imu_preintegrated_last_frame_->predict(ref_pose_imu, bias);
 
     Mat44 mat_pose_imu = predicted_pose_imu.pose().matrix();
@@ -182,18 +194,17 @@ SE3 FrameShell::PredictPose(SE3 lastPose, Vec3 lastVelocity, double lastTimestam
         mat_pose_imu.block<3, 1>(0, 3) = Vec3::Zero();
     }
 
-//    Mat44 relative_pose_imu = ref_pose_imu.pose().inverse().compose(predicted_pose_imu.pose()).matrix();
-//    Mat44 groundtruth_pose = last_frame->groundtruth.pose.inverse().compose(groundtruth.pose).matrix();
-//    Mat44 error = groundtruth_pose.inverse() * relative_pose_imu;
-//    Quaternion error_quat = SO3(error.block<3, 3>(0, 0)).unit_quaternion();
-//    std::cout << "Tbc \n" << Tbc << std::endl;
-//    std::cout << "Error: "
-//              << error_quat.x() << ", "
-//              << error_quat.y() << ", "
-//              << error_quat.z() << ", "
-//              << std::endl;
+    {
+        gtsam::NavState predicted_state = imu_preintegrated_last_frame_->predict(
+                gtsam::NavState(last_frame->groundtruth.pose, last_frame->groundtruth.velocity),
+                bias
+        );
 
-    Mat44 predicted_pose_camera = dso_vi::IMUData::convertIMUFrame2CamFrame(mat_pose_imu, Tbc);
+        std::cout << "Prediction error: \n" << groundtruth.pose.inverse().compose(predicted_state.pose()).matrix() << std::endl;
+    }
+
+    Mat44 predicted_pose_camera = mat_pose_imu * Tbc;
+
     return SE3(predicted_pose_camera);
 }
 
