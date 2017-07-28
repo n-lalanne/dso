@@ -300,7 +300,8 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 
 }
 
-void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l){
+void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l)
+{
 
 	acc.initialize();
 	int n = buf_warped_n;
