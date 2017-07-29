@@ -347,7 +347,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	SE3 slast_2_world;
 	gtsam::NavState slast_navstate, prop_navstate;
 	Vec3 slast_velocity,final_velocity;
-	Vec3 shared_velociy;
+	Vec3 shared_velocity;
     Vec6 final_biases, current_biases;
 
 	if(allFrameHistory.size() == 2)
@@ -394,19 +394,40 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			std::cout<<"last pose(from SE3):\n"<<slast->navstate.pose().matrix()<<std::endl;
             std::cout<<"last pose(from navstate): \n"<<slast_navstate.pose().matrix()<<"\npredicted current pose\n"<<prop_navstate.pose().matrix()<<std::endl;
             SE3 prop_fh_2_world(prop_navstate.pose().matrix() * getTbc());
-			shared_velociy = prop_navstate.velocity();
+			shared_velocity = prop_navstate.velocity();
             SE3 prop_lastF_2_fh_r = prop_fh_2_world.inverse() * lastF_2_world;
             SE3 prop_slast_2_fh = prop_fh_2_world.inverse() * slast_2_world;
             SE3 prop_lastF_2_slast = slast_2_world.inverse() * lastF_2_world;
 
             if (IMUinitialized)
 			{
+
+				// check the translation prediction the translation
+				SE3 estimatedRelativePose = slast->camToWorld.inverse() * prop_fh_2_world;
+				SE3 groundtruthRelativePose(dso_vi::IMUData::convertIMUFrame2CamFrame(
+						slast->groundtruth.pose.inverse().compose(fh->shell->groundtruth.pose).matrix(),
+						getTbc()
+				));
+
+				std::cout << "Estimated translation: " << estimatedRelativePose.translation().transpose() << std::endl;
+				std::cout << "Groundtruth translation: " << groundtruthRelativePose.translation().transpose() << std::endl;
+
+//				double translation_direction_error = acos(
+//						slast_2_sprelast.translation().normalized().dot(groundtruth_slast_2_sprelast.translation().normalized())
+//				) * 180 / M_PI;
+//
+//				std::cout << "Scale: "
+//						  << groundtruth_slast_2_sprelast.translation().norm() / slast_2_sprelast.translation().norm()
+//						  << " Translation dir error: " << translation_direction_error
+//						  << std::endl;
+
+
                 lastF_2_fh_tries.push_back(prop_lastF_2_fh_r);
-                lastF_2_fh_tries.push_back(
-                        prop_slast_2_fh * prop_slast_2_fh *  prop_lastF_2_slast);    // assume double motion (frame skipped)
-                lastF_2_fh_tries.push_back(
-                        SE3::exp(prop_slast_2_fh.log() * 0.5) *
-                                prop_lastF_2_slast); // assume half motion.
+//                lastF_2_fh_tries.push_back(
+//                        prop_slast_2_fh * prop_slast_2_fh *  prop_lastF_2_slast);    // assume double motion (frame skipped)
+//                lastF_2_fh_tries.push_back(
+//                        SE3::exp(prop_slast_2_fh.log() * 0.5) *
+//                                prop_lastF_2_slast); // assume half motion.
                 lastF_2_fh_tries.push_back(prop_lastF_2_slast); // assume zero motion.
                 lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
 
@@ -498,29 +519,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
                         getTbc()
                 ));
 
-				if (IMUinitialized)
-				{
-					// check the translation prediction the translation
-					SE3 estimatedRelativePose = slast->camToWorld.inverse() * prop_fh_2_world;
-					SE3 groundtruthRelativePose(dso_vi::IMUData::convertIMUFrame2CamFrame(
-						slast->groundtruth.pose.inverse().compose(fh->shell->groundtruth.pose).matrix(),
-						getTbc()
-					));
-
-					std::cout << "Estimated translation: " << estimatedRelativePose.translation().transpose() << std::endl;
-					std::cout << "Groundtruth translation: " << groundtruthRelativePose.translation().transpose() << std::endl;
-
-				}
-                double translation_direction_error = acos(
-                        slast_2_sprelast.translation().normalized().dot(groundtruth_slast_2_sprelast.translation().normalized())
-                ) * 180 / M_PI;
-
-                std::cout << "Scale: "
-                          << groundtruth_slast_2_sprelast.translation().norm() / slast_2_sprelast.translation().norm()
-                          << " Translation dir error: " << translation_direction_error
-                          << std::endl;
-
-                lastF_2_fh_tries.push_back(
+				lastF_2_fh_tries.push_back(
                         prop_slast_2_fh * prop_slast_2_fh * lastF_2_slast);    // assume double motion (frame skipped)
                 lastF_2_fh_tries.push_back(
                         SE3::exp(prop_slast_2_fh.inverse().log() * 0.5).inverse() *
@@ -613,16 +612,17 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 	Vec5 achievedRes = Vec5::Constant(NAN);
 	gtsam::NavState navstate_this;
+	Vec6 biases_this;
 	bool haveOneGood = false;
 	int tryIterations=0;
-	for(unsigned int i=0;i<lastF_2_fh_tries.size();i++)
+	for (unsigned int i=0;i<lastF_2_fh_tries.size();i++)
 	{
 		AffLight aff_g2l_this = aff_last_2_l;
 		SE3 lastF_2_fh_this = lastF_2_fh_tries[i];
 		SE3 slast_2_fh_this = lastF_2_fh_this * lastF_2_slast.inverse();
-		Vec6 biases_this = fh->shell->bias.vector();
+		biases_this = fh->shell->bias.vector();
 		bool trackingIsGood;
-		if(IMUinitialized)
+		if (IMUinitialized)
 		{
 			//navstate_this = (lastF->shell->camToWorld.inverse() * lastF_2_fh_tries[i]);
 
@@ -631,8 +631,9 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			);
 
 			navstate_this = gtsam::NavState(
-					gtsam::Pose3(new2w.matrix()),shared_velociy
+					gtsam::Pose3(new2w.matrix()), shared_velocity
 			);
+
 			trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
 					fh, navstate_this, biases_this, aff_g2l_this,
 					pyrLevelsUsed-1,
@@ -724,6 +725,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	{
 		// we get new state in the form of navstate. So update everything based on that
 		fh->shell->navstate = navstate_this;
+		fh->shell->bias = gtsam::imuBias::ConstantBias(biases_this);
 		fh->shell->camToTrackingRef = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
 				(lastF->shell->navstate.pose().inverse() * navstate_this.pose()).matrix(),
 				getTbc()

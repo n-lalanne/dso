@@ -302,23 +302,25 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 
 void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, const gtsam::NavState navState_, AffLight aff_g2l)
 {
-
 	acc.initialize();
 	int n = buf_warped_n;
-	SE3 refToNew;
-	SE3 Trb,Tib;
-	Mat33 Rcb,Rrb;
-	Vec3 Prb;
-	SE3 Tcb = imutocam;
-	SE3 Tref_new = refToNew.inverse();
-	SE3 Tw_ref = lastRef->shell->camToWorld;
-	Rcb = imutocam.rotationMatrix();
-	Trb = Tref_new * Tcb;
-	Tib = Tw_ref * Trb;
-	refToNew = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
-			(navState_.pose().inverse() * lastRef->shell->navstate.pose()).matrix(),
-			fullSystem->getTbc()
-	));
+	SE3 Tib(navState_.pose().matrix());
+	SE3 Tw_ref = SE3(lastRef->shell->navstate.pose().matrix()) * imutocam.inverse();
+	Mat33 Rcb = imutocam.rotationMatrix();
+
+//	SE3 refToNew;
+//	SE3 Trb,Tib;
+//	Mat33 Rcb,Rrb;
+//	Vec3 Prb;
+//	SE3 Tcb = imutocam;
+//	SE3 Tref_new = refToNew.inverse();
+//	Rcb = imutocam.rotationMatrix();
+//	Trb = Tref_new * Tcb;
+//	Tib = Tw_ref * Trb;
+//	refToNew = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
+//			(navState_.pose().inverse() * lastRef->shell->navstate.pose()).matrix(),
+//			fullSystem->getTbc()
+//	));
 
 	for(int i=0;i<n;i++)
 	{
@@ -375,18 +377,18 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
 
 	// here rtvab means rotation, translation, affine, velocity and biases
-	Mat1717 H_imu_rtavb;
-	Vec17 b_imu_rtavb;
-	Mat1517 J_imu_rtavb;
-
-	J_imu_rtavb.setZero();
-	// for rotation and translation
-	J_imu_rtavb.block<15, 6>(0, 0) = J_imu_Rt;
-	J_imu_rtavb.block<15, 3>(0, 8) = J_imu_v;
-	J_imu_rtavb.block<15, 6>(0, 11) = J_imu_bias;
-
-	H_imu_rtavb = J_imu_rtavb.transpose() * information_imu * J_imu_rtavb;
-	b_imu_rtavb = J_imu_rtavb.transpose() * information_imu * res_imu;
+//	Mat1717 H_imu_rtavb;
+//	Vec17 b_imu_rtavb;
+//	Mat1517 J_imu_rtavb;
+//
+//	J_imu_rtavb.setZero();
+//	// for rotation and translation
+//	J_imu_rtavb.block<15, 6>(0, 0) = J_imu_Rt;
+//	J_imu_rtavb.block<15, 3>(0, 8) = J_imu_v;
+//	J_imu_rtavb.block<15, 6>(0, 11) = J_imu_bias;
+//
+//	H_imu_rtavb = J_imu_rtavb.transpose() * information_imu * J_imu_rtavb;
+//	b_imu_rtavb = J_imu_rtavb.transpose() * information_imu * res_imu;
 
 //	H_out += H_imu_rtavb;
 //	b_out += b_imu_rtavb;
@@ -429,7 +431,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	b_out.segment<1>(7) *= SCALE_B;
 }
 
-void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l){
+void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l)
+{
 
         acc.initialize();
         int n = buf_warped_n;
@@ -949,7 +952,6 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 	Vec3f t = (refToNew.translation()).cast<float>();
 	Vec2f affLL = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l).cast<float>();
 
-
 	float sumSquaredShiftT=0;
 	float sumSquaredShiftRT=0;
 	float sumSquaredShiftNum=0;
@@ -1392,7 +1394,11 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		{
 			Mat1717 Hl = H;
 			for(int i=0;i<17;i++) Hl(i,i) *= (1+lambda);
-			Vec17 inc = Hl.ldlt().solve(-b);
+			Vec17 inc; // = Hl.ldlt().solve(-b);
+
+			// solve only vision terms
+			inc.setZero();
+			inc.head<8>() = Hl.topLeftCorner<8,8>().ldlt().solve(-b.head<8>());
 
 			if(setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
 			{
@@ -1442,7 +1448,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 					gtsam::Pose3(IMUTow_new.matrix()),
 					velocity_new
 			);
-			Vec6 biases_new = biases_current + incScaled.segment<6>(10);
+			Vec6 biases_new = biases_current + incScaled.tail<6>();
 
 //			SE3 wToIMU_new = IMUTow_new.inverse();
 //			SE3 wToNew_new = imutocam * wToIMU_new;
