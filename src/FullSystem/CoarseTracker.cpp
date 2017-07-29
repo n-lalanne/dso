@@ -1085,7 +1085,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 
 	//IMUenergy*= numTermsInE;
 
-    E += IMUenergy;
+//    E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)
 	{

@@ -75,7 +75,6 @@ public:
 	PreintegrationType *imu_preintegrated_last_kf_;
 
 	// Predicted pose/biases ;
-	gtsam::Velocity3 velocity;
 	gtsam::NavState navstate;
 
 	//SE3 prop_pose;
@@ -184,9 +183,6 @@ public:
         return (Tbc * camToWorld.matrix()).block<3,1>(0,3);
     }
     Vec3 TWB(Matrix44 Tbc);
-
-	void setNavstate(Mat33 Rs,Vec3 Ps,Vec3 Vs);
-
 };
 
 

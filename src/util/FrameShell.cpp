@@ -148,27 +148,26 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
 gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp, Mat44 Tbc)
 {
 
-//    gtsam::NavState ref_pose_imu = gtsam::NavState(
-//            gtsam::Pose3( dso_vi::IMUData::convertCamFrame2IMUFrame(lastPose.matrix(), Tbc) ),
-//            lastVelocity
-//    );
 
     // conversion from EUROC reference to our reference
-//    Mat44 T_dso_euroc = (lastPose.matrix() * Tbc.inverse()) * last_frame->groundtruth.pose.inverse().matrix();
+    Mat44 T_dso_euroc = ref_pose_imu.pose().matrix() * last_frame->groundtruth.pose.inverse().matrix();
 //    std::cout << "DSO vs EuRoC rotation: \n" << T_dso_euroc.block<3,3>(0,0) << std::endl;
-//
-//    gtsam::NavState ref_pose_imu = gtsam::NavState(
-//            gtsam::Pose3(lastPose.matrix() * Tbc.inverse()),
-//            T_dso_euroc.block<3,3>(0,0).transpose() * last_frame->groundtruth.velocity
-//    );
+
+    ref_pose_imu = gtsam::NavState(
+          ref_pose_imu.pose(),
+          T_dso_euroc.block<3,3>(0,0).transpose() * last_frame->groundtruth.velocity
+    );
+
+    std::cout << "GT vel transformed: " << ref_pose_imu.velocity().transpose() << std::endl;
+    std::cout << "Vel initialized: " << last_frame->navstate.velocity().transpose() << std::endl;
 
     gtsam::NavState predicted_pose_imu = imu_preintegrated_last_frame_->predict(ref_pose_imu, bias);
 
-    if (
+    if  (
             !std::isfinite(predicted_pose_imu.pose().translation().x()) ||
             !std::isfinite(predicted_pose_imu.pose().translation().y()) ||
             !std::isfinite(predicted_pose_imu.pose().translation().z())
-            )
+        )
     {
         if (!setting_debugout_runquiet)
         {
@@ -179,26 +178,7 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
                 ref_pose_imu.velocity()
         );
     }
-    else
-    {
-//        predicted_pose_imu = imu_preintegrated_last_frame_->predict(
-//                gtsam::NavState(last_frame->groundtruth.pose, last_frame->groundtruth.velocity),
-//                bias
-//        );
-//
-//        std::cout << "Prediction error: \n" << groundtruth.pose.inverse().compose(predicted_pose_imu.pose()).matrix() << std::endl;
-    }
+
 
     return predicted_pose_imu;
-}
-
-void FrameShell::setNavstate(Mat33 Rs,Vec3 Ps,Vec3 Vs)
-{
-    Mat44 w2c;
-    w2c.setIdentity();
-    w2c.block<3,3>(0,0) = Rs;
-    w2c.block<3,1>(0,3) = Ps;
-    SE3 worldTocamnew(w2c);
-    camToWorld = worldTocamnew.inverse();
-    velocity = Vs;
 }

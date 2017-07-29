@@ -376,7 +376,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
                 lastF_2_world = lastF->shell->camToWorld;
                 slast_2_world = slast->camToWorld;
 				slast_navstate = slast->navstate;
-                slast_velocity = slast->velocity;
+                slast_velocity = slast->navstate.velocity();
                 slast_timestamp = slast->viTimestamp;
             }
 
@@ -1105,15 +1105,15 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 //	boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 
 	Eigen::Vector3d G{0.0, 0.0, 9.8};
-	int n_state = WINDOW_SIZE * 3 + 3 + 1;
+	int n_state = allKeyFramesHistory.size() * 3 + 3 + 1;
 
 	Eigen::MatrixXd A{n_state, n_state};
 	A.setZero();
 	Eigen::VectorXd b{n_state};
 	b.setZero();
-	int firstindex = allKeyFramesHistory.size()-WINDOW_SIZE;
+	int firstindex = 0;
 
-	for (int i = 0; i < WINDOW_SIZE - 1; i++)
+	for (int i = 0; i < allKeyFramesHistory.size() - 1; i++)
 	{
 		FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
 		FrameShell *frame_j = allKeyFramesHistory[i+firstindex+1];
@@ -1201,7 +1201,7 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 
 	std::cout << "Before refinement Inertial g: " << g_I << std::endl;
 
-	for (int i = 0; i < WINDOW_SIZE-1; i++)
+	for (int i = 0; i < allKeyFramesHistory.size()-1; i++)
 	{
 		Vec3 velocity = x.segment<3>(i * 3);
 		FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
@@ -1214,7 +1214,7 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 	s = (x.tail<1>())(0) / 100.0;
 	(x.tail<1>())(0) = s;
 
-	for (int i = 0; i < WINDOW_SIZE-1; i++)
+	for (int i = 0; i < allKeyFramesHistory.size()-1; i++)
 	{
 		Vec3 velocity = x.segment<3>(i * 3);
 		FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
@@ -1255,7 +1255,7 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
 	Eigen::Vector3d G{0.0, 0.0, 9.8};
 	Vec3 g0 = g.normalized() * G.norm();
 	//VectorXd x;
-	int n_state = WINDOW_SIZE * 3 + 2 + 1;
+	int n_state = allKeyFramesHistory.size() * 3 + 2 + 1;
 
 	Eigen::MatrixXd A{n_state, n_state};
 	A.setZero();
@@ -1269,8 +1269,8 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
 		Eigen::MatrixXd lxly(3, 2);
 		lxly = TangentBasis(g0);
 
-		int firstindex = allKeyFramesHistory.size()-WINDOW_SIZE;
-		for (int i = 0; i < WINDOW_SIZE-1; i++)
+		int firstindex = 0;
+		for (int i = 0; i < allKeyFramesHistory.size()-1; i++)
 		{
 
 			FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
@@ -1365,7 +1365,7 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		A.setZero();
 		b.setZero();
 		for (int index_i = allKeyFramesHistory.size() - 1;
-			 index_i >= allKeyFramesHistory.size() - WINDOW_SIZE + 1; index_i--)
+			 index_i >= 1; index_i--)
 		{
 			Mat33 resR;
 			FrameShell *frame_i = allKeyFramesHistory[index_i - 1];
@@ -1417,11 +1417,6 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 					J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias_i, J_imu_bias_j
 			);
 			//=======================================================================================================================
-
-			std::cout 	<< "J_Rt_i：\n" << J_imu_Rt_i << std::endl
-						<< "J_Rt_j：\n" << J_imu_Rt << std::endl
-						<< "J_imu_bias_i：\n" << J_imu_bias_i << std::endl
-						<< "J_imu_bias_j：\n" << J_imu_bias_j << std::endl;
 
 			tmp_A = J_imu_bias_i.block<3,3>(0,3);
 			tmp_A = tmp_A;
@@ -1548,12 +1543,22 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 		Ps[i] = scale * Ps[i] - scale * Ps[0];
 	}
 
-	for (int i = 0; i <allKeyFramesHistory.size() ; i++)
+	for (int i = 0; i < allKeyFramesHistory.size(); i++)
 	{
 		Ps[i] = rot_diff * Ps[i];
 		Rs[i] = rot_diff * Rs[i];
 		Vs[i] = rot_diff * Vs[i];
-		//allKeyFramesHistory[i]->setNavstate(Rs[i],Ps[i],Vs[i]);
+		Mat44 T;
+		T.setIdentity();
+		T.block<3, 3>(0, 0) = Rs[i];
+		T.block<3, 1>(0, 3) = Ps[i];
+
+		allKeyFramesHistory[i]->navstate = gtsam::NavState(
+				gtsam::Pose3(T), Vs[i]
+		);
+        allKeyFramesHistory[i]->camToWorld = SE3(Rs[i], Ps[i]) * TBC;
+
+		std::cout << "KF Id: " << allKeyFramesHistory[i]->id << "Vel: " << allKeyFramesHistory[i]->navstate.velocity().transpose() << std::endl;
 	}
 
 	std::cout << "First KF: " << Rs[0] << ", " << Ps[0].transpose() << std::endl;
@@ -1634,7 +1639,6 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 				SE3 camToWorld = imuToWorld * TBC;
 
 				fh->shell->camToWorld = camToWorld;
-				fh->shell->velocity = Vs[shell_idx];
 				fh->PRE_camToWorld = camToWorld;
 				fh->PRE_worldToCam = camToWorld.inverse();
 				fh->worldToCam_evalPT = fh->PRE_worldToCam;
@@ -1859,13 +1863,21 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 								 dso_vi::ConfigParam &config , dso_vi::GroundTruthIterator::ground_truth_measurement_t groundtruth )
 {
 
-    if(isLost) return;
+    if (isLost) return;
 	boost::unique_lock<boost::mutex> lock(trackMutex);
 
-	if(!IMUinitialized && allKeyFramesHistory.size() >= WINDOW_SIZE)
+	if	(
+			!IMUinitialized &&
+			allKeyFramesHistory.size() >= WINDOW_SIZE &&
+			// we want the last KF to come from the previous frame
+			// TODO: this may not be a good idea, maybe this never happens !!!
+			allKeyFramesHistory.back()->id == allFrameHistory.back()->id
+		)
     {
 		// wait for the mapping to end
 		while (!isLocalBADone.load());
+
+		std::cout << "Initializing with " << allKeyFramesHistory.size() << " keyframes" << std::endl;
 
 		// lock everything
 		boost::unique_lock<boost::mutex> lockMap(mapMutex);
@@ -1879,6 +1891,10 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		{
 			UpdateState(g,initialstates);
 			IMUinitialized = true;
+
+            std::cout << "-------------- After initialization --------------" << std::endl;
+            std::cout << "Last keyframe ID: " << allKeyFramesHistory.back()->id << std::endl;
+            std::cout << "Last frame ID: " << allKeyFramesHistory.back()->id << std::endl;
 		}
 		else
 		{
@@ -2192,8 +2208,6 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	ef->insertFrame(fh, &Hcalib);
 
 	setPrecalcValues();
-
-
 
 	// =========================== add new residuals for old points =========================
 	int numFwdResAdde=0;
