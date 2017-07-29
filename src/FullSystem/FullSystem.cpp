@@ -329,7 +329,6 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 	assert(allFrameHistory.size() > 0);
 	// set pose initialization.
-
 	for(IOWrap::Output3DWrapper* ow : outputWrapper)
 		ow->pushLiveFrame(fh);
 
@@ -346,19 +345,21 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	SE3 fh_2_slast;
 	SE3 lastF_2_world;
 	SE3 slast_2_world;
-	gtsam::NavState slast_navstate;
-	Vec3 slast_velocity;
+	gtsam::NavState slast_navstate, prop_navstate;
+	Vec3 slast_velocity,final_velocity;
 	Vec3 shared_velociy;
+    Vec6 final_biases, current_biases;
 
 	if(allFrameHistory.size() == 2)
 	{
+		std::cout<<"go here for once!"<<std::endl;
 		for (unsigned int i = 0; i < lastF_2_fh_tries.size(); i++) lastF_2_fh_tries.push_back(SE3());
 	}
 	else
 	{
+
 		FrameShell* slast = allFrameHistory[allFrameHistory.size()-2];
 		FrameShell* sprelast = allFrameHistory[allFrameHistory.size()-3];
-
 		// get last delta-movement.
 		if(!slast->poseValid || !sprelast->poseValid || !lastF->shell->poseValid)
 		{
@@ -389,14 +390,17 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
             //just use the initial pose from IMU
             //when we determine the last key frame, we will propagate the pose by using the preintegration measurement and the pose of the last key frame
-			gtsam::NavState prop_navstate = fh->shell->PredictPose(slast_navstate, slast_timestamp, getTbc());
+			prop_navstate = fh->shell->PredictPose(slast_navstate, slast_timestamp, getTbc());
+			std::cout<<"last pose(from SE3):\n"<<slast->navstate.pose().matrix()<<std::endl;
+            std::cout<<"last pose(from navstate): \n"<<slast_navstate.pose().matrix()<<"\npredicted current pose\n"<<prop_navstate.pose().matrix()<<std::endl;
             SE3 prop_fh_2_world(prop_navstate.pose().matrix() * getTbc());
 			shared_velociy = prop_navstate.velocity();
             SE3 prop_lastF_2_fh_r = prop_fh_2_world.inverse() * lastF_2_world;
             SE3 prop_slast_2_fh = prop_fh_2_world.inverse() * slast_2_world;
             SE3 prop_lastF_2_slast = slast_2_world.inverse() * lastF_2_world;
 
-            if (false) {
+            if (IMUinitialized)
+			{
                 lastF_2_fh_tries.push_back(prop_lastF_2_fh_r);
                 lastF_2_fh_tries.push_back(
                         prop_slast_2_fh * prop_slast_2_fh *  prop_lastF_2_slast);    // assume double motion (frame skipped)
@@ -483,14 +487,10 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
                 lastF_2_fh_tries.push_back(prop_lastF_2_fh);
 
-//			std::cout << "KF: " << coarseTracker->lastRef->frameID << " Fh: " << fh->frameID << std::endl;
-//			std::cout << "IMUs: " << mvIMUSinceLastKF.size() << std::endl;
-//			std::cout << "Const: \n" << const_vel_lastF_2_fh.matrix() << std::endl;
-//			std::cout << "Pred: \n" << prop_pose.matrix() << std::endl;
 				std::cout<<"slast->id = "<<slast->id<<"\n pose:\n"<< slast->camToWorld.matrix() <<std::endl;
 				std::cout<<"prelast->id = "<< sprelast->id<<"\n pose:\n"<< sprelast->camToWorld.matrix() <<std::endl;
 				std::cout<<"KF->id = "<<lastF->shell->id << "\n pose:\n" << lastF->shell->camToWorld.matrix() << std::endl;
-
+                std::cout<<"Predicted pose: "<<prop_lastF_2_fh.matrix()<<std::endl;
 				std::cout<< " GT/prediction = \n"<<groundtruth_lastF_2_fh.matrix() * prop_lastF_2_fh.inverse().matrix()<<std::endl;
                 Vec3 groundtruth_translation = groundtruth_lastF_2_fh.inverse().matrix().block<3, 1>(0, 3);
                 SE3 groundtruth_slast_2_sprelast(dso_vi::IMUData::convertIMUFrame2CamFrame(
@@ -511,9 +511,6 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 					std::cout << "Groundtruth translation: " << groundtruthRelativePose.translation().transpose() << std::endl;
 
 				}
-//                std::cout << "Groundtruth translation: " << groundtruth_slast_2_sprelast.translation() << std::endl;
-//                std::cout << "DSO translation: " << slast_2_sprelast.translation() << std::endl;
-
                 double translation_direction_error = acos(
                         slast_2_sprelast.translation().normalized().dot(groundtruth_slast_2_sprelast.translation().normalized())
                 ) * 180 / M_PI;
@@ -521,45 +518,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
                 std::cout << "Scale: "
                           << groundtruth_slast_2_sprelast.translation().norm() / slast_2_sprelast.translation().norm()
                           << " Translation dir error: " << translation_direction_error
-//                          << groundtruth_slast_2_sprelast.translation()(0) / slast_2_sprelast.translation()(0) << ", "
-//                          << groundtruth_slast_2_sprelast.translation()(1) / slast_2_sprelast.translation()(1) << ", "
-//                          << groundtruth_slast_2_sprelast.translation()(2) / slast_2_sprelast.translation()(2)
                           << std::endl;
-
-                // relative rotation wrt to KF compared to groundtruth
-//			SE3 rotation_error = groundtruth_lastF_2_fh.inverse() * prop_lastF_2_fh;
-//			Quaternion quaternion_error = rotation_error.unit_quaternion();
-//
-//			std::cout << "Rotation KF error imu: " << quaternion_error.x() << ", "
-//					  << quaternion_error.y() << ", "
-//					  << quaternion_error.z()
-//					  << std::endl;
-//
-//			rotation_error = groundtruth_lastF_2_fh.inverse() * const_vel_lastF_2_fh;
-//			quaternion_error = rotation_error.unit_quaternion();
-//			std::cout << "Rotation kF error cvm: " << quaternion_error.x() << ", "
-//					  << quaternion_error.y() << ", "
-//					  << quaternion_error.z()
-//					  << std::endl;
-//
-//			// relative rotation wrt to previous frame compared to groundtruth
-//			SE3 groundtruth_slast_2_fh(dso_vi::IMUData::convertIMUFrame2CamFrame(
-//					fh->shell->groundtruth.pose.inverse().compose(slast->groundtruth.pose).matrix(), getTbc()
-//			));
-//
-//			rotation_error = groundtruth_slast_2_fh.inverse() * prop_slast_2_fh;
-//			quaternion_error = rotation_error.unit_quaternion();
-//			std::cout << "Rotation error imu: " << quaternion_error.x() << ", "
-//					  << quaternion_error.y() << ", "
-//					  << quaternion_error.z()
-//					  << std::endl;
-//
-//			rotation_error = groundtruth_slast_2_fh.inverse() * fh_2_slast.inverse();
-//			quaternion_error = rotation_error.unit_quaternion();
-//			std::cout << "Rotation error cvm : " << quaternion_error.x() << ", "
-//					  << quaternion_error.y() << ", "
-//					  << quaternion_error.z()
-//					  << std::endl;
 
                 lastF_2_fh_tries.push_back(
                         prop_slast_2_fh * prop_slast_2_fh * lastF_2_slast);    // assume double motion (frame skipped)
@@ -631,100 +590,6 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
                                                SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, rotDelta),
                                                    Vec3(0, 0, 0)));    // assume constant motion.
                 }
-
-//			lastF_2_fh_tries.push_back(const_vel_lastF_2_fh);    // assume constant motion.
-//			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() *
-//									   lastF_2_slast);    // assume double motion (frame skipped)
-//			lastF_2_fh_tries.push_back(
-//					SE3::exp(fh_2_slast.log() * 0.5).inverse() * lastF_2_slast); // assume half motion.
-//			lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
-//			lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
-//
-////			 just try a TON of different initializations (all rotations). In the end,
-////			 if they don't work they will only be tried on the coarsest level, which is super fast anyway.
-////			 also, if tracking rails here we loose, so we really, really want to avoid that.
-//
-//
-//			for (float rotDelta = 0.02; rotDelta < 0.05; rotDelta++) {
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, rotDelta, 0, 0),
-//											   Vec3(0, 0, 0)));            // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, 0, rotDelta, 0),
-//											   Vec3(0, 0, 0)));            // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, 0, 0, rotDelta),
-//											   Vec3(0, 0, 0)));            // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, -rotDelta, 0, 0),
-//											   Vec3(0, 0, 0)));            // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, 0, -rotDelta, 0),
-//											   Vec3(0, 0, 0)));            // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, 0, 0, -rotDelta),
-//											   Vec3(0, 0, 0)));            // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, 0),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, 0, rotDelta, rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, rotDelta, 0, rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, 0),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, 0, -rotDelta, rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, -rotDelta, 0, rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, 0),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, 0, rotDelta, -rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, rotDelta, 0, -rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, 0),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, 0, -rotDelta, -rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, -rotDelta, 0, -rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, -rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, -rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, -rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, -rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//				lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-//										   SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, rotDelta),
-//											   Vec3(0, 0, 0)));    // assume constant motion.
-//			}
             }
         }
 
@@ -747,6 +612,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 
 	Vec5 achievedRes = Vec5::Constant(NAN);
+	gtsam::NavState navstate_this;
 	bool haveOneGood = false;
 	int tryIterations=0;
 	for(unsigned int i=0;i<lastF_2_fh_tries.size();i++)
@@ -754,17 +620,15 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		AffLight aff_g2l_this = aff_last_2_l;
 		SE3 lastF_2_fh_this = lastF_2_fh_tries[i];
 		SE3 slast_2_fh_this = lastF_2_fh_this * lastF_2_slast.inverse();
-		gtsam::NavState navstate_this;
 		Vec6 biases_this = fh->shell->bias.vector();
 		bool trackingIsGood;
 		if(IMUinitialized)
 		{
 			//navstate_this = (lastF->shell->camToWorld.inverse() * lastF_2_fh_tries[i]);
 
-			SE3 new2w = SE3(dso_vi::IMUData::convertCamFrame2IMUFrame(
-					((lastF->shell->camToWorld.inverse() * lastF_2_fh_tries[i].inverse()).matrix()),
-					getTbc()
-			));
+			SE3 new2w = SE3(
+					((lastF->shell->camToWorld * lastF_2_fh_tries[i].inverse()).matrix()) * getTbc().inverse()
+			);
 
 			navstate_this = gtsam::NavState(
 					gtsam::Pose3(new2w.matrix()),shared_velociy
@@ -775,10 +639,13 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 					achievedRes);
 		}// in each level has to be at least as good as the last try.
 		else
-		trackingIsGood = coarseTracker->trackNewestCoarse(
-				fh, lastF_2_fh_this, slast_2_fh_this,  aff_g2l_this,
-				pyrLevelsUsed-1,
-				achievedRes);// in each level has to be at least as good as the last try.
+		{
+            std::cout<<"try "<<i<<"th"<<" candidate pose"<<std::endl;
+            trackingIsGood = coarseTracker->trackNewestCoarse(
+                    fh, lastF_2_fh_this, slast_2_fh_this, aff_g2l_this,
+                    pyrLevelsUsed - 1,
+                    achievedRes);// in each level has to be at least as good as the last try.
+        }
 
 		tryIterations++;
 
@@ -809,7 +676,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			aff_g2l = aff_g2l_this;
 			lastF_2_fh = lastF_2_fh_this;
 			haveOneGood = true;
-		}
+        }
 
 		// take over achieved res (always).
 		if(haveOneGood)
@@ -833,15 +700,38 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		flowVecs = Vec3(0,0,0);
 		aff_g2l = aff_last_2_l;
 		lastF_2_fh = lastF_2_fh_tries[0];
+
+		if (IMUinitialized)
+		{
+			navstate_this = prop_navstate;
+		}
+
 	}
 
 	lastCoarseRMSE = achievedRes;
 
 	// no lock required, as fh is not used anywhere yet.
-	fh->shell->camToTrackingRef = lastF_2_fh.inverse();
-	fh->shell->trackingRef = lastF->shell;
-	fh->shell->aff_g2l = aff_g2l;
-	fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
+    if(!IMUinitialized)
+	{
+        fh->shell->camToTrackingRef = lastF_2_fh.inverse();
+        fh->shell->trackingRef = lastF->shell;
+        fh->shell->aff_g2l = aff_g2l;
+        fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
+        SE3 imuToWorld = fh->shell->camToWorld * SE3(getTbc()).inverse();
+        fh->shell->navstate = gtsam::NavState(gtsam::Pose3(imuToWorld.matrix()),Vec3(0,0,0));
+    }
+    else
+	{
+		// we get new state in the form of navstate. So update everything based on that
+		fh->shell->navstate = navstate_this;
+		fh->shell->camToTrackingRef = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
+				(lastF->shell->navstate.pose().inverse() * navstate_this.pose()).matrix(),
+				getTbc()
+		));
+        fh->shell->trackingRef = lastF->shell;
+        fh->shell->aff_g2l = aff_g2l;
+        fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
+    }
 
 	std::cout << "After tracking pose: \n" << fh->shell->camToWorld.matrix() << std::endl;
 
@@ -1630,23 +1520,25 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
     // Rescale the camera position (origin is now at keyframe 0, but KF 0 has orientation wrt inertial frame)
 	for (int i = 0; i < allFrameHistory.size(); i++)
 	{
-		std::cout<<"the pose of frame: "<<allFrameHistory[i]->id <<" before update:\n "<<allFrameHistory[i]->camToWorld.matrix()<<std::endl;
+//		std::cout<<"the pose of frame: "<<allFrameHistory[i]->id <<" before update:\n "<<allFrameHistory[i]->camToWorld.matrix()<<std::endl;
 
 		SE3 imu2World = allFrameHistory[i]->camToWorld * TCB;
 
-		// rescale and center at first keyframe
-		allFrameHistory[i]->imuToWorld = SE3(
-				imu2World.rotationMatrix(), scale * (imu2World.translation() - Ps[0])
-		);
+		Mat44 imu2WorldMat;
+		imu2WorldMat.setIdentity();
 
 		// make the orientation wrt inertial frame
-		allFrameHistory[i]->imuToWorld = SE3(
-				rot_diff * allFrameHistory[i]->imuToWorld.rotationMatrix(),
-				rot_diff * allFrameHistory[i]->imuToWorld.translation()
+		imu2WorldMat.block<3, 3>(0, 0).noalias() = rot_diff * imu2World.rotationMatrix() ;
+		// make the orientation wrt inertial frame and change scale
+		imu2WorldMat.block<3, 1>(0, 3).noalias() = rot_diff * scale * (imu2World.translation() - Ps[0]);
+
+		// rescale and center at first keyframe
+		allFrameHistory[i]->navstate = gtsam::NavState(
+				gtsam::Pose3(imu2WorldMat), Vec3::Zero()
 		);
 
-		allFrameHistory[i]->camToWorld = allFrameHistory[i]->imuToWorld * TBC;
-		std::cout<<"the pose of frame: "<<allFrameHistory[i]->id <<" after update:\n "<<allFrameHistory[i]->camToWorld.matrix()<<std::endl;
+//		allFrameHistory[i]->camToWorld = SE3(allFrameHistory[i]->navstate.pose().matrix()) * TBC;
+//		std::cout<<"the pose of frame: "<<allFrameHistory[i]->id <<" after update:\n "<<allFrameHistory[i]->camToWorld.matrix()<<std::endl;
 	}
 
     for (int i = allKeyFramesHistory.size(); i >= 0; i--)
@@ -1698,10 +1590,10 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	for (int i = 1; i < allFrameHistory.size(); i++)
 	{
 		SE3 groundtruth_T0(allFrameHistory[i-1]->groundtruth.pose.matrix());
-		SE3 estimated_T0 = allFrameHistory[i-1]->imuToWorld;
+		SE3 estimated_T0 = SE3(allFrameHistory[i-1]->navstate.pose().matrix());
 
 		SE3 groundtruth_Ti(allFrameHistory[i]->groundtruth.pose.matrix());
-		SE3 estimated_Ti = allFrameHistory[i]->imuToWorld;
+		SE3 estimated_Ti = SE3(allFrameHistory[i]->navstate.pose().matrix());
 
 		SE3 groundtruth_relative_pose = groundtruth_T0.inverse() * groundtruth_Ti;
 		SE3 estimated_relative_pose = estimated_T0.inverse() * estimated_Ti;

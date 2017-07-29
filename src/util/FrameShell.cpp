@@ -175,18 +175,18 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
             std::cout << "IMU prediction nan for translation!!!" << std::endl;
         }
         predicted_pose_imu = gtsam::NavState(
-                gtsam::Pose3(predicted_pose_imu.pose().rotation(), Vec3::Zero()),
-                predicted_pose_imu.velocity()
+                gtsam::Pose3(ref_pose_imu.pose().rotation(), Vec3::Zero()),
+                ref_pose_imu.velocity()
         );
     }
     else
     {
-        predicted_pose_imu = imu_preintegrated_last_frame_->predict(
-                gtsam::NavState(last_frame->groundtruth.pose, last_frame->groundtruth.velocity),
-                bias
-        );
-
-        std::cout << "Prediction error: \n" << groundtruth.pose.inverse().compose(predicted_pose_imu.pose()).matrix() << std::endl;
+//        predicted_pose_imu = imu_preintegrated_last_frame_->predict(
+//                gtsam::NavState(last_frame->groundtruth.pose, last_frame->groundtruth.velocity),
+//                bias
+//        );
+//
+//        std::cout << "Prediction error: \n" << groundtruth.pose.inverse().compose(predicted_pose_imu.pose()).matrix() << std::endl;
     }
 
     return predicted_pose_imu;

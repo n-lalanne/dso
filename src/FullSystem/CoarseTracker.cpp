@@ -388,8 +388,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	H_imu_rtavb = J_imu_rtavb.transpose() * information_imu * J_imu_rtavb;
 	b_imu_rtavb = J_imu_rtavb.transpose() * information_imu * res_imu;
 
-	H_out += H_imu_rtavb;
-	b_out += b_imu_rtavb;
+//	H_out += H_imu_rtavb;
+//	b_out += b_imu_rtavb;
 
 //	information_gyro.setIdentity();
 //	information_acce.setIdentity();
@@ -492,16 +492,16 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
         H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
         b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
 
-        Mat33 J_imu_rot,H_imu_rot;
-        Vec3 r_imu_rot,b_imu_rot;
-
-        J_imu_rot = J_imu_Rt.block<3, 3>(0, 0);
-        r_imu_rot = res_imu.segment(0, 2);
-
-        Mat33 information_r = information_imu.block<3, 3>(6, 6);
-
-        H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
-        b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
+//        Mat33 J_imu_rot,H_imu_rot;
+//        Vec3 r_imu_rot,b_imu_rot;
+//
+//        J_imu_rot = J_imu_Rt.block<3, 3>(0, 0);
+//        r_imu_rot = res_imu.segment(0, 2);
+//
+//        Mat33 information_r = information_imu.block<3, 3>(6, 6);
+//
+//        H_imu_rot.noalias() = J_imu_rot.transpose() * information_r * J_imu_rot;
+//        b_imu_rot.noalias() = J_imu_rot.transpose() * information_r * r_imu_rot;
 
     	//H_out.block<3,3>(0,0) += H_imu_rot;
     	//b_out.segment<3>(0) += b_imu_rot;
@@ -1080,10 +1080,12 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 
 	Vec15 imu_error = calcIMURes(current_navstate, biases);
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
+	std::cout<<"imu_error is :"<<imu_error.transpose()<<std::endl;
+	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
 
-	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<< std::endl;
+	//IMUenergy*= numTermsInE;
 
-//    E += IMUenergy;
+    E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)
 	{
