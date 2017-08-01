@@ -37,7 +37,7 @@
 #include "IOWrapper/ImageRW.h"
 #include <algorithm>
 #include <boost/tuple/tuple.hpp>
-
+#include <GroundTruthIterator/GroundTruthIterator.h>
 
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
@@ -307,20 +307,15 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	SE3 Tib(navState_.pose().matrix());
 	SE3 Tw_ref = SE3(lastRef->shell->navstate.pose().matrix()) * imutocam.inverse();
 	Mat33 Rcb = imutocam.rotationMatrix();
+	SE3 Trb = Tw_ref.inverse() * Tib;
 
-//	SE3 refToNew;
-//	SE3 Trb,Tib;
-//	Mat33 Rcb,Rrb;
-//	Vec3 Prb;
-//	SE3 Tcb = imutocam;
-//	SE3 Tref_new = refToNew.inverse();
-//	Rcb = imutocam.rotationMatrix();
-//	Trb = Tref_new * Tcb;
-//	Tib = Tw_ref * Trb;
-//	refToNew = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
-//			(navState_.pose().inverse() * lastRef->shell->navstate.pose()).matrix(),
-//			fullSystem->getTbc()
-//	));
+	// refToNew for debug
+	SE3 refToNew = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
+			(navState_.pose().inverse() * lastRef->shell->navstate.pose()).matrix(),
+			fullSystem->getTbc()
+	));
+	std::cout << "GSSSE ref2New: \n" << refToNew.matrix() << std::endl;
+	std::cout << "GSSSE Trb: \n" << Trb.matrix() << std::endl;
 
 	for(int i=0;i<n;i++)
 	{
@@ -351,9 +346,7 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 		Matrix23 Jpi = Maux * id;
 		Jab.head(3) = dxdy.transpose() * Jpi * (-Rcb);
 		Jab.tail(3) = dxdy.transpose() * Jpi * Rcb * SO3::hat(Tib.inverse() * PI); //Rrb.transpose()*(Pr-Prb));
-//			Vector3d Paux = Rcb*Rwb.transpose()*(Pw-Pwb);
-//			//Matrix3d J_Pc_dRwb = Sophus::SO3::hat(Paux) * Rcb;
-//			Matrix<double,2,3> JdRwb = - Jpi * (Sophus::SO3::hat(Paux) * Rcb);
+
 		acc.updateSingleWeighted(
 				(float)Jab(0),
 				(float)Jab(1),
@@ -367,6 +360,14 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 				buf_warped_weight[i]
 		);
 
+		if (fullSystem->isIMUinitialized()&& i<10 && lvl == 4)
+		{
+			// debug
+			std::cout << i << " J_r: " << Jab.tail(3).transpose() << std::endl;
+			std::cout << i << " Pb: " << (Tib.inverse() * PI).transpose() << std::endl;
+			std::cout << i << " Pr: " << Pr.transpose()<<std::endl;
+		}
+
 	}
 
 	acc.finish();
@@ -375,7 +376,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
     b_out.setZero();
 	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
 	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
-
+	//std::cout<<"H_out:\n"<<H_out.block<8,8>(0,0)<<std::endl;
+	//std::cout<<"b_out:\n"<<b_out.segment<8>(0)<<std::endl;
 	// here rtvab means rotation, translation, affine, velocity and biases
 //	Mat1717 H_imu_rtavb;
 //	Vec17 b_imu_rtavb;
@@ -443,6 +445,8 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
 		Rcb = imutocam.rotationMatrix();
 		Trb = Tref_new * imutocam;
 
+		std::cout << "no imu Trb: \n" << Trb.matrix() << std::endl;
+
         for(int i=0;i<n;i++)
         {
                 Vec3 Pr;
@@ -488,12 +492,22 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
                                 buf_warped_weight[i]
                 );
 
+				if (fullSystem->isIMUinitialized()&& i <10 && lvl ==4)
+				{
+					// debug
+					std::cout << i << " J_r: " << Jab.tail(3).transpose() << std::endl;
+					std::cout << i << " Pb: " << (Trb.inverse() * Pr).transpose() << std::endl;
+					std::cout << i << " Pr: " << Pr.transpose()<<std::endl;
+				}
+
         }
 
         acc.finish();
 
         H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
         b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+//		std::cout<<"H_out: \n"<<H_out<<std::endl;
+//	    std::cout<<"b_out: \n"<<b_out<<std::endl;
 
 //        Mat33 J_imu_rot,H_imu_rot;
 //        Vec3 r_imu_rot,b_imu_rot;
@@ -770,7 +784,6 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 	float cxl = cx[lvl];
 	float cyl = cy[lvl];
 
-
 	Mat33f RKi = (refToNew.rotationMatrix().cast<float>() * Ki[lvl]);
 	Vec3f t = (refToNew.translation()).cast<float>();
 	Vec2f affLL = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l).cast<float>();
@@ -796,6 +809,8 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 	float* lpc_idepth = pc_idepth[lvl];
 	float* lpc_color = pc_color[lvl];
 
+	std::cout << "calcRes: " << std::endl;
+	std::cout << "ref2cam: \n" << refToNew.matrix() << std::endl;
 
 	for(int i=0;i<nl;i++)
 	{
@@ -810,6 +825,11 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 		float Ku = fxl * u + cxl;
 		float Kv = fyl * v + cyl;
 		float new_idepth = id/pt[2];
+
+//		if (fullSystem->isIMUinitialized() && i < 10 && lvl == 4)
+//		{
+//			std::cout << i << " pr: " << pr.transpose() << std::endl;
+//		}
 
 		if(lvl==0 && i%32==0)
 		{
@@ -844,9 +864,17 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 			sumSquaredShiftNum+=2;
 		}
 
+//		if (fullSystem->isIMUinitialized() && lvl==4 && i==0)
+//		{
+//			std::cout 	<< Ku << " "
+//						<< Kv << " "
+//						<< new_idepth << " "
+//						<< wl << " "
+//						<< hl << " "
+//						<< std::endl;
+//		}
+
 		if(!(Ku > 2 && Kv > 2 && Ku < wl-3 && Kv < hl-3 && new_idepth > 0)) continue;
-
-
 
 		float refColor = lpc_color[i];
 		Vec3f hitColor = getInterpolatedElement33(dINewl, Ku, Kv, wl);
@@ -854,6 +882,12 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 		float residual = hitColor[0] - (float)(affLL[0] * refColor + affLL[1]);
 		float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
 
+//		if (fullSystem->isIMUinitialized() && lvl==4 && i==0)
+//		{
+//			std::cout << "Point error: " << residual
+//					  << " Hw: " << hw
+//					  << std::endl;
+//		}
 
 		if(fabs(residual) > cutoffTH)
 		{
@@ -904,7 +938,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 
 
 
-	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<< std::endl;
+	//std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<< std::endl;
 
 //    E += IMUenergy;
 //=============================================================================================================
@@ -972,6 +1006,8 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 	float* lpc_idepth = pc_idepth[lvl];
 	float* lpc_color = pc_color[lvl];
 
+	std::cout << "CalcResIMU: " << std::endl;
+	std::cout << "ref2cam: \n" << refToNew.matrix() << std::endl;
 
 	for(int i=0;i<nl;i++)
 	{
@@ -986,6 +1022,11 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 		float Ku = fxl * u + cxl;
 		float Kv = fyl * v + cyl;
 		float new_idepth = id/pt[2];
+
+//		if (fullSystem->isIMUinitialized() && i < 10 && lvl == 4)
+//		{
+//			std::cout << i << " pr: " << pr.transpose() << std::endl;
+//		}
 
 		if(lvl==0 && i%32==0)
 		{
@@ -1020,6 +1061,16 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 			sumSquaredShiftNum+=2;
 		}
 
+//		if (fullSystem->isIMUinitialized() && lvl==4 && i==0)
+//		{
+//			std::cout 	<< Ku << " "
+//						 << Kv << " "
+//						 << new_idepth << " "
+//						 << wl << " "
+//						 << hl << " "
+//						 << std::endl;
+//		}
+
 		if(!(Ku > 2 && Kv > 2 && Ku < wl-3 && Kv < hl-3 && new_idepth > 0)) continue;
 
 
@@ -1030,6 +1081,12 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 		float residual = hitColor[0] - (float)(affLL[0] * refColor + affLL[1]);
 		float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
 
+//		if (fullSystem->isIMUinitialized() && lvl==4 && i==0)
+//		{
+//			std::cout << "Point error: " << residual
+//					  << " Hw: " << hw
+//					  << std::endl;
+//		}
 
 		if(fabs(residual) > cutoffTH)
 		{
@@ -1080,10 +1137,10 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 
 
 
-	Vec15 imu_error = calcIMURes(current_navstate, biases);
-	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
-	std::cout<<"imu_error is :"<<imu_error.transpose()<<std::endl;
-	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
+//	Vec15 imu_error = calcIMURes(current_navstate, biases);
+//	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
+	//std::cout<<"imu_error is :"<<imu_error.transpose()<<std::endl;
+	//std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
 
 	//IMUenergy*= numTermsInE;
 
@@ -1157,18 +1214,21 @@ bool CoarseTracker::trackNewestCoarse(
 
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{
+		std::cout<<"level: "<<lvl<<std::endl;
 		Mat88 H; Vec8 b;
 		float levelCutoffRepeat=1;
 		Vec6 resOld = calcRes(lvl, refToNew_current, previousToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
+		std::cout << "threshold: " << setting_coarseCutoffTH*levelCutoffRepeat << std::endl;
+		std::cout<<"resOld is: "<<resOld.transpose()<<std::endl;
 		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
 		{
+			std::cout<<"cut off "<<std::endl;
 			levelCutoffRepeat*=2;
 			resOld = calcRes(lvl, refToNew_current, previousToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
 
             if(!setting_debugout_runquiet)
                 printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
 		}
-
 		calcGSSSESingle(lvl, H, b, refToNew_current, aff_g2l_current);
 
 		float lambda = 0.01;
@@ -1192,6 +1252,16 @@ bool CoarseTracker::trackNewestCoarse(
 			Mat88 Hl = H;
 			for(int i=0;i<8;i++) Hl(i,i) *= (1+lambda);
 			Vec8 inc = Hl.ldlt().solve(-b);
+
+			std::cout << "Hl: \n" << Hl << std::endl;
+			std::cout << "b: \n" << b << std::endl;
+			std::cout << "lambda: " << lambda << std::endl;
+			std::cout << "increment: " << inc.transpose() << std::endl;
+
+//			inc.setZero();
+//			inc.head<8>() = Hl.topLeftCorner<8,8>().ldlt().solve(-b.head<8>());
+//
+//			std::cout << "increment: " << inc.transpose() << std::endl;
 
 			if(setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
 			{
@@ -1230,7 +1300,7 @@ bool CoarseTracker::trackNewestCoarse(
 			incScaled.segment<1>(6) *= SCALE_A;
 			incScaled.segment<1>(7) *= SCALE_B;
 
-			std::cout<<"increment: \n"<<incScaled.transpose()<<std::endl;
+			//std::cout<<"increment: \n"<<incScaled.transpose()<<std::endl;
 
 
             if(!std::isfinite(incScaled.sum())) incScaled.setZero();
@@ -1245,6 +1315,9 @@ bool CoarseTracker::trackNewestCoarse(
 			AffLight aff_g2l_new = aff_g2l_current;
 			aff_g2l_new.a += incScaled[6];
 			aff_g2l_new.b += incScaled[7];
+
+			std::cout <<"lastRef->shell->navstate.pose()\n"<<lastRef->shell->navstate.pose().matrix()<<std::endl;
+			std::cout << "ref2New optimized (no imu): \n" << refToNew_new.matrix() << std::endl;
 
 			Vec6 resNew = calcRes(lvl, refToNew_new, previousToNew_new, aff_g2l_new, setting_coarseCutoffTH*levelCutoffRepeat);
 
@@ -1305,6 +1378,13 @@ bool CoarseTracker::trackNewestCoarse(
 	lastToNew_out = refToNew_current;
 	aff_g2l_out = aff_g2l_current;
 
+	SE3 T_ref_new = refToNew_current.inverse();
+	SE3 T_world_ref = lastRef->shell->camToWorld;
+	SE3 T_world_new = T_world_ref * T_ref_new;
+	SE3 nav_state = T_world_new * SE3(fullSystem->getTbc()).inverse();
+
+	std::cout<<" IMU free version: affine a: "<<aff_g2l_out.a<< " affine b: "<<aff_g2l_out.b<<std::endl;
+	std::cout << "IMU free navstate: " << nav_state.matrix() << std::endl;
 
 	if((setting_affineOptModeA != 0 && (fabsf(aff_g2l_out.a) > 1.2))
 	|| (setting_affineOptModeB != 0 && (fabsf(aff_g2l_out.b) > 200)))
@@ -1339,31 +1419,12 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	lastResiduals.setConstant(NAN);
 	lastFlowIndicators.setConstant(1000);
 
-
+	gtsam::NavState navbak = navstate_out;
+	AffLight aff_g2l_bak = aff_g2l_out;
 	newFrame = newFrameHessian;
 	int maxIterations[] = {10,20,50,50,50};
 	float lambdaExtrapolationLimit = 0.001;
 
-
-//	SE3 lastToNew_out = navstate_out.pose().matrix() * ;
-//	SE3 Trb,Tib;
-//	Mat33 Rcb,Rrb;
-//	Vec3 Prb;
-//	SE3 Tcb = imutocam;
-//	SE3 Tref_new = lastToNew_out.inverse();
-//	SE3 Tw_ref = lastRef->shell->camToWorld;
-//	Rcb = imutocam.rotationMatrix();
-//	Trb = Tref_new * Tcb;
-//	Tib = Tw_ref * Trb;
-//
-//	SE3 previousToNew_current = previousToNew_out;
-//	SE3 refToNew_current = lastToNew_out;
-//
-//	assert(newFrame->shell->last_kf->id == lastRef->shell->id);
-//
-//	SE3 previousTow = newFrame->shell->last_frame->camToWorld;
-//	SE3 ImuTow_current = Tib;
-//	SE3 previousToref = refToNew_current.inverse() * previousToNew_current;
 	Vec6 biases_current = biases_out;
 	gtsam::NavState navstate_current = navstate_out;
 	AffLight aff_g2l_current = aff_g2l_out;
@@ -1373,18 +1434,23 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{
+		//std::cout<<"level: "<<lvl<<std::endl;
 		Mat1717 H; Vec17 b;
 		float levelCutoffRepeat=1;
 		Vec6 resOld = calcResIMU(lvl, navstate_current, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
+
+		//std::cout << "threshold: " << setting_coarseCutoffTH*levelCutoffRepeat << std::endl;
+		//std::cout<<"resOld is: "<<resOld.transpose()<<std::endl;
 		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
 		{
+			//std::cout<<"cut off!"<<std::endl;
 			levelCutoffRepeat*=2;
 			resOld = calcResIMU(lvl, navstate_current, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
 
 			if(!setting_debugout_runquiet)
 				printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
 		}
-
+		//std::cout<<"resOld is: "<<resOld<<std::endl;
 		calcGSSSESingleIMU(lvl, H, b, navstate_current, aff_g2l_current);
 
 		float lambda = 0.01;
@@ -1397,32 +1463,44 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			Vec17 inc; // = Hl.ldlt().solve(-b);
 
 			// solve only vision terms
+
 			inc.setZero();
 			inc.head<8>() = Hl.topLeftCorner<8,8>().ldlt().solve(-b.head<8>());
 
-			if(setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
-			{
-				inc.head<6>() = Hl.topLeftCorner<6,6>().ldlt().solve(-b.head<6>());
-				inc.tail<2>().setZero();
-			}
-			if(!(setting_affineOptModeA < 0) && setting_affineOptModeB < 0)	// fix b
-			{
-				inc.head<7>() = Hl.topLeftCorner<7,7>().ldlt().solve(-b.head<7>());
-				inc.tail<1>().setZero();
-			}
-			if(setting_affineOptModeA < 0 && !(setting_affineOptModeB < 0))	// fix a
-			{
-				Mat1717 HlStitch = Hl;
-				Vec17 bStitch = b;
-				HlStitch.col(6) = HlStitch.col(7);
-				HlStitch.row(6) = HlStitch.row(7);
-				bStitch[6] = bStitch[7];
-				Vec7 incStitch = HlStitch.topLeftCorner<7,7>().ldlt().solve(-bStitch.head<7>());
-				inc.setZero();
-				inc.head<6>() = incStitch.head<6>();
-				inc[6] = 0;
-				inc[7] = incStitch[6];
-			}
+			//std::cout << "increment: " << inc.transpose() << std::endl;
+
+//			Mat88 Hcropped = Hl.topLeftCorner<8,8>();
+//			Vec8 bcropped = b.head<8>();
+//			inc.head<8>() = Hcropped.ldlt().solve(-bcropped);
+
+			std::cout << "Hl: \n" << Hl.topLeftCorner<8,8>() << std::endl;
+			std::cout << "b: \n" << b.head<8>() << std::endl;
+			std::cout << "lambda: " << lambda << std::endl;
+			std::cout << "increment: " << inc.transpose() << std::endl;
+
+//			if(setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
+//			{
+//				inc.head<6>() = Hl.topLeftCorner<6,6>().ldlt().solve(-b.head<6>());
+//				inc.tail<2>().setZero();
+//			}
+//			if(!(setting_affineOptModeA < 0) && setting_affineOptModeB < 0)	// fix b
+//			{
+//				inc.head<7>() = Hl.topLeftCorner<7,7>().ldlt().solve(-b.head<7>());
+//				inc.tail<1>().setZero();
+//			}
+//			if(setting_affineOptModeA < 0 && !(setting_affineOptModeB < 0))	// fix a
+//			{
+//				Mat1717 HlStitch = Hl;
+//				Vec17 bStitch = b;
+//				HlStitch.col(6) = HlStitch.col(7);
+//				HlStitch.row(6) = HlStitch.row(7);
+//				bStitch[6] = bStitch[7];
+//				Vec7 incStitch = HlStitch.topLeftCorner<7,7>().ldlt().solve(-bStitch.head<7>());
+//				inc.setZero();
+//				inc.head<6>() = incStitch.head<6>();
+//				inc[6] = 0;
+//				inc[7] = incStitch[6];
+//			}
 
 
 
@@ -1437,17 +1515,28 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			incScaled.segment<1>(6) *= SCALE_A;
 			incScaled.segment<1>(7) *= SCALE_B;
 
-			std::cout<<"increment: \n"<<incScaled.transpose()<<std::endl;
+			//std::cout<<"increment: \n"<<incScaled.transpose()<<std::endl;
 
 
 			if(!std::isfinite(incScaled.sum())) incScaled.setZero();
 
 			SE3 IMUTow_new = SE3(navstate_current.pose().matrix()) * SE3::exp((Vec6)(incScaled.head<6>()));
+			//std::cout<<"increment of velocity: "<<incScaled.segment<3>(8).transpose()<<std::endl;
 			Vec3 velocity_new = navstate_current.velocity() + incScaled.segment<3>(8);
 			gtsam::NavState navstate_new = gtsam::NavState(
 					gtsam::Pose3(IMUTow_new.matrix()),
 					velocity_new
 			);
+
+			// calculate relative pose with ref frame
+			SE3 refToNew_new = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
+					( SE3(lastRef->shell->navstate.pose().inverse().matrix()) * IMUTow_new ).matrix(),
+					fullSystem->getTbc()
+			)).inverse();
+			//std::cout <<"lastRef->shell->navstate.pose()\n"<<lastRef->shell->navstate.pose().matrix()<<std::endl;
+			//std::cout << "ref2new optimized: \n" << refToNew_new.matrix() << std::endl;
+
+			//std::cout<<"increment of biases: "<<incScaled.tail<6>().transpose()<<std::endl;
 			Vec6 biases_new = biases_current + incScaled.tail<6>();
 
 //			SE3 wToIMU_new = IMUTow_new.inverse();
@@ -1511,12 +1600,24 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	}
 
 	// set!
-	//std::cout<< "lastToNew_out:= "<<refToNew_current.matrix()<<" lastToNew_in:= "<< lastToNew_out.matrix()<<std::endl;
+
 
 //	lastToNew_out = refToNew_current;
 	navstate_out = navstate_current;
 	aff_g2l_out = aff_g2l_current;
 	biases_out = biases_current;
+
+	std::cout<<" IMU version: affine a: "<< aff_g2l_out.a << "affine b: "<< aff_g2l_out.b<<std::endl;
+	std::cout<<" NAVSTATE: \n" << navstate_current.pose().matrix()<<std::endl;
+//	std::cout<<" after affine a: " << aff_g2l_out.a << "affine b: "<< aff_g2l_out.b<<std::endl;
+//	std::cout<< "\npreToworld:=\n "<<newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
+//	std::cout<< "\n(before optimization)NewToworld:=\n "<<navbak.pose().matrix()<<std::endl;
+//	std::cout<< "\n(after optimization)NewToworld:=\n "<<navstate_out.pose().matrix()<<std::endl;
+//	std::cout<< "\n(before optimization)perviousToNew_out:=\n "<<navbak.pose().inverse().matrix() * newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
+//	std::cout<< "\n(after optimization)perviousToNew_out:=\n "<<navstate_out.pose().inverse().matrix() * newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
+//	std::cout<<" \nperviousToworld_GT:=\n "<< newFrame->shell->last_frame->groundtruth.pose.matrix()<<std::endl;
+//	std::cout<<" \nnewToworld_GT:=\n "<< newFrame->shell->groundtruth.pose.matrix()<<std::endl;
+//	std::cout<<" \nperviousToNew_GT:=\n "<< newFrame->shell->groundtruth.pose.inverse().matrix() * newFrame->shell->last_frame->groundtruth.pose.matrix()<<std::endl;
 
 
 	if((setting_affineOptModeA != 0 && (fabsf(aff_g2l_out.a) > 1.2))

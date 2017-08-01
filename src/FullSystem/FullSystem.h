@@ -351,6 +351,8 @@ public:
 		gyroBiasEstimate = gyroBias;
 	}
 
+    bool isIMUinitialized() { return IMUinitialized; }
+
 };
 }
 

@@ -589,6 +589,8 @@ float FullSystem::optimize(int mnumOptIts)
 		{
 			fh->shell->camToWorld = fh->PRE_camToWorld;
 			fh->shell->aff_g2l = fh->aff_g2l();
+			SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
+			fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), fh->shell->navstate.velocity());
 		}
 	}
 
