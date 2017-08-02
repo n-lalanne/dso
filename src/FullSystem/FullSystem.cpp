@@ -643,12 +643,12 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //		}// in each level has to be at least as good as the last try.
 //		else
 //		{
-			std::cout<<"after IMU optimization :lastF_2_fh_this: \n"<<lastF_2_fh_this.matrix()<<std::endl;
-            //std::cout<<"try "<<i<<"th"<<" candidate pose"<<std::endl;
-            trackingIsGood = coarseTracker->trackNewestCoarse(
-                    fh, lastF_2_fh_this, slast_2_fh_this, aff_g2l_this,
-                    pyrLevelsUsed - 1,
-                    achievedRes);// in each level has to be at least as good as the last try.
+//			std::cout<<"after IMU optimization :lastF_2_fh_this: \n"<<lastF_2_fh_this.matrix()<<std::endl;
+//            //std::cout<<"try "<<i<<"th"<<" candidate pose"<<std::endl;
+//            trackingIsGood = coarseTracker->trackNewestCoarse(
+//                    fh, lastF_2_fh_this, slast_2_fh_this, aff_g2l_this,
+//                    pyrLevelsUsed - 1,
+//                    achievedRes);// in each level has to be at least as good as the last try.
         }
 		else{
 			trackingIsGood = coarseTracker->trackNewestCoarse(
@@ -733,15 +733,15 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
     else
 	{
 
-		// just for comparision
-		fh->shell->camToTrackingRef = lastF_2_fh.inverse();
-		fh->shell->trackingRef = lastF->shell;
-		fh->shell->aff_g2l = aff_g2l;
-		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
-		SE3 imuToWorld = fh->shell->camToWorld * SE3(getTbc()).inverse();
-		fh->shell->navstate = gtsam::NavState(gtsam::Pose3(imuToWorld.matrix()),Vec3(0,0,0));
-
-		std::cout << "camToWorld normal: \n" << fh->shell->camToWorld.matrix() << std::endl;
+//		// just for comparision
+//		fh->shell->camToTrackingRef = lastF_2_fh.inverse();
+//		fh->shell->trackingRef = lastF->shell;
+//		fh->shell->aff_g2l = aff_g2l;
+//		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
+//		SE3 imuToWorld = fh->shell->camToWorld * SE3(getTbc()).inverse();
+//		fh->shell->navstate = gtsam::NavState(gtsam::Pose3(imuToWorld.matrix()),Vec3(0,0,0));
+//
+//		std::cout << "camToWorld normal: \n" << fh->shell->camToWorld.matrix() << std::endl;
 
 
 		fh->shell->navstate = navstate_this;
