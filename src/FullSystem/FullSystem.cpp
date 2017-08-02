@@ -380,14 +380,16 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
                 slast_velocity = slast->navstate.velocity();
                 slast_timestamp = slast->viTimestamp;
             }
-			std::cout<<"sprelast->id: "<<sprelast->id<<std::endl;
-			std::cout<<"sprelast->camToWorld:\n "<<sprelast->camToWorld.matrix()<<std::endl;
-			std::cout<<"slast->id: "<<slast->id<<std::endl;
-			std::cout<<"slast->camToWorld:\n "<<slast->camToWorld.matrix()<<std::endl;
+//			std::cout<<"sprelast->id: "<<sprelast->id<<std::endl;
+//			std::cout<<"sprelast->camToWorld:\n "<<sprelast->camToWorld.matrix()<<std::endl;
+//			std::cout<<"slast->id: "<<slast->id<<std::endl;
+//			std::cout<<"slast->camToWorld:\n "<<slast->camToWorld.matrix()<<std::endl;
             fh_2_slast = slast_2_sprelast;// assumed to be the same as fh_2_slast.
             const_vel_lastF_2_fh = fh_2_slast.inverse() * lastF_2_slast;
-			std::cout<<"lastF_2_slast:\n"<<lastF_2_slast.matrix()<<std::endl;
-			std::cout<<"fh_2_slast:\n"<<fh_2_slast.matrix()<<std::endl;
+//			std::cout<<"lastF_2_slast:\n"<<lastF_2_slast.matrix()<<std::endl;
+			std::cout<<"nav : fh_2_slast:\n"<<lastF->shell->navstate.pose().matrix()<<std::endl;
+			std::cout<<"from SE3: fh_2_slast:\n"<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
+
 
             groundtruth_lastF_2_fh = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
                     fh->shell->groundtruth.pose.inverse().compose(lastF->shell->groundtruth.pose).matrix(), getTbc()
@@ -625,7 +627,13 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //			}
 //			std::cout<< "last navstate:\n"<< fh->shell->last_frame->navstate.pose().matrix()<<std::endl;
 			AffLight aff_g2l_thisIMU = aff_g2l_this;
-			std::cout<<"before IMU optimization :lastF_2_fh_this: \n"<<lastF_2_fh_this.matrix()<<std::endl;
+			//std::cout<<"before IMU optimization :lastF_2_fh_this: \n"<<lastF_2_fh_this.matrix()<<std::endl;
+			std::cout<<"getTbc() : \n"<<getTbc()<<std::endl;
+			std::cout<<"camtoimu : \n"<<coarseTracker->camtoimu().matrix()<<std::endl;
+
+			std::cout<<"lastRef id : "<<lastF->shell->id<<std::endl;
+			std::cout<<"lastRef->Tib: "<<lastF->shell->navstate.pose().matrix()<<std::endl;
+			std::cout<<"lastRef->Tib from camtoworld: "<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
 
 			trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
 					fh, navstate_this, biases_this, aff_g2l_thisIMU,
@@ -1878,7 +1886,6 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<dso_vi::IMUData> vimuData, double ftimestamp,
 								 dso_vi::ConfigParam &config , dso_vi::GroundTruthIterator::ground_truth_measurement_t groundtruth )
 {
-
     if (isLost) return;
 	boost::unique_lock<boost::mutex> lock(trackMutex);
 

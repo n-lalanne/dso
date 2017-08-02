@@ -36,6 +36,8 @@ namespace dso_vi
 	double accel_bias_rw_sigma = 0.004905;
 	double gyro_bias_rw_sigma = 0.000001454441043;
 	boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> imuParams;
+	SE3 Tbc = SE3();
+    SE3 Tcb = SE3();
 
 	void initializeIMUParams()
 	{
@@ -63,6 +65,12 @@ namespace dso_vi
 	boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getIMUParams()
 	{
 		return boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params>(imuParams);
+	}
+
+	void setTbc(dso::Mat44 _Tbc)
+	{
+		Tbc = SE3(_Tbc);
+        Tcb = Tbc.inverse();
 	}
 
 } //namespace dso_vi

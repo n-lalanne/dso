@@ -98,8 +98,10 @@ CoarseTracker::CoarseTracker(int ww, int hh, FullSystem* _fullsystem) : lastRef_
 	debugPlot = debugPrint = true;
 	w[0]=h[0]=0;
 	refFrameID=-1;
-	SE3 camtoimu(fullSystem->getTbc());
-	imutocam = camtoimu.inverse();
+//	std::cout<<"fullSystem->getTbc() :\n"<<fullSystem->getTbc()<<std::endl;
+//	camtoimu = SE3(fullSystem->getTbc());
+//	std::cout<<"camtoimu is initialized as :\n"<<camtoimu.matrix()<<std::endl;
+//	imutocam = camtoimu.inverse();
 }
 CoarseTracker::~CoarseTracker()
 {
@@ -305,8 +307,9 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	acc.initialize();
 	int n = buf_warped_n;
 	SE3 Tib(navState_.pose().matrix());
-	SE3 Tw_ref = SE3(lastRef->shell->navstate.pose().matrix()) * imutocam.inverse();
-	Mat33 Rcb = imutocam.rotationMatrix();
+	SE3 Tw_reffromNAV = SE3(lastRef->shell->navstate.pose().matrix()) * imutocam().inverse();
+	SE3 Tw_ref = lastRef->shell->camToWorld;
+	Mat33 Rcb = imutocam().rotationMatrix();
 	SE3 Trb = Tw_ref.inverse() * Tib;
 
 	// refToNew for debug
@@ -314,8 +317,11 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 			(navState_.pose().inverse() * lastRef->shell->navstate.pose()).matrix(),
 			fullSystem->getTbc()
 	));
-	std::cout << "GSSSE ref2New: \n" << refToNew.matrix() << std::endl;
-	std::cout << "GSSSE Trb: \n" << Trb.matrix() << std::endl;
+//	std::cout << "GSSSE ref2New: \n" << refToNew.matrix() << std::endl;
+//	std::cout << "GSSSE Trb: \n" << Trb.matrix() << std::endl;
+//	std::cout << "GSSSE Tib: \n" << Tib.matrix()<<std::endl;
+//	std::cout << "GSSSE Tw_ref:\n" << Tw_ref.matrix()<<std::endl;
+//	std::cout << "GSSSE Tw_reffromNAV:\n" << Tw_reffromNAV.matrix()<<std::endl;
 
 	for(int i=0;i<n;i++)
 	{
@@ -442,10 +448,20 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
 		Mat33 Rcb,Rrb;
 		Vec3 Prb;
         SE3 Tref_new = refToNew.inverse();
-		Rcb = imutocam.rotationMatrix();
-		Trb = Tref_new * imutocam;
-
-		std::cout << "no imu Trb: \n" << Trb.matrix() << std::endl;
+		Rcb = imutocam().rotationMatrix();
+		Trb = Tref_new * imutocam();
+//	std::cout << "GSSSE ref2New: \n" << refToNew.matrix() << std::endl;
+//	std::cout << "GSSSE Trb: \n" << Trb.matrix() << std::endl;
+//	std::cout << "GSSSE Tib: \n" << Tib.matrix()<<std::endl;
+//	std::cout << "GSSSE Tw_ref:\n" << Tw_ref.matrix()<<std::endl;
+		SE3 Tib,Tw_ref;
+		Tib = lastRef->shell->camToWorld * Tref_new * SE3(imutocam());
+		Tw_ref = lastRef->shell->camToWorld;
+//		std::cout << "no imu ref2New: \n" << refToNew.matrix() << std::endl;
+//		std::cout << "no imu Trb: \n" << Trb.matrix() << std::endl;
+//		std::cout << "no imu Tib: \n" << Tib.matrix() << std::endl;
+//		std::cout << "no imu Tib from nav\n"<<lastRef->shell->navstate.pose().matrix()<<std::endl;
+//		std::cout << "no imu Tw_ref: \n" << Tw_ref.matrix() << std::endl;
 
         for(int i=0;i<n;i++)
         {
@@ -1202,7 +1218,7 @@ bool CoarseTracker::trackNewestCoarse(
 
 	SE3 previousToNew_current = previousToNew_out;
 	SE3 refToNew_current = lastToNew_out;
-	SE3 IMUToref_current = refToNew_current.inverse() * imutocam;
+	SE3 IMUToref_current = refToNew_current.inverse() * imutocam();
 	SE3 previousToref = refToNew_current.inverse() * previousToNew_current;
 	//SE3 IMUToref_current = refToIMU_current.inverse();
 	//SE3 test = imutocam * IMUToref_current.inverse();
@@ -1308,7 +1324,7 @@ bool CoarseTracker::trackNewestCoarse(
 
 			SE3 IMUToref_new = IMUToref_current * SE3::exp((Vec6)(incScaled.head<6>()));
 			SE3 refToIMU_new = IMUToref_new.inverse();
-			SE3 refToNew_new = imutocam * refToIMU_new;
+			SE3 refToNew_new = imutocam() * refToIMU_new;
 			SE3 previousToNew_new = refToNew_new * previousToref;
 
 			//SE3 refToNew_new = SE3::exp((Vec6)(incScaled.head<6>())) * refToNew_current;
@@ -1431,6 +1447,9 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 	bool haveRepeated = false;
 
+	std::cout<<"in tracking: lastRef id : "<<lastRef->shell->id<<std::endl;
+	std::cout<<"lastRef->Tib: "<<lastRef->shell->navstate.pose().matrix()<<std::endl;
+	std::cout<<"lastRef->Tib from camtoworld: "<<(lastRef->shell->camToWorld * SE3(fullSystem->getTbc()).inverse()).matrix()<<std::endl;
 
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{

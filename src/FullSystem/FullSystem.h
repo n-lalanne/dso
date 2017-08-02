@@ -170,9 +170,9 @@ public:
 	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
 
 	std::vector<FrameShell*> getAllFrameHistory() { return allFrameHistory; }
-	Mat33 getRbc() { return Tbc.block<3, 3>(0, 0); }
-	Mat44 getTbc() { return Tbc; }
-	void setTbc(Mat44 _Tbc) { Tbc = _Tbc; }
+	Mat33 getRbc() { return dso_vi::Tbc.rotationMatrix(); }
+	Mat44 getTbc() { return dso_vi::Tbc.matrix(); }
+	void setTbc(Mat44 _Tbc) { dso_vi::setTbc(_Tbc); }
     std::vector<dso_vi::IMUData> getIMUSinceLastKF() { return mvIMUSinceLastKF; }
 private:
 
@@ -288,10 +288,7 @@ private:
 	std::vector<dso_vi::IMUData> mvIMUSinceLastKF;
 	std::vector<dso_vi::IMUData> mvIMUSinceLastF;
 
-    Mat44 Tbc;
-
-
-	// mutex etc. for tracker exchange.
+    // mutex etc. for tracker exchange.
 	boost::mutex coarseTrackerSwapMutex;			// if tracker sees that there is a new reference, tracker locks [coarseTrackerSwapMutex] and swaps the two.
 	CoarseTracker* coarseTracker_forNewKF;			// set as as reference. protected by [coarseTrackerSwapMutex].
 	CoarseTracker* coarseTracker;					// always used to track new frames. protected by [trackMutex].
@@ -351,7 +348,7 @@ public:
 		gyroBiasEstimate = gyroBias;
 	}
 
-    bool isIMUinitialized() { return IMUinitialized; }
+    bool isIMUinitialized() { return IMUinitialized;}
 
 };
 }

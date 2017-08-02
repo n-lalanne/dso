@@ -33,6 +33,12 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
 
+#include "Eigen/Core"
+#include "sophus/sim3.hpp"
+#include "sophus/se3.hpp"
+#include "util/NumType.h"
+
+
 namespace  dso_vi
 {
 #define USE_COMBINED
@@ -40,9 +46,12 @@ namespace  dso_vi
     extern double gyro_noise_sigma;
     extern double accel_bias_rw_sigma;
     extern double gyro_bias_rw_sigma;
+    extern dso::SE3 Tbc;
+    extern dso::SE3 Tcb;
     extern boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> imuParams;
     boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getIMUParams();
     void initializeIMUParams();
+    void setTbc(dso::Mat44 _Tbc);
 } // namespace dso_vi
 
 namespace dso

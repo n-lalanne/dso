@@ -98,6 +98,8 @@ public:
 	double firstCoarseRMSE;
 
 	void makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians);
+	SE3 camtoimu() { return dso_vi::Tbc; }
+	SE3 imutocam() { return dso_vi::Tcb; }
 
 private:
 
@@ -148,8 +150,6 @@ private:
 	float* buf_warped_refColor;
 	int buf_warped_n;
 
-    SE3 camtoimu;
-    SE3 imutocam;
 
     std::vector<float*> ptrToDelete;
 
