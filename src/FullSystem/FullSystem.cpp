@@ -387,8 +387,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
             fh_2_slast = slast_2_sprelast;// assumed to be the same as fh_2_slast.
             const_vel_lastF_2_fh = fh_2_slast.inverse() * lastF_2_slast;
 //			std::cout<<"lastF_2_slast:\n"<<lastF_2_slast.matrix()<<std::endl;
-			std::cout<<"nav : fh_2_slast:\n"<<lastF->shell->navstate.pose().matrix()<<std::endl;
-			std::cout<<"from SE3: fh_2_slast:\n"<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
+//			std::cout<<"nav : fh_2_slast:\n"<<lastF->shell->navstate.pose().matrix()<<std::endl;
+//			std::cout<<"from SE3: fh_2_slast:\n"<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
 
 
             groundtruth_lastF_2_fh = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
@@ -628,12 +628,12 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //			std::cout<< "last navstate:\n"<< fh->shell->last_frame->navstate.pose().matrix()<<std::endl;
 			AffLight aff_g2l_thisIMU = aff_g2l_this;
 			//std::cout<<"before IMU optimization :lastF_2_fh_this: \n"<<lastF_2_fh_this.matrix()<<std::endl;
-			std::cout<<"getTbc() : \n"<<getTbc()<<std::endl;
-			std::cout<<"camtoimu : \n"<<coarseTracker->camtoimu().matrix()<<std::endl;
-
-			std::cout<<"lastRef id : "<<lastF->shell->id<<std::endl;
-			std::cout<<"lastRef->Tib: "<<lastF->shell->navstate.pose().matrix()<<std::endl;
-			std::cout<<"lastRef->Tib from camtoworld: "<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
+//			std::cout<<"getTbc() : \n"<<getTbc()<<std::endl;
+//			std::cout<<"camtoimu : \n"<<coarseTracker->camtoimu().matrix()<<std::endl;
+//
+//			std::cout<<"lastRef id : "<<lastF->shell->id<<std::endl;
+//			std::cout<<"lastRef->Tib: "<<lastF->shell->navstate.pose().matrix()<<std::endl;
+//			std::cout<<"lastRef->Tib from camtoworld: "<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
 
 			trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
 					fh, navstate_this, biases_this, aff_g2l_thisIMU,
@@ -753,11 +753,11 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		fh->shell->aff_g2l = aff_g2l;
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
 
-		std::cout << "camToWorld imu: \n" << fh->shell->camToWorld.matrix() << std::endl;
+		//std::cout << "camToWorld imu: \n" << fh->shell->camToWorld.matrix() << std::endl;
     }
 
-	std::cout << "After tracking pose: \n" << fh->shell->camToWorld.inverse().matrix() * lastF_2_world.matrix()<< std::endl;
-	std::cout << "GT tracking pose: \n" << groundtruth_lastF_2_fh.matrix()<< std::endl;
+//	std::cout << "After tracking pose: \n" << fh->shell->camToWorld.inverse().matrix() * lastF_2_world.matrix()<< std::endl;
+//	std::cout << "GT tracking pose: \n" << groundtruth_lastF_2_fh.matrix()<< std::endl;
 
 	if(coarseTracker->firstCoarseRMSE < 0)
 		coarseTracker->firstCoarseRMSE = achievedRes[0];
@@ -1750,7 +1750,7 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 
 					// the point hasn't been rescaled before
 					// the depth is in the co-ordinate of the host frame. But the scaling is required in global frame
-					if(ip)
+					if (ip)
 					{
 						ip->idepth_max = ip->idepth_max / scale;
 						ip->idepth_min = ip->idepth_min / scale;

@@ -31,10 +31,10 @@ using namespace dso;
 
 namespace dso_vi
 {
-	double accel_noise_sigma = 0.0003924;
-	double gyro_noise_sigma = 0.000205689024915;
-	double accel_bias_rw_sigma = 0.004905;
-	double gyro_bias_rw_sigma = 0.000001454441043;
+	double accel_noise_sigma = 0.0512000; // 0.0003924;
+	double gyro_noise_sigma = 1.0000e-03; // 0.000205689024915;
+	double accel_bias_rw_sigma = 2.5000e-05; // 0.004905;
+	double gyro_bias_rw_sigma = 4.0000e-05; // 0.000001454441043;
 	boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> imuParams;
 	SE3 Tbc = SE3();
     SE3 Tcb = SE3();
