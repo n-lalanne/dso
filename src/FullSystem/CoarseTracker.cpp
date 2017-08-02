@@ -313,9 +313,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	SE3 Trb = Tw_ref.inverse() * Tib;
 
 	// refToNew for debug
-	SE3 refToNew = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
-			(navState_.pose().inverse() * lastRef->shell->navstate.pose()).matrix(),
-			fullSystem->getTbc()
+	SE3 refToNew = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
+			(navState_.pose().inverse() * lastRef->shell->navstate.pose()).matrix()
 	));
 //	std::cout << "GSSSE ref2New: \n" << refToNew.matrix() << std::endl;
 //	std::cout << "GSSSE Trb: \n" << Trb.matrix() << std::endl;
@@ -993,9 +992,8 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 	float fyl = fy[lvl];
 	float cxl = cx[lvl];
 	float cyl = cy[lvl];
-	refToNew = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
-			(current_navstate.pose().inverse() * lastRef->shell->navstate.pose()).matrix(),
-			fullSystem->getTbc()
+	refToNew = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
+			(current_navstate.pose().inverse() * lastRef->shell->navstate.pose()).matrix()
 	));
 
 	Mat33f RKi = (refToNew.rotationMatrix().cast<float>() * Ki[lvl]);
@@ -1548,9 +1546,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			);
 
 			// calculate relative pose with ref frame
-			SE3 refToNew_new = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
-					( SE3(lastRef->shell->navstate.pose().inverse().matrix()) * IMUTow_new ).matrix(),
-					fullSystem->getTbc()
+			SE3 refToNew_new = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
+					( SE3(lastRef->shell->navstate.pose().inverse().matrix()) * IMUTow_new ).matrix()
 			)).inverse();
 			//std::cout <<"lastRef->shell->navstate.pose()\n"<<lastRef->shell->navstate.pose().matrix()<<std::endl;
 			//std::cout << "ref2new optimized: \n" << refToNew_new.matrix() << std::endl;

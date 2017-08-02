@@ -391,8 +391,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			std::cout<<"from SE3: fh_2_slast:\n"<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
 
 
-            groundtruth_lastF_2_fh = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
-                    fh->shell->groundtruth.pose.inverse().compose(lastF->shell->groundtruth.pose).matrix(), getTbc()
+            groundtruth_lastF_2_fh = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
+                    fh->shell->groundtruth.pose.inverse().compose(lastF->shell->groundtruth.pose).matrix()
             ));
 
             //just use the initial pose from IMU
@@ -502,7 +502,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //                std::cout<<"Predicted pose: "<<prop_lastF_2_fh.matrix()<<std::endl;
 //				std::cout<< " GT/prediction = \n"<<groundtruth_lastF_2_fh.matrix() * prop_lastF_2_fh.inverse().matrix()<<std::endl;
 //                Vec3 groundtruth_translation = groundtruth_lastF_2_fh.inverse().matrix().block<3, 1>(0, 3);
-//                SE3 groundtruth_slast_2_sprelast(dso_vi::IMUData::convertIMUFrame2CamFrame(
+//                SE3 groundtruth_slast_2_sprelast(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
 //                        sprelast->groundtruth.pose.inverse().compose(slast->groundtruth.pose).matrix(),
 //                        getTbc()
 //                ));
@@ -746,9 +746,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 		fh->shell->navstate = navstate_this;
 		fh->shell->bias = gtsam::imuBias::ConstantBias(biases_this);
-		fh->shell->camToTrackingRef = SE3(dso_vi::IMUData::convertIMUFrame2CamFrame(
-				(lastF->shell->navstate.pose().inverse() * navstate_this.pose()).matrix(),
-				getTbc()
+		fh->shell->camToTrackingRef = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
+				(lastF->shell->navstate.pose().inverse() * navstate_this.pose()).matrix()
 		));
 		fh->shell->trackingRef = lastF->shell;
 		fh->shell->aff_g2l = aff_g2l;
@@ -1161,13 +1160,13 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 		tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij();
 
 //		Mat44 fi_TIB = frame_i->groundtruth.pose.matrix();
-//		Mat44 fi_TWC = dso_vi::IMUData::convertIMUFrame2CamFrame(fi_TIB, getTbc());
+//		Mat44 fi_TWC = dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(fi_TIB, getTbc());
 //		Mat44 fi_TWB = fi_TWC * getTbc().inverse();
 //		Mat33 fi_RBW = fi_TWB.block<3,3>(0,0).transpose();
 //		Vec3 fi_tWC = fi_TWC.block<3,1>(0,3);
 //
 //		Mat44 fj_TIB = frame_j->groundtruth.pose.matrix();
-//		Mat44 fj_TWC = dso_vi::IMUData::convertIMUFrame2CamFrame(fj_TIB, getTbc());
+//		Mat44 fj_TWC = dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(fj_TIB, getTbc());
 //		Mat44 fj_TWB = fj_TWC * getTbc().inverse();
 //		Mat33 fj_RBW = fj_TWB.block<3,3>(0,0).transpose();
 //		Vec3 fj_tWC = fj_TWC.block<3,1>(0,3);
@@ -1216,7 +1215,7 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 	}
 
 	// compute the gravity direction from groundtruth
-	Mat33 R_b0_bx = dso_vi::IMUData::convertCamFrame2IMUFrame(allKeyFramesHistory[0]->camToWorld.matrix(), getTbc()).block<3,3>(0, 0);
+	Mat33 R_b0_bx = dso_vi::IMUData::convertRelativeCamFrame2RelativeIMUFrame(allKeyFramesHistory[0]->camToWorld.matrix()).block<3,3>(0, 0);
 	Mat33 R_I_bx = allKeyFramesHistory[0]->groundtruth.pose.rotation().matrix();
 	Mat33 R_I_b0 =  R_I_bx * R_b0_bx.transpose();
 
@@ -1352,7 +1351,7 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
 		std::cout<<"Refined g: \n"<< g0<<std::endl;
 
 		// compute the gravity direction from groundtruth
-		Mat33 R_b0_bx = dso_vi::IMUData::convertCamFrame2IMUFrame(allKeyFramesHistory[0]->camToWorld.matrix(), getTbc()).block<3,3>(0, 0);
+		Mat33 R_b0_bx = dso_vi::IMUData::convertRelativeCamFrame2RelativeIMUFrame(allKeyFramesHistory[0]->camToWorld.matrix()).block<3,3>(0, 0);
 		Mat33 R_I_bx = allKeyFramesHistory[0]->groundtruth.pose.rotation().matrix();
 		Mat33 R_I_b0 =  R_I_bx * R_b0_bx.transpose();
 
@@ -1366,7 +1365,7 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
 //    std::cout<<"Refined g: \n"<< g<<std::endl;
 //
 //	// compute the gravity direction from groundtruth
-//    Mat33 R_b0_bx = dso_vi::IMUData::convertCamFrame2IMUFrame(allKeyFramesHistory[0]->camToWorld.matrix(), getTbc()).block<3,3>(0, 0);
+//    Mat33 R_b0_bx = dso_vi::IMUData::convertRelativeCamFrame2RelativeIMUFrame(allKeyFramesHistory[0]->camToWorld.matrix(), getTbc()).block<3,3>(0, 0);
 //    Mat33 R_I_bx = allKeyFramesHistory[0]->groundtruth.pose.rotation().matrix();
 //    Mat33 R_I_b0 =  R_I_bx * R_b0_bx.transpose();
 //
@@ -1402,8 +1401,8 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 			SE3 Ti = frame_i->camToWorld;
 			SE3 Tj = frame_j->camToWorld;
 			SE3 Tij = frame_i->camToWorld.inverse() * frame_j->camToWorld;
-			Mat33 Ri = dso_vi::IMUData::convertCamFrame2IMUFrame(Ti.matrix(), getTbc()).block<3, 3>(0, 0);
-			Mat33 Rj = dso_vi::IMUData::convertCamFrame2IMUFrame(Tj.matrix(), getTbc()).block<3, 3>(0, 0);
+			Mat33 Ri = dso_vi::IMUData::convertRelativeCamFrame2RelativeIMUFrame(Ti.matrix()).block<3, 3>(0, 0);
+			Mat33 Rj = dso_vi::IMUData::convertRelativeCamFrame2RelativeIMUFrame(Tj.matrix()).block<3, 3>(0, 0);
 			Mat33 R_ij = Ri.inverse() * Rj;
 
 			Mat33 tmp_A(3, 3);
@@ -1419,7 +1418,7 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 								 *preint_imu);
 
 			// relative pose wrt IMU
-			gtsam::Pose3 relativePose(dso_vi::IMUData::convertCamFrame2IMUFrame(Tij.matrix(), getTbc()));
+			gtsam::Pose3 relativePose(dso_vi::IMUData::convertRelativeCamFrame2RelativeIMUFrame(Tij.matrix()));
 
 			gtsam::Vector3 velocity;
 			velocity << 0, 0, 0;

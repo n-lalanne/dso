@@ -2,6 +2,7 @@
 #define IMUDATA_H
 
 #include <Eigen/Dense>
+#include "util/settings.h"
 
 namespace dso_vi
 {
@@ -41,20 +42,14 @@ public:
     Vector3d _a;    //acc data
     double _t;      //timestamp
 
-    static Matrix4d convertCamFrame2IMUFrame(Matrix4d camPose, Matrix4d Tbc)
+    static Matrix4d convertRelativeCamFrame2RelativeIMUFrame(Matrix4d camPose)
     {
-        Matrix4d Tcb = Tbc.inverse();
-//        Tcb.block<3, 3>(0, 0) = Tbc.block<3, 3>(0, 0).transpose();
-//        Tcb.block<3, 1>(0, 3).noalias() = -Tcb.block<3, 3>(0, 0) * Tcb.block<3, 1>(0, 3);
-        return Tbc * camPose * Tcb;
+        return dso_vi::Tbc.matrix() * camPose * dso_vi::Tcb.matrix();
     }
 
-    static Matrix4d convertIMUFrame2CamFrame(Matrix4d imuPose, Matrix4d Tbc)
+    static Matrix4d convertRelativeIMUFrame2RelativeCamFrame(Matrix4d imuPose)
     {
-        Matrix4d Tcb = Tbc.inverse();
-//        Tcb.block<3, 3>(0, 0) = Tbc.block<3, 3>(0, 0).transpose();
-//        Tcb.block<3, 1>(0, 3).noalias() = -Tcb.block<3, 3>(0, 0) * Tcb.block<3, 1>(0, 3);
-        return Tcb * imuPose * Tbc;
+        return dso_vi::Tcb.matrix() * imuPose * dso_vi::Tbc.matrix();
     }
 
 };
