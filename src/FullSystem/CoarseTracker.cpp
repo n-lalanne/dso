@@ -773,7 +773,7 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState current_navstate, Vec6 bias)
 	res_imu = newFrame->shell->evaluateIMUerrors(
 			newFrame->shell->last_frame->navstate,
 			current_navstate,
-			lastRef->shell->bias, fullSystem->getTbc(),
+			lastRef->shell->bias,
 			J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias_i, this->J_imu_bias
 	);
 

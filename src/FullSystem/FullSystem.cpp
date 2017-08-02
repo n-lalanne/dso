@@ -397,7 +397,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
             //just use the initial pose from IMU
             //when we determine the last key frame, we will propagate the pose by using the preintegration measurement and the pose of the last key frame
-			prop_navstate = fh->shell->PredictPose(slast_navstate, slast_timestamp, getTbc());
+			prop_navstate = fh->shell->PredictPose(slast_navstate, slast_timestamp);
 			//std::cout<<"last pose(from SE3):\n"<<slast->navstate.pose().matrix()<<std::endl;
             //std::cout<<"last pose(from navstate): \n"<<slast_navstate.pose().matrix()<<"\npredicted current pose\n"<<prop_navstate.pose().matrix()<<std::endl;
             SE3 prop_fh_2_world(prop_navstate.pose().matrix() * getTbc());
@@ -1151,13 +1151,13 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 		std::cout << "Frame ID: " << frame_j->id << " to " << frame_i->id <<", estimated dt: "<<dt<<" groundtruth dt: "<<frame_j->viTimestamp-frame_i->viTimestamp<<std::endl;
 
 		tmp_A.block<3, 3>(0, 0) = -dt * Mat33::Identity();
-		tmp_A.block<3, 3>(0, 6) = frame_i->RBW(getTbc()) * dt * dt / 2 * Mat33::Identity();
-		tmp_A.block<3, 1>(0, 9) = frame_i->RBW(getTbc()) * ( frame_j->TWC() - frame_i->TWC()) / 100.0;
-		tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3);
+		tmp_A.block<3, 3>(0, 6) = frame_i->RBW() * dt * dt / 2 * Mat33::Identity();
+		tmp_A.block<3, 1>(0, 9) = frame_i->RBW() * ( frame_j->tWC() - frame_i->tWC()) / 100.0;
+		tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + frame_i->RBW() * frame_j->RBW().transpose() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3);
 		//cout << "delta_p   " << frame_j->second.pre_integration->delta_p.transpose() << endl;
 		tmp_A.block<3, 3>(3, 0) = -Mat33::Identity();
-		tmp_A.block<3, 3>(3, 3) = frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose();
-		tmp_A.block<3, 3>(3, 6) = frame_i->RBW(getTbc()) * dt * Mat33::Identity();
+		tmp_A.block<3, 3>(3, 3) = frame_i->RBW() * frame_j->RBW().transpose();
+		tmp_A.block<3, 3>(3, 6) = frame_i->RBW() * dt * Mat33::Identity();
 		tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij();
 
 //		Mat44 fi_TIB = frame_i->groundtruth.pose.matrix();
@@ -1307,14 +1307,14 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
 			double dt = frame_j->imu_preintegrated_last_kf_->deltaTij();
 
 			tmp_A.block<3, 3>(0, 0) = -dt * Mat33::Identity();
-			tmp_A.block<3, 2>(0, 6) = frame_i->RBW(getTbc()) * dt * dt / 2 * Mat33::Identity()* lxly;
-			tmp_A.block<3, 1>(0, 8) = frame_i->RBW(getTbc()) * ( frame_j->TWC() - frame_i->TWC()) / 100.0;
-			tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3) - frame_i->RBW(getTbc()) * dt * dt / 2 * g0;
+			tmp_A.block<3, 2>(0, 6) = frame_i->RBW() * dt * dt / 2 * Mat33::Identity()* lxly;
+			tmp_A.block<3, 1>(0, 8) = frame_i->RBW() * ( frame_j->tWC() - frame_i->tWC()) / 100.0;
+			tmp_b.block<3, 1>(0, 0) = frame_j->imu_preintegrated_last_kf_->deltaPij() + frame_i->RBW() * frame_j->RBW().transpose() * getTbc().block<3,1>(0,3) - getTbc().block<3,1>(0,3) - frame_i->RBW() * dt * dt / 2 * g0;
 			//cout << "delta_p   " << frame_j->second.pre_integration->delta_p.transpose() << endl;
 			tmp_A.block<3, 3>(3, 0) = -Mat33::Identity();
-			tmp_A.block<3, 3>(3, 3) = frame_i->RBW(getTbc()) * frame_j->RBW(getTbc()).transpose();
-			tmp_A.block<3, 2>(3, 6) = frame_i->RBW(getTbc()) * dt * Mat33::Identity()* lxly;
-			tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij() - frame_i->RBW(getTbc()) * dt * Mat33::Identity() * g0;
+			tmp_A.block<3, 3>(3, 3) = frame_i->RBW() * frame_j->RBW().transpose();
+			tmp_A.block<3, 2>(3, 6) = frame_i->RBW() * dt * Mat33::Identity()* lxly;
+			tmp_b.block<3, 1>(3, 0) = frame_j->imu_preintegrated_last_kf_->deltaVij() - frame_i->RBW() * dt * Mat33::Identity() * g0;
 
 
 			Mat66 cov_inv;

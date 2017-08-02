@@ -7,17 +7,11 @@ Mat1515 FrameShell::getIMUcovariance()
     return preint_imu->preintMeasCov();
 }
 
-Vec3 FrameShell::TWB(Matrix44 Tbc){
-    Mat44 Twc;
-    Mat44 Tcb;
-    Mat44 Twb;
-    Twc.setIdentity();
-    Tcb.setIdentity();
-    Twc.block<3,3>(0,0) = RWC();
-    Twc.block<3,1>(0,3) = TWC();
-    Tcb.block<3,3>(0,0) = Tbc.block<3,3>(0,0).transpose();
-    Tcb.block<3,1>(0,3) = - Tbc.block<3,3>(0,0).transpose() * Tbc.block<3,1>(0,3);
-    Twb = Twc * Tcb;
+Vec3 FrameShell::TWB()
+{
+    Mat44 Twc = camToWorld.matrix();
+    Mat44 Twb = Twc * dso_vi::Tcb.matrix();
+
     return Twb.block<3,1>(0,3);
 }
 
@@ -25,7 +19,6 @@ Vec15 FrameShell::evaluateIMUerrors(
         gtsam::NavState previous_navstate,
         gtsam::NavState current_navstate,
         gtsam::imuBias::ConstantBias initial_bias,
-        Mat44 Tbc,
         gtsam::Matrix &J_imu_Rt_i,
         gtsam::Matrix &J_imu_v_i,
         gtsam::Matrix &J_imu_Rt_j,
@@ -145,7 +138,7 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
 }
 
 
-gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp, Mat44 Tbc)
+gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp)
 {
 
 

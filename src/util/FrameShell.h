@@ -124,7 +124,7 @@ public:
 	 *
 	 * @return transformation from current frame to last frame
 	 */
-    gtsam::NavState PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp, Mat44 Tbc);
+    gtsam::NavState PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp);
 
 	Mat1515 getIMUcovariance();
 	/**
@@ -136,7 +136,6 @@ public:
 			gtsam::NavState previous_navstate,
 			gtsam::NavState current_navstate,
 			gtsam::imuBias::ConstantBias initial_bias,
-			Mat44 Tbc,
 			gtsam::Matrix &J_imu_Rt_i,
 			gtsam::Matrix &J_imu_v_i,
 			gtsam::Matrix &J_imu_Rt_j,
@@ -157,7 +156,7 @@ public:
 		return camToWorld.matrix().block<3,3>(0,0);
 	}
 
-	inline Vec3 TWC()
+	inline Vec3 tWC()
 	{
 		return camToWorld.matrix().block<3,1>(0,3);
 	}
@@ -167,22 +166,27 @@ public:
 		return RWC().transpose();
 	}
 
-	inline Vec3 TCW()
+	inline Vec3 tCW()
 	{
 		return camToWorld.matrix().inverse().block<3,1>(0,3);
 	}
 
-	inline Mat33 RBW(Matrix44 Tbc)
+	inline Mat33 RBW()
 	{
-		return Tbc.block<3,3>(0,0) * RCW();
+		return dso_vi::Tbc.rotationMatrix() * RCW();
 	}
-    inline Mat33 RWB(Matrix44 Tbc){
-        return RBW(Tbc).transpose();
+
+    inline Mat33 RWB()
+	{
+        return RBW().transpose();
     }
-    inline Vec3 TBW(Matrix44 Tbc){
-        return (Tbc * camToWorld.matrix()).block<3,1>(0,3);
+
+    inline Vec3 tBW()
+	{
+        return (dso_vi::Tbc * camToWorld).matrix().block<3,1>(0,3);
     }
-    Vec3 TWB(Matrix44 Tbc);
+
+    Vec3 TWB();
 };
 
 
