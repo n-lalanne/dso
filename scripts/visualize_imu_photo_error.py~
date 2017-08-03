@@ -29,7 +29,7 @@ for i in range(5):
 for i in range(5):
     plt.plot(list_errors[i][0], label="photometric")
     plt.hold(True)
-    plt.plot(list_errors[i][1], label="IMU"+str(i))
+    plt.plot(list_errors[i][1], label="IMU")
     plt.legend()
     plt.figure()
 

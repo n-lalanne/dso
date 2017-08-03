@@ -391,12 +391,11 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 
 	J_imu_rtavb.setZero();
 	// for rotation and translation
-//	J_imu_rtavb.block<15, 6>(0, 0) = J_imu_Rt;
-//	J_imu_rtavb.block<15, 3>(0, 8) = J_imu_v;
-//	J_imu_rtavb.block<15, 6>(0, 11) = J_imu_bias;
+//	J_imu_rtavb.topLeftCorner<9, 3>() = J_imu_Rt.block<9, 3>(0,3);
+	J_imu_rtavb.block<9, 3>(0, 3) = J_imu_Rt.topLeftCorner<9, 3>();
+//    J_imu_rtavb.block<9, 3>(0, 8) = J_imu_v.topLeftCorner<9, 3>();
 
-	J_imu_rtavb.topLeftCorner<9, 6>() = J_imu_Rt.topLeftCorner<9, 6>();
-	J_imu_rtavb.block<9, 3>(0, 8) = J_imu_v.topLeftCorner<9, 3>();
+
 
 	H_imu_rtavb = J_imu_rtavb.transpose() * information_imu * J_imu_rtavb;
 	b_imu_rtavb = J_imu_rtavb.transpose() * information_imu * res_imu;
@@ -1093,9 +1092,9 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 		{
 			if(debugPlot) resImage->setPixel4(lpc_u[i], lpc_v[i], Vec3b(residual+128,residual+128,residual+128));
 			// information matrix (weight) based on pyramid level
-			float lvl_info = 1.0 / pow(2.0, (double)lvl);
-
-			E += (hw *residual*residual*(2-hw)) * lvl_info;
+			float lvl_info = 1.0;// / pow(2.0, (double)lvl);
+			//residual * =lvl_info;
+			E += (hw *residual*residual*lvl_info*lvl_info*(2-hw)) ;
 			numTermsInE++;
 			buf_warped_rx[numTermsInWarped] = pr(0);
 			buf_warped_ry[numTermsInWarped] = pr(1);
@@ -1134,12 +1133,15 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 
 
 	Vec15 imu_error = calcIMURes(current_navstate, biases);
+	imu_error.segment<12>(3) = Eigen::Matrix<double,12,1>::Zero();
+
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 
     // TODO: make threshold a setting
-    if (IMUenergy > 5e5)
+	float imu_huberTH = 2e4;
+    if (IMUenergy > imu_huberTH)
     {
-        float hw_imu = fabs(IMUenergy) < 1e4 ? 1 : 5e5 / fabs(IMUenergy);
+        float hw_imu = fabs(IMUenergy) < imu_huberTH ? 1 : imu_huberTH / fabs(IMUenergy);
         IMUenergy = hw_imu * IMUenergy * (2 - hw_imu);
         information_imu *= hw_imu;
     }
@@ -1470,11 +1472,11 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		{
 			Mat1717 Hl = H;
 			for(int i=0;i<17;i++) Hl(i,i) *= (1+lambda);
-			Vec17 inc = Hl.ldlt().solve(-b);
+			Vec17 inc;// = Hl.ldlt().solve(-b);
 
 			// solve only vision terms
-//            inc.setZero();
-//			inc.head<8>() = Hl.topLeftCorner<8,8>().ldlt().solve(-b.head<8>());
+            inc.setZero();
+			inc.head<11>() = Hl.topLeftCorner<11,11>().ldlt().solve(-b.head<11>());
 
 
 			if(setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
