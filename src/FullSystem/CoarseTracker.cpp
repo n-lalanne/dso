@@ -392,9 +392,10 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	J_imu_rtavb.setZero();
 	// for rotation and translation
 //	J_imu_rtavb.topLeftCorner<9, 3>() = J_imu_Rt.block<9, 3>(0,3);
-	J_imu_rtavb.block<9, 3>(0, 3) = J_imu_Rt.topLeftCorner<9, 3>();
+//	J_imu_rtavb.block<9, 3>(0, 3) = J_imu_Rt.topLeftCorner<9, 3>();
 //    J_imu_rtavb.block<9, 3>(0, 8) = J_imu_v.topLeftCorner<9, 3>();
 
+	J_imu_rtavb.block<3, 3>(0, 3) = J_imu_Rt.topLeftCorner<3, 3>();
 
 
 	H_imu_rtavb = J_imu_rtavb.transpose() * information_imu * J_imu_rtavb;
@@ -1138,13 +1139,13 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 
     // TODO: make threshold a setting
-	float imu_huberTH = 2e4;
-    if (IMUenergy > imu_huberTH)
-    {
-        float hw_imu = fabs(IMUenergy) < imu_huberTH ? 1 : imu_huberTH / fabs(IMUenergy);
-        IMUenergy = hw_imu * IMUenergy * (2 - hw_imu);
-        information_imu *= hw_imu;
-    }
+//	float imu_huberTH = 1e5;
+//    if (IMUenergy > imu_huberTH)
+//    {
+//        float hw_imu = fabs(IMUenergy) < imu_huberTH ? 1 : imu_huberTH / fabs(IMUenergy);
+//        IMUenergy = hw_imu * IMUenergy * (2 - hw_imu);
+//        information_imu *= hw_imu;
+//    }
 
 	std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
 	std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
