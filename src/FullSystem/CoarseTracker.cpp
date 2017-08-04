@@ -379,11 +379,14 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 
     H_out.setZero();
     b_out.setZero();
-	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>(); // * (1.0f/n);
-	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>(); // * (1.0f/n);
+	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>()  * (1.0f/n);
+	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
 	//std::cout<<"H_out:\n"<<H_out.block<8,8>(0,0)<<std::endl;
 	//std::cout<<"b_out:\n"<<b_out.segment<8>(0)<<std::endl;
 	// here rtvab means rotation, translation, affine, velocity and biases
+
+	std::cout << "H_out: \n" << H_out.topLeftCorner<6,6>() << std::endl;
+	std::cout << "b_out: \n" << b_out.segment<6>(0).transpose() << std::endl;
 
     Mat1717 H_imu_rtavb;
 	Vec17 b_imu_rtavb;
@@ -395,11 +398,22 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 //	J_imu_rtavb.block<9, 3>(0, 3) = J_imu_Rt.topLeftCorner<9, 3>();
 //    J_imu_rtavb.block<9, 3>(0, 8) = J_imu_v.topLeftCorner<9, 3>();
 
-	J_imu_rtavb.block<3, 3>(0, 3) = J_imu_Rt.topLeftCorner<3, 3>();
+	J_imu_rtavb.block<6, 3>(0, 3) = J_imu_Rt.topLeftCorner<6, 3>();
+//	J_imu_rtavb.block<6, 3>(0, 3) = J_imu_Rt.topLeftCorner<6, 3>();
+	J_imu_rtavb.topLeftCorner<6, 3>() = J_imu_Rt.block<6, 3>(0, 3);
+	res_imu.segment<9>(6) = Eigen::Matrix<double,9,1>::Zero();
 
+    information_imu.topLeftCorner<3, 3>() /= SCALE_IMU_R;
+    information_imu.block<3,3>(3, 3) /= SCALE_IMU_T;
 
 	H_imu_rtavb = J_imu_rtavb.transpose() * information_imu * J_imu_rtavb;
 	b_imu_rtavb = J_imu_rtavb.transpose() * information_imu * res_imu;
+	//H_imu_rtavb /= 1000.0;
+	//b_imu_rtavb /= 1000.0;
+
+    std::cout << "J_imu: \n " << J_imu_rtavb << std::endl;
+	std::cout << "H_imu: \n" << H_imu_rtavb.topLeftCorner<6,6>() << std::endl;
+	std::cout << "b_imu: \n" << b_imu_rtavb.segment<6>(0).transpose() << std::endl;
 
 	H_out += H_imu_rtavb;
 	b_out += b_imu_rtavb;
@@ -752,7 +766,7 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState current_navstate, Vec6 bias)
 	res_imu = newFrame->shell->evaluateIMUerrors(
 			newFrame->shell->last_frame->navstate,
 			current_navstate,
-			lastRef->shell->bias,
+            newFrame->shell->bias,
 			J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias_i, this->J_imu_bias
 	);
 
@@ -1134,27 +1148,33 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 
 
 	Vec15 imu_error = calcIMURes(current_navstate, biases);
-	imu_error.segment<12>(3) = Eigen::Matrix<double,12,1>::Zero();
+	std::cout << "Before IMU error: " << imu_error.head<3>().transpose() << std::endl;
+	imu_error.segment<9>(6) = Eigen::Matrix<double,9,1>::Zero();
 
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
-
+	std::cout << "IMUenergy: " << IMUenergy << std::endl;
     // TODO: make threshold a setting
-//	float imu_huberTH = 1e5;
-//    if (IMUenergy > imu_huberTH)
-//    {
-//        float hw_imu = fabs(IMUenergy) < imu_huberTH ? 1 : imu_huberTH / fabs(IMUenergy);
-//        IMUenergy = hw_imu * IMUenergy * (2 - hw_imu);
-//        information_imu *= hw_imu;
-//    }
+	float imu_huberTH = 1e5;
+    if (IMUenergy > imu_huberTH)
+    {
+        float hw_imu = fabs(IMUenergy) < imu_huberTH ? 1 : imu_huberTH / fabs(IMUenergy);
+        IMUenergy = hw_imu * IMUenergy * (2 - hw_imu);
+        information_imu *= hw_imu;
+    }
+
+
+//	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
+
+	std::cout<<"Unnormaliezd E is :"<<E << std::endl;
+	E/=numTermsInE;
+	IMUenergy/=SCALE_IMU_T;
+
 
 	std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
 	std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
+	std::cout<<"number of points:"<<numTermsInE<<std::endl;
 	std::cout<<"E vs IMU_error is :"<<E <<" "<<IMUenergy<< " " << lvl << std::endl;
-//	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
-
-	//IMUenergy*= numTermsInE;
-
-    E += IMUenergy;
+	E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)
 	{
@@ -1557,7 +1577,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 			Vec6 resNew = calcResIMU(lvl, navstate_new, aff_g2l_new, biases_new, setting_coarseCutoffTH*levelCutoffRepeat);
 
-			bool accept = (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
+			bool accept = resNew[0] < resOld[0];
+					//= (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
 
 			if(accept)
 			{

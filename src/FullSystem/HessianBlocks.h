@@ -72,6 +72,9 @@ class EFPoint;
 #define SCALE_W 1.0f
 #define SCALE_A 10.0f
 #define SCALE_B 1000.0f
+#define SCALE_IMU_R 1.0f
+#define SCALE_IMU_T 100.0f
+#define SCALE_IMU_V 1000.0f
 
 #define SCALE_IDEPTH_INVERSE (1.0f / SCALE_IDEPTH)
 #define SCALE_XI_ROT_INVERSE (1.0f / SCALE_XI_ROT)
