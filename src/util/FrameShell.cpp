@@ -174,6 +174,85 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
         );
     }
 
+    {
+        // run a dummy optimization here
+        gtsam::NavState previous_navstate(last_frame->groundtruth.pose, last_frame->groundtruth.velocity);
+        gtsam::NavState current_navstate = imu_preintegrated_last_frame_->predict(previous_navstate, bias);
+
+        // add noise to the estimate
+        SE3 current_SE3(current_navstate.pose().matrix());
+        SE3 noisy_SE3 = current_SE3 * SE3(
+                Eigen::Quaterniond(
+                        1,
+                        ((double)rand())/RAND_MAX * 0.5,
+                        ((double)rand())/RAND_MAX * 0.5,
+                        ((double)rand())/RAND_MAX * 0.5
+                ),
+                Vec3(
+                        ((double)rand())/RAND_MAX * 0.5,
+                        ((double)rand())/RAND_MAX * 0.5,
+                        ((double)rand())/RAND_MAX * 0.5
+                )
+        );
+        Vec3 noisy_velocity = current_navstate.velocity() + Vec3(
+                ((double)rand())/RAND_MAX * 0.5,
+                ((double)rand())/RAND_MAX * 0.5,
+                ((double)rand())/RAND_MAX * 0.5
+        );
+
+        current_navstate = gtsam::NavState(
+                gtsam::Pose3(noisy_SE3.matrix()), noisy_velocity
+        );
+
+        Mat1515 inv_covariance = getIMUcovariance().inverse();
+
+        // useless Jacobians of reference frame (cuz we're not optimizing reference frame)
+        gtsam::Matrix J_imu_Rt_i, J_imu_v_i, J_imu_bias_i;
+        gtsam::Matrix J_imu_Rt_j, J_imu_v_j, J_imu_bias_j;
+        Mat99 J;
+
+        std::cout << "----------------- IMU only optimization -----------------" << std::endl;
+        for (size_t i = 0; i < 8; i++)
+        {
+            Vec15 res_imu = evaluateIMUerrors(
+                    previous_navstate,
+                    current_navstate,
+                    bias,
+                    J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
+            );
+
+            J.setZero();
+            J.topLeftCorner<9, 6>() = J_imu_Rt_j.topLeftCorner<9, 6>();
+            J.block<9, 3>(0, 6) = J_imu_v_j.topLeftCorner<9, 3>();
+
+            Vec9 r = res_imu.head<9>();
+            Mat99 information_matrix = inv_covariance.topLeftCorner<9, 9>();
+            Mat99 H = J.transpose() * information_matrix * J;
+            Vec9 b = J.transpose() * information_matrix * r;
+
+            Vec9 inc = H.ldlt().solve(-b);
+
+            // the sophus se3's first 3 are translation and last 3 are rotation
+            Vec6 inc_se3;
+            inc_se3.head(3) = inc.segment<3>(3);
+            inc_se3.tail(3) = inc.head(3);
+
+            SE3 old_pose(current_navstate.pose().matrix());
+            SE3 new_pose = old_pose * SE3::exp(inc_se3);
+            Vec3 new_velocity = current_navstate.velocity() + inc.segment<3>(6);
+
+            current_navstate = gtsam::NavState(
+              gtsam::Pose3(new_pose.matrix()), new_velocity
+            );
+
+            std::cout << "Step " << i << " error: " << r.transpose() << std::endl;
+            std::cout << "Step " << i << " increment: " << inc.transpose() << std::endl << std::endl;
+        }
+        std::cout << std::endl << std::endl << std::endl;
+
+
+
+    }
 
     return predicted_pose_imu;
 }
