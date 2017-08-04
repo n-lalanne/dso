@@ -1154,7 +1154,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 	std::cout << "IMUenergy: " << IMUenergy << std::endl;
     // TODO: make threshold a setting
-	float imu_huberTH = 1e5;
+	float imu_huberTH = 21.666; // 1e5;
     if (IMUenergy > imu_huberTH)
     {
         float hw_imu = fabs(IMUenergy) < imu_huberTH ? 1 : imu_huberTH / fabs(IMUenergy);
@@ -1169,11 +1169,23 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 	E/=numTermsInE;
 	IMUenergy/=SCALE_IMU_T;
 
+	// orientation error of previous pose
+	FrameShell *last_frame = fullSystem->getAllFrameHistory().back()->last_frame;
+	gtsam::Rot3 rot3_diff = last_frame->groundtruth.pose.rotation().inverse().compose(
+		last_frame->navstate.pose().rotation()
+	);
+
+	Vec3 ypr_diff = rot3_diff.ypr();
+	double angle_error = sqrt( pow(ypr_diff(1), 2) + pow(ypr_diff(2), 2) ) * 100;
 
 	std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
 	std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
 	std::cout<<"number of points:"<<numTermsInE<<std::endl;
-	std::cout<<"E vs IMU_error is :"<<E <<" "<<IMUenergy<< " " << lvl << std::endl;
+	std::cout<<"E vs IMU_error is :"
+			 <<E <<" "
+			 <<IMUenergy<<" "
+			 <<angle_error<<" "
+			 << lvl << std::endl;
 	E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)

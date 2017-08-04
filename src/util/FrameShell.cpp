@@ -142,21 +142,34 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
 {
 
 
-    // conversion from EUROC reference to our reference
+    // conversion from EUROC reference to our reference (T_dso_euroc = T_dso_ref * T_ref_euroc
     Mat44 T_dso_euroc = ref_pose_imu.pose().matrix() * last_frame->groundtruth.pose.inverse().matrix();
-//    std::cout << "DSO vs EuRoC rotation: \n" << T_dso_euroc.block<3,3>(0,0) << std::endl;
+    std::cout << "DSO vs EuRoC rotation: \n" << T_dso_euroc.block<3,3>(0,0) << std::endl;
 
     ref_pose_imu = gtsam::NavState(
           ref_pose_imu.pose(),
-          T_dso_euroc.block<3,3>(0,0).transpose() * last_frame->groundtruth.velocity
+          T_dso_euroc.block<3,3>(0,0) * last_frame->groundtruth.velocity
     );
+
+    // set the velocities to groundtruth
+    last_frame->navstate = gtsam::NavState(
+            last_frame->navstate.pose(),
+            T_dso_euroc.block<3,3>(0,0).transpose() * last_frame->groundtruth.velocity
+    );
+
     std::cout<<"last id: "<<fh->shell->last_frame->id<<std::endl;
     std::cout<<"last_frame->id: "<<last_frame->id<<std::endl;
     std::cout << "GT vel transformed: " << ref_pose_imu.velocity().transpose() << std::endl;
     std::cout << "Vel initialized: " << last_frame->navstate.velocity().transpose() << std::endl;
-    std::cout << "GT Vel initialized: " << last_frame->groundtruth.velocity.transpose() << std::endl;
+//    std::cout << "GT Vel initialized: " << last_frame->groundtruth.velocity.transpose() << std::endl;
 
-    gtsam::NavState predicted_pose_imu = imu_preintegrated_last_frame_->predict(ref_pose_imu, bias);
+    gtsam::NavState predicted_pose_imu = imu_preintegrated_last_frame_->predict(last_frame->navstate, bias);
+
+    // set the velocities to groundtruth
+//    predicted_pose_imu = gtsam::NavState(
+//            predicted_pose_imu.pose(),
+//            T_dso_euroc.block<3,3>(0,0) * groundtruth.velocity
+//    );
 
     if  (
             !std::isfinite(predicted_pose_imu.pose().translation().x()) ||
@@ -184,20 +197,20 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
         SE3 noisy_SE3 = current_SE3 * SE3(
                 Eigen::Quaterniond(
                         1,
-                        ((double)rand())/RAND_MAX * 0.5,
-                        ((double)rand())/RAND_MAX * 0.5,
-                        ((double)rand())/RAND_MAX * 0.5
+                        ((double)rand())/RAND_MAX * 15,
+                        ((double)rand())/RAND_MAX * 15,
+                        ((double)rand())/RAND_MAX * 15
                 ),
                 Vec3(
-                        ((double)rand())/RAND_MAX * 0.5,
-                        ((double)rand())/RAND_MAX * 0.5,
-                        ((double)rand())/RAND_MAX * 0.5
+                        ((double)rand())/RAND_MAX * 15,
+                        ((double)rand())/RAND_MAX * 15,
+                        ((double)rand())/RAND_MAX * 15
                 )
         );
         Vec3 noisy_velocity = current_navstate.velocity() + Vec3(
-                ((double)rand())/RAND_MAX * 0.5,
-                ((double)rand())/RAND_MAX * 0.5,
-                ((double)rand())/RAND_MAX * 0.5
+                ((double)rand())/RAND_MAX * 15,
+                ((double)rand())/RAND_MAX * 15,
+                ((double)rand())/RAND_MAX * 15
         );
 
         current_navstate = gtsam::NavState(
@@ -209,7 +222,7 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
         // useless Jacobians of reference frame (cuz we're not optimizing reference frame)
         gtsam::Matrix J_imu_Rt_i, J_imu_v_i, J_imu_bias_i;
         gtsam::Matrix J_imu_Rt_j, J_imu_v_j, J_imu_bias_j;
-        Mat99 J;
+        Mat1517 J;
 
         std::cout << "----------------- IMU only optimization -----------------" << std::endl;
         for (size_t i = 0; i < 8; i++)
@@ -221,37 +234,42 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
                     J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
             );
 
+            // shuffle the order of the term (t, R, a, b, v, ba, bg)
             J.setZero();
-            J.topLeftCorner<9, 6>() = J_imu_Rt_j.topLeftCorner<9, 6>();
-            J.block<9, 3>(0, 6) = J_imu_v_j.topLeftCorner<9, 3>();
+            J.topLeftCorner<9, 3>() = J_imu_Rt_j.block<9, 3>(0, 3);
+            J.block<9, 3>(0, 3) = J_imu_Rt_j.topLeftCorner<9, 3>();
+            J.block<9, 3>(0, 8) = J_imu_v_j.topLeftCorner<9, 3>();
 
-            Vec9 r = res_imu.head<9>();
-            Mat99 information_matrix = inv_covariance.topLeftCorner<9, 9>();
-            Mat99 H = J.transpose() * information_matrix * J;
-            Vec9 b = J.transpose() * information_matrix * r;
+            Vec15 r;
+            r.setZero();
+            r.head<8>() = res_imu.head<8>();
 
-            Vec9 inc = H.ldlt().solve(-b);
+            Mat1515 information_matrix = inv_covariance;
+
+            Mat1717 H = J.transpose() * information_matrix * J;
+            Vec17 b = J.transpose() * information_matrix * r;
+
+            Vec17 inc = H.ldlt().solve(-b);
 
             // the sophus se3's first 3 are translation and last 3 are rotation
-            Vec6 inc_se3;
-            inc_se3.head(3) = inc.segment<3>(3);
-            inc_se3.tail(3) = inc.head(3);
+            Vec6 inc_se3 = inc.head<6>();
 
             SE3 old_pose(current_navstate.pose().matrix());
             SE3 new_pose = old_pose * SE3::exp(inc_se3);
-            Vec3 new_velocity = current_navstate.velocity() + inc.segment<3>(6);
+            Vec3 new_velocity = current_navstate.velocity() + inc.segment<3>(8);
 
             current_navstate = gtsam::NavState(
               gtsam::Pose3(new_pose.matrix()), new_velocity
             );
 
+//            std::cout << "J_imu_Rt_i: \n" << J_imu_Rt_i << std::endl;
+//            std::cout << "J_imu_v_i: \n" << J_imu_v_i << std::endl;
+//            std::cout << "J_imu_Rt_j: \n" << J_imu_Rt_j << std::endl;
+//            std::cout << "J_imu_v_j: \n" << J_imu_v_j << std::endl;
             std::cout << "Step " << i << " error: " << r.transpose() << std::endl;
             std::cout << "Step " << i << " increment: " << inc.transpose() << std::endl << std::endl;
         }
         std::cout << std::endl << std::endl << std::endl;
-
-
-
     }
 
     return predicted_pose_imu;
