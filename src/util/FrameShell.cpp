@@ -23,7 +23,10 @@ void FrameShell::linearizeImuFactor(
 {
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
 
-    delete imu_factor_;
+    if (imu_factor_)
+    {
+        delete imu_factor_;
+    }
     imu_factor_ = new CombinedImuFactor(
             X(0), V(0),
             X(1), V(1),
@@ -201,169 +204,100 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
         );
     }
 
-    {
-        // run a dummy optimization here
-        gtsam::NavState previous_navstate(last_frame->groundtruth.pose, last_frame->groundtruth.velocity);
-        gtsam::NavState current_navstate = imu_preintegrated_last_frame_->predict(previous_navstate, bias);
-
-        // add noise to the estimate
-        const double NOISE_LEVEL = 0.1;
-
-        previous_navstate = NavState(
-                previous_navstate.pose().compose(
-                        Pose3::Expmap(
-                                (Vec6() << NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL).finished()
-                        )
-                ),
-                previous_navstate.velocity() + (Vec3() << NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL).finished()
-        );
-
-        current_navstate = NavState(
-                current_navstate.pose().compose(
-                        Pose3::Expmap(
-                                (Vec6() << NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL).finished()
-                        )
-                ),
-                current_navstate.velocity() + (Vec3() << NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL).finished()
-        );
-
-        Mat1515 inv_covariance = getIMUcovariance().inverse();
-
-        // useless Jacobians of reference frame (cuz we're not optimizing reference frame)
-        gtsam::Matrix J_imu_Rt_i, J_imu_v_i, J_imu_bias_i;
-        gtsam::Matrix J_imu_Rt_j, J_imu_v_j, J_imu_bias_j;
-        Eigen::Matrix<double, 15, 9> J_i;
-        Eigen::Matrix<double, 15, 9> J_j;
-
-        std::cout << "----------------- IMU only optimization -----------------" << std::endl;
-        linearizeImuFactor(previous_navstate, current_navstate, bias);
-        for (size_t i = 0; i < 8; i++)
-        {
-
-            Vec15 res_imu = evaluateIMUerrors(
-                    previous_navstate,
-                    current_navstate,
-                    bias,
-                    J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
-            );
-
-            Vec15 r = res_imu;
-            // ----------------------- increment previous state ----------------------- //
-
-
-            J_i.setZero();
-            J_i.leftCols(6) = J_imu_Rt_i;
-            J_i.rightCols(3) = J_imu_v_i;
-
-            Eigen::Matrix<double, 9, 1> inc_i = (J_i.transpose() * inv_covariance * J_i).ldlt().solve(
-                    -J_i.transpose() * inv_covariance * r
-            );
-            Eigen::Matrix<double, 6, 1> inc_Rt_i = inc_i.head(6);
-            Eigen::Matrix<double, 3, 1> inc_v_i = inc_i.tail(3);
-
-//            previous_navstate = NavState(
-//                    previous_navstate.pose().compose(Pose3::Expmap(inc_Rt_i)),
-//                    previous_navstate.velocity() + inc_v_i
+//    {
+//        // run a dummy optimization here
+//        gtsam::NavState previous_navstate(last_frame->groundtruth.pose, last_frame->groundtruth.velocity);
+//        gtsam::NavState current_navstate = imu_preintegrated_last_frame_->predict(previous_navstate, bias);
+//
+//        // add noise to the estimate
+//        const double NOISE_LEVEL = 0.1;
+//
+//        previous_navstate = NavState(
+//                previous_navstate.pose().compose(
+//                        Pose3::Expmap(
+//                                (Vec6() << NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL).finished()
+//                        )
+//                ),
+//                previous_navstate.velocity() + (Vec3() << NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL).finished()
+//        );
+//
+//        current_navstate = NavState(
+//                current_navstate.pose().compose(
+//                        Pose3::Expmap(
+//                                (Vec6() << NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL).finished()
+//                        )
+//                ),
+//                current_navstate.velocity() + (Vec3() << NOISE_LEVEL, NOISE_LEVEL, NOISE_LEVEL).finished()
+//        );
+//
+//        Mat1515 inv_covariance = getIMUcovariance().inverse();
+//
+//        // useless Jacobians of reference frame (cuz we're not optimizing reference frame)
+//        gtsam::Matrix J_imu_Rt_i, J_imu_v_i, J_imu_bias_i;
+//        gtsam::Matrix J_imu_Rt_j, J_imu_v_j, J_imu_bias_j;
+//        Eigen::Matrix<double, 15, 9> J_i;
+//        Eigen::Matrix<double, 15, 9> J_j;
+//
+//        std::cout << "----------------- IMU only optimization -----------------" << std::endl;
+//        linearizeImuFactor(previous_navstate, current_navstate, bias);
+//        for (size_t i = 0; i < 8; i++)
+//        {
+//
+//            Vec15 res_imu = evaluateIMUerrors(
+//                    previous_navstate,
+//                    current_navstate,
+//                    bias,
+//                    J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
 //            );
-
-            // ----------------------- increment previous state ----------------------- //
-
-
-            J_j.setZero();
-            J_j.leftCols(6) = J_imu_Rt_j;
-            J_j.rightCols(3) = J_imu_v_j;
-
-            Eigen::Matrix<double, 9, 1> inc_j = (J_j.transpose() * inv_covariance * J_j).ldlt().solve(
-                    -J_j.transpose() * inv_covariance * r
-            );
-            Eigen::Matrix<double, 6, 1> inc_Rt_j = inc_j.head(6);
-            Eigen::Matrix<double, 3, 1> inc_v_j = inc_j.tail(3);
-
-            current_navstate = NavState(
-                    current_navstate.pose().compose(Pose3::Expmap(inc_Rt_j)),
-                    current_navstate.velocity() + inc_v_j
-            );
-
-            std::cout << "error: " << r.transpose() << std::endl;
-            std::cout << "inc_Rt_i: " << inc_Rt_i.transpose() << std::endl;
-            std::cout << "inc_v_i: " << inc_v_i.transpose() << std::endl;
-            std::cout << "inc_Rt_j: " << inc_Rt_j.transpose() << std::endl;
-            std::cout << "inc_v_j: " << inc_v_j.transpose() << std::endl;
-
-            std::cout << std::endl << std::endl;
-
-            // shuffle the order of the term (t, R, a, b, v, ba, bg)
+//
+//            Vec15 r = res_imu;
+//            // ----------------------- increment previous state ----------------------- //
+//
+//
 //            J_i.setZero();
-//            J_i.topLeftCorner<15, 3>() = J_imu_Rt_i.block<9, 3>(0, 3);
-//            J_i.block<15, 3>(0, 3) = J_imu_Rt_i.topLeftCorner<9, 3>();
-//            J_i.block<9, 3>(0, 8) = J_imu_v_i.topLeftCorner<9, 3>();
+//            J_i.leftCols(6) = J_imu_Rt_i;
+//            J_i.rightCols(3) = J_imu_v_i;
+//
+//            Eigen::Matrix<double, 9, 1> inc_i = (J_i.transpose() * inv_covariance * J_i).ldlt().solve(
+//                    -J_i.transpose() * inv_covariance * r
+//            );
+//            Eigen::Matrix<double, 6, 1> inc_Rt_i = inc_i.head(6);
+//            Eigen::Matrix<double, 3, 1> inc_v_i = inc_i.tail(3);
+//
+////            previous_navstate = NavState(
+////                    previous_navstate.pose().compose(Pose3::Expmap(inc_Rt_i)),
+////                    previous_navstate.velocity() + inc_v_i
+////            );
+//
+//            // ----------------------- increment previous state ----------------------- //
+//
 //
 //            J_j.setZero();
-//            J_j.topLeftCorner<9, 3>() = J_imu_Rt_j.block<9, 3>(0, 3);
-//            J_j.block<9, 3>(0, 3) = J_imu_Rt_j.topLeftCorner<9, 3>();
-//            J_j.block<9, 3>(0, 8) = J_imu_v_j.topLeftCorner<9, 3>();
+//            J_j.leftCols(6) = J_imu_Rt_j;
+//            J_j.rightCols(3) = J_imu_v_j;
 //
+//            Eigen::Matrix<double, 9, 1> inc_j = (J_j.transpose() * inv_covariance * J_j).ldlt().solve(
+//                    -J_j.transpose() * inv_covariance * r
+//            );
+//            Eigen::Matrix<double, 6, 1> inc_Rt_j = inc_j.head(6);
+//            Eigen::Matrix<double, 3, 1> inc_v_j = inc_j.tail(3);
 //
-//            Mat1515 information_matrix = inv_covariance;
-//
-//            Eigen::Matrix<double, 15, 34> J;
-//            J.leftCols(17) = J_i;
-//            J.rightCols(17) = J_j;
-//
-//            Eigen::Matrix<double, 34, 34> H = J.transpose() * J;
-//            Eigen::Matrix<double, 34, 1> b = J.transpose() * r;
-//            Eigen::Matrix<double, 34, 1> inc = H.ldlt().solve(-b);
-//
-//            std::cout << "init inc: " << inc.transpose() << std::endl;
-//
-//            Vec17 inc_i = inc.head<17>();
-////            Vec17 inc_j = inc.tail<17>();
-//            Vec17 inc_j = (J.rightCols(17).transpose() * J.rightCols(17)).ldlt().solve(
-//                    -(J.rightCols(17).transpose() * r ).tail<17>()
+//            current_navstate = NavState(
+//                    current_navstate.pose().compose(Pose3::Expmap(inc_Rt_j)),
+//                    current_navstate.velocity() + inc_v_j
 //            );
 //
-////            Mat1717 H_i = J_i.transpose() * information_matrix * J_i;
-////            Vec17 b_i = J_i.transpose() * information_matrix * r;
-////
-////            Mat1717 H_j = J_j.transpose() * information_matrix * J_j;
-////            Vec17 b_j = J_j.transpose() * information_matrix * r;
-////
-////            Vec17 inc_i = H_i.ldlt().solve(-b_i);
-////            Vec17 inc_j = H_j.ldlt().solve(-b_j);
+//            std::cout << "error: " << r.transpose() << std::endl;
+//            std::cout << "inc_Rt_i: " << inc_Rt_i.transpose() << std::endl;
+//            std::cout << "inc_v_i: " << inc_v_i.transpose() << std::endl;
+//            std::cout << "inc_Rt_j: " << inc_Rt_j.transpose() << std::endl;
+//            std::cout << "inc_v_j: " << inc_v_j.transpose() << std::endl;
 //
-//            // the sophus se3's first 3 are translation and last 3 are rotation
-//            Vec6 inc_i_se3 = inc_i.head<6>();
-//            Vec6 inc_j_se3 = inc_j.head<6>();
+//            std::cout << std::endl << std::endl;
 //
-//            SE3 old_pose_i(current_navstate.pose().matrix());
-//            SE3 new_pose_i = old_pose_i * SE3::exp(inc_i_se3);
-//            Vec3 new_velocity_i = current_navstate.velocity() + inc_i.segment<3>(8);
-//
-//            SE3 old_pose_j(current_navstate.pose().matrix());
-//            SE3 new_pose_j = old_pose_j * SE3::exp(inc_j_se3);
-//            Vec3 new_velocity_j = current_navstate.velocity() + inc_j.segment<3>(8);
-//
-////            previous_navstate = gtsam::NavState(
-////                    gtsam::Pose3(new_pose_i.matrix()), new_velocity_i
-////            );
-////
-//            current_navstate = gtsam::NavState(
-//              gtsam::Pose3(new_pose_j.matrix()), new_velocity_j
-//            );
-//
-//            std::cout << "J_imu_Rt_i: \n" << J_imu_Rt_i << std::endl;
-//            std::cout << "J_imu_v_i: \n" << J_imu_v_i << std::endl;
-//            std::cout << "J_imu_Rt_j: \n" << J_imu_Rt_j << std::endl;
-//            std::cout << "J_imu_v_j: \n" << J_imu_v_j << std::endl;
-
-//            double final_error = res_imu.transpose() * information_matrix * res_imu;
-//            std::cout << "Step " << i << " error: " << r.transpose() << std::endl;
-//            std::cout << "Step " << i << " final error: " << final_error << std::endl;
-//            std::cout << "Step " << i << " increment_i: " << inc_i_se3.transpose() << std::endl;
-//            std::cout << "Step " << i << " increment_j: " << inc_j_se3.transpose() << std::endl << std::endl;
-        }
-        std::cout << std::endl << std::endl << std::endl;
-    }
+//        }
+//        std::cout << std::endl << std::endl << std::endl;
+//    }
 
     return predicted_pose_imu;
 }
