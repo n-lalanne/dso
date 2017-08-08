@@ -41,7 +41,7 @@ namespace dso_vi
 
 	void initializeIMUParams()
 	{
-		imuParams = gtsam::PreintegratedCombinedMeasurements::Params::MakeSharedD();
+		imuParams = gtsam::PreintegratedCombinedMeasurements::Params::MakeSharedU();
 		Mat33 measured_acc_cov = Mat33::Identity(3,3) * pow(dso_vi::accel_noise_sigma,2);
 		Mat33 measured_omega_cov = Mat33::Identity(3,3) * pow(dso_vi::gyro_noise_sigma,2);
 		Mat33 integration_error_cov = Mat33::Identity(3,3)*1e-8; // error committed in integrating position from velocities

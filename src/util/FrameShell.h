@@ -74,8 +74,7 @@ public:
 	PreintegrationType *imu_preintegrated_last_frame_;
 	PreintegrationType *imu_preintegrated_last_kf_;
 
-	PreintegrationType *imu_preintegrated_last_frame_no_bias_;
-	PreintegrationType *imu_preintegrated_last_kf_no_bias_;
+	CombinedImuFactor *imu_factor_;
 
 	// Predicted pose/biases ;
 	gtsam::NavState navstate;
@@ -119,10 +118,13 @@ public:
 
         imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
 		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
+	}
 
-		imu_preintegrated_last_frame_no_bias_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), bias);
-		imu_preintegrated_last_kf_no_bias_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), bias);
-
+	inline ~FrameShell()
+	{
+		delete imu_factor_;
+		delete imu_preintegrated_last_frame_;
+		delete imu_preintegrated_last_kf_;
 	}
 
 	//==========================================IMU related methods==================================================
@@ -148,6 +150,16 @@ public:
 			gtsam::Matrix &J_imu_v_j,
 			gtsam::Matrix &J_imu_bias_i,
             gtsam::Matrix &J_imu_bias_j
+	);
+
+	/**
+	 *
+	 * @param previous_navstate, current_navstate, previous_bias, current_bias
+	 */
+	void linearizeImuFactor(
+			gtsam::NavState previous_navstate,
+			gtsam::NavState current_navstate,
+			gtsam::imuBias::ConstantBias initial_bias
 	);
 
 	/**

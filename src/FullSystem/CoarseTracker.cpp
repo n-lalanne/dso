@@ -413,7 +413,7 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 
     std::cout << "J_imu: \n " << J_imu_rtavb << std::endl;
 	std::cout << "H_imu: \n" << H_imu_rtavb.topLeftCorner<6,6>() << std::endl;
-	std::cout << "b_imu: \n" << b_imu_rtavb.segment<6>(0).tr  anspose() << std::endl;
+	std::cout << "b_imu: \n" << b_imu_rtavb.segment<6>(0).transpose() << std::endl;
 
 	H_out += H_imu_rtavb;
 	b_out += b_imu_rtavb;
@@ -1453,6 +1453,12 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		Vec5 minResForAbort,
 		IOWrap::Output3DWrapper* wrap)
 {
+	newFrameHessian->shell->linearizeImuFactor(
+			newFrameHessian->shell->last_frame->navstate,
+			newFrameHessian->shell->navstate,
+			newFrameHessian->shell->last_frame->bias
+	);
+
 	debugPlot = setting_render_displayCoarseTrackingFull;
 	debugPrint = false;
 
