@@ -34,6 +34,15 @@ Vec15 FrameShell::evaluateIMUerrors(
                          B(0), B(1),
                          *preint_imu);
 
+    PreintegratedImuMeasurements *preint_imu_no_bias = dynamic_cast<gtsam::PreintegratedImuMeasurements*>(imu_preintegrated_last_frame_no_bias_);
+
+    ImuFactor imu_factor_no_bias(
+            X(0), V(0),
+            X(1), V(1),
+            B(0),
+            *preint_imu_no_bias
+    );
+
     Values initial_values;
     initial_values.insert(X(0), previous_navstate.pose());
     initial_values.insert(X(1), current_navstate.pose());
@@ -42,13 +51,52 @@ Vec15 FrameShell::evaluateIMUerrors(
     initial_values.insert(B(0), initial_bias);
     initial_values.insert(B(1), this->bias);
 
-    imu_factor.linearize(initial_values);
+    boost::shared_ptr<GaussianFactor> gaussian_factor = imu_factor.linearize(initial_values);
 
-    return imu_factor.evaluateError(
+    Vec15 error = imu_factor.evaluateError(
             previous_navstate.pose(), previous_navstate.velocity(), current_navstate.pose(), current_navstate.velocity(),
             initial_bias, this->bias,
             J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
     );
+
+    return error;
+
+    gtsam::Matrix J;
+    gtsam::Vector b;
+
+//    std::tie(J, b) = gaussian_factor->jacobian();
+//    std::cout << "Gaussian factor J:\n" << J << std::endl;
+//    std::cout << "Gaussian factor b:\n" << b << std::endl;
+//
+//    J_imu_Rt_i = J.topLeftCorner<15, 6>();
+//    J_imu_v_i = J.block<15, 3>(0, 6);
+//    J_imu_bias_i.setZero();
+//
+//    J_imu_Rt_j = J.block<15, 6>(0, 9);
+//    J_imu_v_j = J.block<15, 3>(0, 15);
+//    J_imu_bias_j.setZero();
+
+    boost::shared_ptr<GaussianFactor> gaussian_factor_no_bias = imu_factor_no_bias.linearize(initial_values);
+
+//    return imu_factor_no_bias.evaluateError(
+//            previous_navstate.pose(), previous_navstate.velocity(), current_navstate.pose(), current_navstate.velocity(),
+//            this->bias,
+//            J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i
+//    );
+
+    std::tie(J, b) = gtsam::JacobianFactor(*gaussian_factor_no_bias).jacobian();
+    std::cout << "Gaussian factor J:\n" << J << std::endl;
+    std::cout << "Gaussian factor b:\n" << b << std::endl;
+
+    J_imu_Rt_i = J.topLeftCorner<15, 6>();
+    J_imu_v_i = J.block<15, 3>(0, 6);
+    J_imu_bias_i.setZero();
+
+    J_imu_Rt_j = J.block<15, 6>(0, 9);
+    J_imu_v_j = J.block<15, 3>(0, 15);
+    J_imu_bias_j.setZero();
+
+    return -b;
 }
 
 void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF)
@@ -124,6 +172,12 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
                 rawimudata.block<3,1>(3,0),
                 dt
         );
+
+        imu_preintegrated_last_frame_no_bias_->integrateMeasurement(
+                rawimudata.block<3,1>(0,0),
+                rawimudata.block<3,1>(3,0),
+                dt
+        );
     }
 
     Matrix9 H1, H2;
@@ -193,28 +247,53 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
         gtsam::NavState current_navstate = imu_preintegrated_last_frame_->predict(previous_navstate, bias);
 
         // add noise to the estimate
+        SE3 previous_SE3(previous_navstate.pose().matrix());
         SE3 current_SE3(current_navstate.pose().matrix());
-        SE3 noisy_SE3 = current_SE3 * SE3(
+
+        const double NOISE_LEVEL = 0.5;
+
+        SE3 previous_noisy_SE3 = previous_SE3 * SE3(
                 Eigen::Quaterniond(
                         1,
-                        ((double)rand())/RAND_MAX * 15,
-                        ((double)rand())/RAND_MAX * 15,
-                        ((double)rand())/RAND_MAX * 15
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL
                 ),
                 Vec3(
-                        ((double)rand())/RAND_MAX * 15,
-                        ((double)rand())/RAND_MAX * 15,
-                        ((double)rand())/RAND_MAX * 15
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL
                 )
         );
-        Vec3 noisy_velocity = current_navstate.velocity() + Vec3(
-                ((double)rand())/RAND_MAX * 15,
-                ((double)rand())/RAND_MAX * 15,
-                ((double)rand())/RAND_MAX * 15
+        Vec3 previous_noisy_velocity = previous_navstate.velocity() + Vec3(
+                ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                ((double)rand())/RAND_MAX * NOISE_LEVEL
+        );
+        previous_navstate = gtsam::NavState(
+                gtsam::Pose3(previous_noisy_SE3.matrix()), previous_noisy_velocity
         );
 
+        SE3 current_noisy_SE3 = current_SE3 * SE3(
+                Eigen::Quaterniond(
+                        1,
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL
+                ),
+                Vec3(
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                        ((double)rand())/RAND_MAX * NOISE_LEVEL
+                )
+        );
+        Vec3 current_noisy_velocity = current_navstate.velocity() + Vec3(
+                ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                ((double)rand())/RAND_MAX * NOISE_LEVEL,
+                ((double)rand())/RAND_MAX * NOISE_LEVEL
+        );
         current_navstate = gtsam::NavState(
-                gtsam::Pose3(noisy_SE3.matrix()), noisy_velocity
+                gtsam::Pose3(current_noisy_SE3.matrix()), current_noisy_velocity
         );
 
         Mat1515 inv_covariance = getIMUcovariance().inverse();
@@ -222,11 +301,78 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
         // useless Jacobians of reference frame (cuz we're not optimizing reference frame)
         gtsam::Matrix J_imu_Rt_i, J_imu_v_i, J_imu_bias_i;
         gtsam::Matrix J_imu_Rt_j, J_imu_v_j, J_imu_bias_j;
-        Mat1517 J;
+        Mat1517 J_i, J_j;
 
         std::cout << "----------------- IMU only optimization -----------------" << std::endl;
+
         for (size_t i = 0; i < 8; i++)
         {
+            PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
+
+            CombinedImuFactor imu_factor(X(0), V(0),
+                                         X(1), V(1),
+                                         B(0), B(1),
+                                         *preint_imu);
+
+            Values initial_values;
+            initial_values.insert(X(0), previous_navstate.pose());
+            initial_values.insert(X(1), current_navstate.pose());
+            initial_values.insert(V(0), previous_navstate.velocity());
+            initial_values.insert(V(1), current_navstate.velocity());
+            initial_values.insert(B(0), this->bias);
+            initial_values.insert(B(1), this->bias);
+
+
+            gtsam::NonlinearFactorGraph *graph = new gtsam::NonlinearFactorGraph();
+            graph->add(imu_factor);
+
+            gtsam::LevenbergMarquardtParams lm_params;
+            lm_params.setVerbosityLM("DELTA");
+            lm_params.setVerbosity("ERROR");
+            gtsam::LevenbergMarquardtOptimizer optimizer(*graph, initial_values, lm_params);
+            gtsam::Values result = optimizer.optimize();
+
+            delete graph;
+
+            previous_navstate = gtsam::NavState(
+                    result.at<Pose3>(X(0)),
+                    result.at<Vector3>(V(0))
+            );
+
+            current_navstate = gtsam::NavState(
+                    result.at<Pose3>(X(1)),
+                    result.at<Vector3>(V(1))
+            );
+//
+//            boost::shared_ptr<GaussianFactor> gaussian_factor = imu_factor.linearize(initial_values);
+//            gtsam::HessianFactor hessian_factor(*gaussian_factor);
+//
+//            gtsam::Matrix augmented = hessian_factor.info().selfadjointView();
+//
+//            // Do Cholesky Factorization
+//            size_t n = augmented.rows() - 1;
+//            auto AtA = augmented.topLeftCorner(n, n);
+//            auto eta = augmented.topRightCorner(n, 1);
+//            Eigen::LLT<Matrix, Eigen::Upper> llt(AtA);
+//
+//            // Solve and convert, re-using scatter data structure
+//            gtsam::Vector inc = llt.solve(eta);
+//            std::cout << "Original increment: \n" << inc.transpose() << std::endl;
+//            std::cout << "H: \n" << AtA << std::endl;
+//            std::cout << "b: \n" << eta << std::endl;
+//
+//            gtsam::VectorValues inc_vals = hessian_factor.solve();
+//            std::cout << "Vals: " << inc_vals.size() << std::endl;
+//
+//            Vec17 inc_i, inc_j;
+//            inc_i.head<6>() = inc.head<6>();
+//            inc_i.segment<3>(8) = inc.segment<3>(6);
+//
+//            inc_j.head<6>() = inc.segment<6>(9);
+//            inc_j.segment<3>(8) = inc.segment<3>(15);
+//
+//            Vec15 r = -eta;
+
             Vec15 res_imu = evaluateIMUerrors(
                     previous_navstate,
                     current_navstate,
@@ -235,39 +381,75 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
             );
 
             // shuffle the order of the term (t, R, a, b, v, ba, bg)
-            J.setZero();
-            J.topLeftCorner<9, 3>() = J_imu_Rt_j.block<9, 3>(0, 3);
-            J.block<9, 3>(0, 3) = J_imu_Rt_j.topLeftCorner<9, 3>();
-            J.block<9, 3>(0, 8) = J_imu_v_j.topLeftCorner<9, 3>();
+            J_i.setZero();
+            J_i.topLeftCorner<9, 3>() = J_imu_Rt_i.block<9, 3>(0, 3);
+            J_i.block<9, 3>(0, 3) = J_imu_Rt_i.topLeftCorner<9, 3>();
+            J_i.block<9, 3>(0, 8) = J_imu_v_i.topLeftCorner<9, 3>();
+
+            J_j.setZero();
+            J_j.topLeftCorner<9, 3>() = J_imu_Rt_j.block<9, 3>(0, 3);
+            J_j.block<9, 3>(0, 3) = J_imu_Rt_j.topLeftCorner<9, 3>();
+            J_j.block<9, 3>(0, 8) = J_imu_v_j.topLeftCorner<9, 3>();
 
             Vec15 r;
             r.setZero();
-            r.head<8>() = res_imu.head<8>();
+            r.head<9>() = res_imu.head<9>();
 
             Mat1515 information_matrix = inv_covariance;
 
-            Mat1717 H = J.transpose() * information_matrix * J;
-            Vec17 b = J.transpose() * information_matrix * r;
+            Eigen::Matrix<double, 15, 34> J;
+            J.leftCols(17) = J_i;
+            J.rightCols(17) = J_j;
 
-            Vec17 inc = H.ldlt().solve(-b);
+            Eigen::Matrix<double, 34, 34> H = J.transpose() * J;
+            Eigen::Matrix<double, 34, 1> b = J.transpose() * r;
+            Eigen::Matrix<double, 34, 1> inc = H.ldlt().solve(-b);
+
+            std::cout << "init inc: " << inc.transpose() << std::endl;
+
+            Vec17 inc_i = inc.head<17>();
+            Vec17 inc_j = inc.tail<17>();
+//            Vec17 inc_j = (J.rightCols(17).transpose() * J.rightCols(17)).ldlt().solve(
+//                    -(J.rightCols(17).transpose() * r ).tail<17>()
+//            );
+
+//            Mat1717 H_i = J_i.transpose() * information_matrix * J_i;
+//            Vec17 b_i = J_i.transpose() * information_matrix * r;
+//
+//            Mat1717 H_j = J_j.transpose() * information_matrix * J_j;
+//            Vec17 b_j = J_j.transpose() * information_matrix * r;
+//
+//            Vec17 inc_i = H_i.ldlt().solve(-b_i);
+//            Vec17 inc_j = H_j.ldlt().solve(-b_j);
 
             // the sophus se3's first 3 are translation and last 3 are rotation
-            Vec6 inc_se3 = inc.head<6>();
+            Vec6 inc_i_se3 = inc_i.head<6>();
+            Vec6 inc_j_se3 = inc_j.head<6>();
 
-            SE3 old_pose(current_navstate.pose().matrix());
-            SE3 new_pose = old_pose * SE3::exp(inc_se3);
-            Vec3 new_velocity = current_navstate.velocity() + inc.segment<3>(8);
+            SE3 old_pose_i(current_navstate.pose().matrix());
+            SE3 new_pose_i = old_pose_i * SE3::exp(inc_i_se3);
+            Vec3 new_velocity_i = current_navstate.velocity() + inc_i.segment<3>(8);
 
-            current_navstate = gtsam::NavState(
-              gtsam::Pose3(new_pose.matrix()), new_velocity
-            );
+            SE3 old_pose_j(current_navstate.pose().matrix());
+            SE3 new_pose_j = old_pose_j * SE3::exp(inc_j_se3);
+            Vec3 new_velocity_j = current_navstate.velocity() + inc_j.segment<3>(8);
 
-//            std::cout << "J_imu_Rt_i: \n" << J_imu_Rt_i << std::endl;
-//            std::cout << "J_imu_v_i: \n" << J_imu_v_i << std::endl;
-//            std::cout << "J_imu_Rt_j: \n" << J_imu_Rt_j << std::endl;
-//            std::cout << "J_imu_v_j: \n" << J_imu_v_j << std::endl;
+//            previous_navstate = gtsam::NavState(
+//                    gtsam::Pose3(new_pose_i.matrix()), new_velocity_i
+//            );
+//
+//            current_navstate = gtsam::NavState(
+//              gtsam::Pose3(new_pose_j.matrix()), new_velocity_j
+//            );
+
+            std::cout << "J_imu_Rt_i: \n" << J_imu_Rt_i << std::endl;
+            std::cout << "J_imu_v_i: \n" << J_imu_v_i << std::endl;
+            std::cout << "J_imu_Rt_j: \n" << J_imu_Rt_j << std::endl;
+            std::cout << "J_imu_v_j: \n" << J_imu_v_j << std::endl;
+
             std::cout << "Step " << i << " error: " << r.transpose() << std::endl;
-            std::cout << "Step " << i << " increment: " << inc.transpose() << std::endl << std::endl;
+            std::cout << "Step " << i << " increment_i: " << inc_i_se3.transpose() << std::endl;
+            std::cout << "Step " << i << " increment_j: " << inc_j_se3.transpose() << std::endl << std::endl;
         }
         std::cout << std::endl << std::endl << std::endl;
     }

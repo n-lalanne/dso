@@ -74,6 +74,9 @@ public:
 	PreintegrationType *imu_preintegrated_last_frame_;
 	PreintegrationType *imu_preintegrated_last_kf_;
 
+	PreintegrationType *imu_preintegrated_last_frame_no_bias_;
+	PreintegrationType *imu_preintegrated_last_kf_no_bias_;
+
 	// Predicted pose/biases ;
 	gtsam::NavState navstate;
 
@@ -116,6 +119,9 @@ public:
 
         imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
 		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
+
+		imu_preintegrated_last_frame_no_bias_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), bias);
+		imu_preintegrated_last_kf_no_bias_ = new PreintegratedImuMeasurements(dso_vi::getIMUParams(), bias);
 
 	}
 
