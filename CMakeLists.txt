@@ -67,6 +67,10 @@ set(dso_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/util/globalCalib.cpp
   ${PROJECT_SOURCE_DIR}/src/util/FrameShell.cpp
 
+  # gtsam factors
+  src/gtsam_factors/PhotometricFactor.cpp
+  src/gtsam_factors/PhotometricFactor.h
+
   # VI
   ${PROJECT_SOURCE_DIR}/src/IMU/imudata.cpp
   ${PROJECT_SOURCE_DIR}/src/IMU/configparam.cpp

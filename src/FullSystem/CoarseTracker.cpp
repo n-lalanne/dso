@@ -33,11 +33,13 @@
 #include "FullSystem/FullSystem.h"
 #include "FullSystem/HessianBlocks.h"
 #include "FullSystem/Residuals.h"
+#include "gtsam_factors/PhotometricFactor.h"
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 #include "IOWrapper/ImageRW.h"
 #include <algorithm>
 #include <boost/tuple/tuple.hpp>
 #include <GroundTruthIterator/GroundTruthIterator.h>
+#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
@@ -385,10 +387,7 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	//std::cout<<"b_out:\n"<<b_out.segment<8>(0)<<std::endl;
 	// here rtvab means rotation, translation, affine, velocity and biases
 
-	std::cout << "H_out: \n" << H_out.topLeftCorner<6,6>() << std::endl;
-	std::cout << "b_out: \n" << b_out.segment<6>(0).transpose() << std::endl;
-
-    Mat1717 H_imu_rtavb;
+	Mat1717 H_imu_rtavb;
 	Vec17 b_imu_rtavb;
 	Mat1517 J_imu_rtavb;
 
@@ -398,25 +397,32 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 //	J_imu_rtavb.block<9, 3>(0, 3) = J_imu_Rt.topLeftCorner<9, 3>();
 //    J_imu_rtavb.block<9, 3>(0, 8) = J_imu_v.topLeftCorner<9, 3>();
 
-	J_imu_rtavb.block<6, 3>(0, 3) = J_imu_Rt.topLeftCorner<6, 3>();
-//	J_imu_rtavb.block<6, 3>(0, 3) = J_imu_Rt.topLeftCorner<6, 3>();
-	J_imu_rtavb.topLeftCorner<6, 3>() = J_imu_Rt.block<6, 3>(0, 3);
-	res_imu.segment<9>(6) = Eigen::Matrix<double,9,1>::Zero();
+	J_imu_rtavb.topLeftCorner<9, 3>() = J_imu_Rt.block<9, 3>(0, 3);
+	J_imu_rtavb.block<9, 3>(0, 3) = J_imu_Rt.topLeftCorner<9, 3>();
+	J_imu_rtavb.block<9, 3>(0, 6) = J_imu_v.topLeftCorner<9, 3>();
+	res_imu.segment<6>(9) = Eigen::Matrix<double,6,1>::Zero();
 
     information_imu.topLeftCorner<3, 3>() /= SCALE_IMU_R;
     information_imu.block<3,3>(3, 3) /= SCALE_IMU_T;
 
 	H_imu_rtavb = J_imu_rtavb.transpose() * information_imu * J_imu_rtavb;
 	b_imu_rtavb = J_imu_rtavb.transpose() * information_imu * res_imu;
+
+	std::cout << "H_out: \n" << H_out.topLeftCorner<6,6>() << std::endl;
+	std::cout << "b_out: \n" << b_out.segment<6>(0).transpose() << std::endl;
+
+	std::cout << "H_imu_rtavb: \n" << H_imu_rtavb.topLeftCorner<6,6>() << std::endl;
+	std::cout << "b_imu_rtavb: \n" << b_out.segment<6>(0).transpose() << std::endl;
+
 	//H_imu_rtavb /= 1000.0;
 	//b_imu_rtavb /= 1000.0;
 
-    std::cout << "J_imu: \n " << J_imu_rtavb << std::endl;
-	std::cout << "H_imu: \n" << H_imu_rtavb.topLeftCorner<6,6>() << std::endl;
-	std::cout << "b_imu: \n" << b_imu_rtavb.segment<6>(0).transpose() << std::endl;
+//    std::cout << "J_imu: \n " << J_imu_rtavb << std::endl;
+//	std::cout << "H_imu: \n" << H_imu_rtavb.topLeftCorner<6,6>() << std::endl;
+//	std::cout << "b_imu: \n" << b_imu_rtavb.segment<6>(0).transpose() << std::endl;
 
-	H_out += H_imu_rtavb;
-	b_out += b_imu_rtavb;
+//	H_out += H_imu_rtavb;
+//	b_out += b_imu_rtavb;
 
 	H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
 	H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;
@@ -1096,6 +1102,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 //					  << std::endl;
 //		}
 
+
 		if(fabs(residual) > cutoffTH)
 		{
 			if(debugPlot) resImage->setPixel4(lpc_u[i], lpc_v[i], Vec3b(0,0,255));
@@ -1154,7 +1161,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 	std::cout << "IMUenergy: " << IMUenergy << std::endl;
     // TODO: make threshold a setting
-	float imu_huberTH = 21.666; // 1e5;
+	float imu_huberTH = 50;
     if (IMUenergy > imu_huberTH)
     {
         float hw_imu = fabs(IMUenergy) < imu_huberTH ? 1 : imu_huberTH / fabs(IMUenergy);
@@ -1186,7 +1193,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 			 <<IMUenergy<<" "
 			 <<angle_error<<" "
 			 << lvl << std::endl;
-	E += IMUenergy;
+//	E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)
 	{
@@ -1453,12 +1460,6 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		Vec5 minResForAbort,
 		IOWrap::Output3DWrapper* wrap)
 {
-	newFrameHessian->shell->linearizeImuFactor(
-			newFrameHessian->shell->last_frame->navstate,
-			newFrameHessian->shell->navstate,
-			newFrameHessian->shell->last_frame->bias
-	);
-
 	debugPlot = setting_render_displayCoarseTrackingFull;
 	debugPrint = false;
 
@@ -1485,6 +1486,12 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{
+		newFrameHessian->shell->linearizeImuFactor(
+				newFrameHessian->shell->last_frame->navstate,
+				navstate_current,
+				newFrameHessian->shell->last_frame->bias
+		);
+
 //		std::cout<<"level: "<<lvl<<std::endl;
 		Mat1717 H; Vec17 b;
 		float levelCutoffRepeat=1;
@@ -1504,6 +1511,36 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		//std::cout<<"resOld is: "<<resOld<<std::endl;
 		calcGSSSESingleIMU(lvl, H, b, navstate_current, aff_g2l_current);
 
+		gtsam::Values initial_values;
+		initial_values.insert(X(0), navstate_current.pose());
+
+		NonlinearFactorGraph graph;
+		for (int point_idx = 0; point_idx < buf_warped_n; point_idx++)
+		{
+			gtsam::SharedNoiseModel pointNoise = noiseModel::Diagonal::Variances(
+					(gtsam::Vector(1) << pow(2.0, lvl)).finished()
+			);
+
+			gtsam::SharedNoiseModel huberKernel = gtsam::noiseModel::Robust::Create(
+					noiseModel::mEstimator::Huber::Create(setting_huberTH), pointNoise
+			);
+			graph.add(
+					PhotometricFactor(X(0), this, lvl, point_idx, huberKernel)
+			);
+		}
+		gtsam::LevenbergMarquardtParams lm_params;
+		lm_params.setVerbosity("DELTA");
+		gtsam::LevenbergMarquardtOptimizer lm_optimizer(graph, initial_values, lm_params);
+		gtsam::Values result = lm_optimizer.optimize();
+
+		gtsam::Pose3 gtsam_pose = result.at<gtsam::Pose3>(X(0));
+//		gtsam::NavState navstate_current = gtsam::NavState(
+//				result.at<gtsam::Pose3>(X(0)),
+//				navstate_current.velocity()
+//		);
+
+		std::cout << "Pose by gtsam: " << gtsam_pose << std::endl;
+
 		float lambda = 0.01;
 
 
@@ -1515,7 +1552,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 			// solve only vision terms
             inc.setZero();
-			inc.head<11>() = Hl.topLeftCorner<11,11>().ldlt().solve(-b.head<11>());
+			inc.head<8>() = Hl.topLeftCorner<8,8>().ldlt().solve(-b.head<8>());
 
 
 			if(setting_affineOptModeA < 0 && setting_affineOptModeB < 0)	// fix a, b
@@ -1572,6 +1609,20 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			SE3 refToNew_new = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
 					( SE3(lastRef->shell->navstate.pose().inverse().matrix()) * IMUTow_new ).matrix()
 			)).inverse();
+
+			// ----------------- groundtruth comparison ----------------- //
+			SE3 refToNew_gt = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
+					( SE3(lastRef->shell->groundtruth.pose.inverse().matrix()) *
+					  SE3(newFrameHessian->shell->groundtruth.pose.matrix())
+					).matrix()
+			)).inverse();
+
+			Mat44 T_dso_euroc = lastRef->shell->navstate.pose().matrix() * lastRef->shell->groundtruth.pose.inverse().matrix();
+    		Vec3 velocity_gt = T_dso_euroc.topLeftCorner<3, 3>() * lastRef->shell->navstate.velocity();
+
+			std::cout << "Pose error: " << (refToNew_gt.inverse() * refToNew_new).matrix() << std::endl;
+			std::cout << "Velocity error: " << (velocity_new - velocity_gt).transpose() << std::endl;
+
 			//std::cout <<"lastRef->shell->navstate.pose()\n"<<lastRef->shell->navstate.pose().matrix()<<std::endl;
 			//std::cout << "ref2new optimized: \n" << refToNew_new.matrix() << std::endl;
 
@@ -1623,6 +1674,27 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 					printf("inc too small, break!\n");
 				break;
 			}
+		}
+
+		std::cout << "Pose by dso: " << navstate_current.pose() << std::endl;
+
+		gtsam::NavState navstate_new = gtsam::NavState(
+				gtsam_pose,
+				navstate_current.velocity()
+		);
+		Vec6 resNew = calcResIMU(lvl, navstate_new, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
+		bool accept = resNew[0] < resOld[0];
+		if(accept)
+		{
+			calcGSSSESingleIMU(lvl, H, b, navstate_new, aff_g2l_current);
+			resOld = resNew;
+			navstate_current = navstate_new;
+			lambda *= 0.5;
+			std::cout << "keeping gtsam pose" << std::endl;
+		}
+		else
+		{
+			std::cout << "reverting gtsam pose" << std::endl;
 		}
 
 		// set last residual for that level, as well as flow indicators.

@@ -174,19 +174,13 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
             T_dso_euroc.block<3,3>(0,0).transpose() * last_frame->groundtruth.velocity
     );
 
-    std::cout<<"last id: "<<fh->shell->last_frame->id<<std::endl;
-    std::cout<<"last_frame->id: "<<last_frame->id<<std::endl;
-    std::cout << "GT vel transformed: " << ref_pose_imu.velocity().transpose() << std::endl;
-    std::cout << "Vel initialized: " << last_frame->navstate.velocity().transpose() << std::endl;
+//    std::cout<<"last id: "<<fh->shell->last_frame->id<<std::endl;
+//    std::cout<<"last_frame->id: "<<last_frame->id<<std::endl;
+//    std::cout << "GT vel transformed: " << ref_pose_imu.velocity().transpose() << std::endl;
+//    std::cout << "Vel initialized: " << last_frame->navstate.velocity().transpose() << std::endl;
 //    std::cout << "GT Vel initialized: " << last_frame->groundtruth.velocity.transpose() << std::endl;
 
     gtsam::NavState predicted_pose_imu = imu_preintegrated_last_frame_->predict(last_frame->navstate, bias);
-
-    // set the velocities to groundtruth
-//    predicted_pose_imu = gtsam::NavState(
-//            predicted_pose_imu.pose(),
-//            T_dso_euroc.block<3,3>(0,0) * groundtruth.velocity
-//    );
 
     if  (
             !std::isfinite(predicted_pose_imu.pose().translation().x()) ||
