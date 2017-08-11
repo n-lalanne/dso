@@ -40,6 +40,7 @@
 #include <boost/tuple/tuple.hpp>
 #include <GroundTruthIterator/GroundTruthIterator.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
+#include <gtsam/nonlinear/Marginals.h>
 
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
@@ -975,8 +976,6 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToN
 	return rs;
 }
 
-
-
 Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, AffLight aff_g2l,const Vec6 biases, float cutoffTH)
 {
 	SE3 refToNew;
@@ -1155,11 +1154,11 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 
 
 	Vec15 imu_error = calcIMURes(current_navstate, biases);
-	std::cout << "Before IMU error: " << imu_error.head<3>().transpose() << std::endl;
+//	std::cout << "Before IMU error: " << imu_error.head<3>().transpose() << std::endl;
 	imu_error.segment<9>(6) = Eigen::Matrix<double,9,1>::Zero();
 
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
-	std::cout << "IMUenergy: " << IMUenergy << std::endl;
+//	std::cout << "IMUenergy: " << IMUenergy << std::endl;
     // TODO: make threshold a setting
 	float imu_huberTH = 50;
     if (IMUenergy > imu_huberTH)
@@ -1172,7 +1171,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 
 //	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
 
-	std::cout<<"Unnormaliezd E is :"<<E << std::endl;
+//	std::cout<<"Unnormaliezd E is :"<<E << std::endl;
 	E/=numTermsInE;
 	IMUenergy/=SCALE_IMU_T;
 
@@ -1185,14 +1184,14 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 	Vec3 ypr_diff = rot3_diff.ypr();
 	double angle_error = sqrt( pow(ypr_diff(1), 2) + pow(ypr_diff(2), 2) ) * 100;
 
-	std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
-	std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
-	std::cout<<"number of points:"<<numTermsInE<<std::endl;
-	std::cout<<"E vs IMU_error is :"
-			 <<E <<" "
-			 <<IMUenergy<<" "
-			 <<angle_error<<" "
-			 << lvl << std::endl;
+//	std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
+//	std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
+//	std::cout<<"number of points:"<<numTermsInE<<std::endl;
+//	std::cout<<"E vs IMU_error is :"
+//			 <<E <<" "
+//			 <<IMUenergy<<" "
+//			 <<angle_error<<" "
+//			 << lvl << std::endl;
 //	E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)
@@ -1492,58 +1491,31 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				newFrameHessian->shell->last_frame->bias
 		);
 
-//		std::cout<<"level: "<<lvl<<std::endl;
-		Mat1717 H; Vec17 b;
+		float lambda = 0.01;
 		float levelCutoffRepeat=1;
-		Vec6 resOld = calcResIMU(lvl, navstate_current, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
+
+		gtsam::Pose3 gtsam_pose_current = navstate_current.pose();
+
+		Vec6 resOld = calcResIMU(lvl, navstate_current, aff_g2l_current, biases_current,
+								 setting_coarseCutoffTH * levelCutoffRepeat);
 
 		//std::cout << "threshold: " << setting_coarseCutoffTH*levelCutoffRepeat << std::endl;
 		//std::cout<<"resOld is: "<<resOld.transpose()<<std::endl;
-		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
-		{
+		while (resOld[5] > 0.6 && levelCutoffRepeat < 50) {
 			//std::cout<<"cut off!"<<std::endl;
-			levelCutoffRepeat*=2;
-			resOld = calcResIMU(lvl, navstate_current, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
+			levelCutoffRepeat *= 2;
+			resOld = calcResIMU(lvl, navstate_current, aff_g2l_current, biases_current,
+								setting_coarseCutoffTH * levelCutoffRepeat);
 
-			if(!setting_debugout_runquiet)
-				printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
+			if (!setting_debugout_runquiet)
+				printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH * levelCutoffRepeat,
+					   resOld[5]);
 		}
-		//std::cout<<"resOld is: "<<resOld<<std::endl;
+
+		Mat1717 H; Vec17 b;
 		calcGSSSESingleIMU(lvl, H, b, navstate_current, aff_g2l_current);
 
-		gtsam::Values initial_values;
-		initial_values.insert(X(0), navstate_current.pose());
-
-		NonlinearFactorGraph graph;
-		for (int point_idx = 0; point_idx < buf_warped_n; point_idx++)
-		{
-			gtsam::SharedNoiseModel pointNoise = noiseModel::Diagonal::Variances(
-					(gtsam::Vector(1) << pow(2.0, lvl)).finished()
-			);
-
-			gtsam::SharedNoiseModel huberKernel = gtsam::noiseModel::Robust::Create(
-					noiseModel::mEstimator::Huber::Create(setting_huberTH), pointNoise
-			);
-			graph.add(
-					PhotometricFactor(X(0), this, lvl, point_idx, huberKernel)
-			);
-		}
-		gtsam::LevenbergMarquardtParams lm_params;
-		lm_params.setVerbosity("DELTA");
-		gtsam::LevenbergMarquardtOptimizer lm_optimizer(graph, initial_values, lm_params);
-		gtsam::Values result = lm_optimizer.optimize();
-
-		gtsam::Pose3 gtsam_pose = result.at<gtsam::Pose3>(X(0));
-//		gtsam::NavState navstate_current = gtsam::NavState(
-//				result.at<gtsam::Pose3>(X(0)),
-//				navstate_current.velocity()
-//		);
-
-		std::cout << "Pose by gtsam: " << gtsam_pose << std::endl;
-
-		float lambda = 0.01;
-
-
+		// ------------------------------------ DSO optimization ------------------------------------ //
 		for(int iteration=0; iteration < maxIterations[lvl]; iteration++)
 		{
 			Mat1717 Hl = H;
@@ -1678,8 +1650,113 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 		std::cout << "Pose by dso: " << navstate_current.pose() << std::endl;
 
+		// ---------------------- GTSAM optimization ---------------------- //
+		// reset the parameters for optimization
+		lambda = 0.01;
+		levelCutoffRepeat=1;
+
+		resOld = calcResIMU(
+				lvl,
+				gtsam::NavState(gtsam_pose_current, navstate_current.velocity()),
+				aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat
+		);
+
+		//std::cout << "threshold: " << setting_coarseCutoffTH*levelCutoffRepeat << std::endl;
+		//std::cout<<"resOld is: "<<resOld.transpose()<<std::endl;
+		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
+		{
+			//std::cout<<"cut off!"<<std::endl;
+			levelCutoffRepeat*=2;
+			resOld = calcResIMU(
+					lvl,
+					gtsam::NavState(gtsam_pose_current, navstate_current.velocity()),
+					aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat
+			);
+
+			if(!setting_debugout_runquiet)
+				printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
+		}
+
+		for(int iteration=0; iteration < maxIterations[lvl]; iteration++)
+		{
+			std::cout << "Gtsam iter: " << iteration << std::endl;
+			NonlinearFactorGraph graph;
+			for (int point_idx = 0; point_idx < buf_warped_n; point_idx++)
+			{
+				gtsam::SharedNoiseModel pointNoise = noiseModel::Diagonal::Variances(
+						(gtsam::Vector(1) << /*pow(2.0, lvl)*/1).finished()
+				);
+
+//				gtsam::SharedNoiseModel huberKernel = gtsam::noiseModel::Robust::Create(
+//						noiseModel::mEstimator::Huber::Create(setting_huberTH), pointNoise
+//				);
+
+				graph.add(
+						boost::make_shared<PhotometricFactor>(X(0), this, lvl, point_idx, pointNoise)
+				);
+			}
+
+			gtsam::Values initial_values;
+			initial_values.insert(X(0), gtsam_pose_current);
+
+			gtsam::LevenbergMarquardtParams lm_params;
+			lm_params.setVerbosity("VALUES");
+			lm_params.setVerbosityLM("VALUES");
+//			lm_params.maxIterations = 1;
+//			lm_params.lambdaInitial = lambda;
+			gtsam::LevenbergMarquardtOptimizer lm_optimizer(graph, initial_values, lm_params);
+			gtsam::Values result = lm_optimizer.optimize();
+
+//			graph.print("Factor Graph:\n");
+			result.print("Final results:\n");
+			std::cout << "initial error = " << graph.error(initial_values) << std::endl;
+			std::cout << "final error = " << graph.error(result) << std::endl;
+
+			// 5. Calculate and print marginal covariances for all variables
+			gtsam::Marginals marginals(graph, result);
+			std::cout << "x1 covariance:\n" << marginals.marginalCovariance(X(0)) << std::endl;
+
+			gtsam::Pose3 gtsam_pose_new = result.at<gtsam::Pose3>(X(0));
+
+			Vec6 resNew = calcResIMU(
+					lvl,
+					gtsam::NavState(gtsam_pose_new, navstate_current.velocity()),
+					aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat
+			);
+
+			gtsam::Pose3 inc_pose = gtsam_pose_current.inverse().compose(gtsam_pose_new);
+			Vec6 inc = gtsam::Pose3().logmap(inc_pose);
+
+			std::cout << "Gtsam inc: " << inc_pose << std::endl;
+			std::cout << "Gtsam inc: " << inc.transpose() << std::endl;
+
+			bool accept = resNew[0] < resOld[0];
+			//= (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
+
+			if(accept)
+			{
+				resOld = resNew;
+				gtsam_pose_current = gtsam_pose_new;
+				lambda *= 0.5;
+			}
+			else
+			{
+				lambda *= 4;
+				if(lambda < lambdaExtrapolationLimit) lambda = lambdaExtrapolationLimit;
+				std::cout << "increasing lambda to " << lambda << std::endl;
+			}
+
+			if(!(inc.norm() > 1e-3))
+			{
+				if(debugPrint)
+					printf("inc too small, break!\n");
+				break;
+			}
+		}
+		std::cout << "Pose by gtsam: " << gtsam_pose_current << std::endl;
+
 		gtsam::NavState navstate_new = gtsam::NavState(
-				gtsam_pose,
+				gtsam_pose_current,
 				navstate_current.velocity()
 		);
 		Vec6 resNew = calcResIMU(lvl, navstate_new, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);

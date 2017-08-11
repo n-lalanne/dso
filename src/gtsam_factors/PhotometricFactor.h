@@ -14,7 +14,7 @@
 namespace dso {
 
 using namespace gtsam;
-class PhotometricFactor : public NoiseModelFactor1<Pose3> {
+class GTSAM_EXPORT PhotometricFactor : public NoiseModelFactor1<Pose3> {
 
 private:
     CoarseTracker *coarseTracker_;
@@ -27,8 +27,15 @@ public:
                       int lvl, int pointIdx,
                       const SharedNoiseModel& model);
 
+    virtual ~PhotometricFactor() {}
+
     Vector evaluateError(const Pose3& pose,
                          boost::optional<Matrix&> H = boost::none) const;
+
+    virtual gtsam::NonlinearFactor::shared_ptr clone() const {
+        return boost::static_pointer_cast<gtsam::NonlinearFactor>(
+                gtsam::NonlinearFactor::shared_ptr(new PhotometricFactor(*this)));
+    }
 };
 
 } // namespace dso

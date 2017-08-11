@@ -59,8 +59,14 @@ Vector PhotometricFactor::evaluateError (    const Pose3& pose,
         Jab.head(3) = dxdy.transpose() * Jpi * Rcb * SO3::hat(Tib.inverse() * PI); //Rrb.transpose()*(Pr-Prb));
         Jab.tail(3) = dxdy.transpose() * Jpi * (-Rcb);
 
-
-        *H = Jab.transpose();
+        *H = (gtsam::Vector6() << Jab(0), Jab(1), Jab(2), Jab(3), Jab(4), Jab(5)).finished().transpose();
+//        *H = Jab.transpose();
+        if (pointIdx_ % 100 == 0)
+        {
+            std::cout << "Point idx: " << pointIdx_ << std::endl;
+            std::cout << "H: \n" << *H << std::endl;
+            std::cout << "E: " << (Vector(1) << coarseTracker_->buf_warped_residual[pointIdx_]).finished().transpose() << std::endl;
+        }
     }
-    return (Vector(1) << -coarseTracker_->buf_warped_residual[pointIdx_]).finished();
+    return (Vector(1) << (double)coarseTracker_->buf_warped_residual[pointIdx_]).finished();
 }

@@ -32,8 +32,7 @@
 #include "OptimizationBackend/MatrixAccumulators.h"
 #include "IOWrapper/Output3DWrapper.h"
 #include "FullSystem.h"
-
-
+#include "gtsam_factors/PhotometricFactor.h"
 
 
 namespace dso
@@ -46,6 +45,7 @@ class CoarseTracker {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
+	friend class PhotometricFactor;
 	CoarseTracker(int w, int h, FullSystem* fullsystem_);
 	~CoarseTracker();
 
@@ -82,24 +82,6 @@ public:
 	float cyi[PYR_LEVELS];
 	int w[PYR_LEVELS];
 	int h[PYR_LEVELS];
-
-	// warped buffers
-	float* buf_warped_cx;
-	float* buf_warped_cy;
-	float* buf_warped_cz;
-	float* buf_warped_rx;
-	float* buf_warped_ry;
-	float* buf_warped_rz;
-	float* buf_warped_lpc_idepth;
-	float* buf_warped_idepth;
-	float* buf_warped_u;
-	float* buf_warped_v;
-	float* buf_warped_dx;
-	float* buf_warped_dy;
-	float* buf_warped_residual;
-	float* buf_warped_weight;
-	float* buf_warped_refColor;
-	int buf_warped_n;
 
 	FullSystem* fullSystem;
 
@@ -150,6 +132,24 @@ private:
 	float* pc_idepth[PYR_LEVELS];
 	float* pc_color[PYR_LEVELS];
 	int pc_n[PYR_LEVELS];
+
+	// warped buffers
+	float* buf_warped_cx;
+	float* buf_warped_cy;
+	float* buf_warped_cz;
+	float* buf_warped_rx;
+	float* buf_warped_ry;
+	float* buf_warped_rz;
+	float* buf_warped_lpc_idepth;
+	float* buf_warped_idepth;
+	float* buf_warped_u;
+	float* buf_warped_v;
+	float* buf_warped_dx;
+	float* buf_warped_dy;
+	float* buf_warped_residual;
+	float* buf_warped_weight;
+	float* buf_warped_refColor;
+	int buf_warped_n;
 
 	std::vector<float*> ptrToDelete;
 
