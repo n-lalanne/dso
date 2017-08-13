@@ -111,16 +111,19 @@ private:
 
 	Vec6 calcResAndGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
 	Vec6 calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToNew, AffLight aff_g2l, float cutoffTH);
-	Vec6 calcResIMU(int lvl,const gtsam::NavState current_navstate, AffLight aff_g2l,const Vec6 biases, float cutoffTH);
+	Vec6 calcResIMU(int lvl, const gtsam::NavState previous_navstate, const gtsam::NavState current_navstate, AffLight aff_g2l,const Vec6 biases, float cutoffTH);
 	void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, const gtsam::NavState navState_, AffLight aff_g2l);
+    // order of states: t_j, R_j, a_j, b_j, v_j, ba_j, bg_j, t_i, R_i, v_i, ba_i, bg_i
+    void calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, const gtsam::NavState navState_, AffLight aff_g2l);
 	void calcGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGSSSEst(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 
     // for imu errors
-    Vec15 calcIMURes(gtsam::NavState current_navstate, Vec6 bias);
+    Vec15 calcIMURes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate, Vec6 bias);
     gtsam::Matrix  J_imu_Rt, J_imu_bias, J_imu_v;
+    gtsam::Matrix  J_imu_Rt_previous, J_imu_bias_previous, J_imu_v_previous;
 
     Vec15 res_imu;
     Mat1515 information_imu;
