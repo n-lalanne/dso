@@ -128,6 +128,7 @@ extern int setting_GNItsOnPointActivation;
 extern float setting_minTraceQuality;
 extern int setting_minTraceTestRadius;
 extern float setting_reTrackThreshold;
+extern float setting_reTrackThresholdVI;
 
 
 extern int   setting_minGoodActiveResForMarg;

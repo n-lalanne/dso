@@ -385,51 +385,106 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	//std::cout<<"b_out:\n"<<b_out.segment<8>(0)<<std::endl;
 	// here rtvab means rotation, translation, affine, velocity and biases
 
-	std::cout << "H_out: \n" << H_out.topLeftCorner<6,6>() << std::endl;
-	std::cout << "b_out: \n" << b_out.segment<6>(0).transpose() << std::endl;
+//	std::cout << "H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+//	std::cout << "b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
 
-    Mat1717 H_imu_rtavb;
-	Vec17 b_imu_rtavb;
-	Mat1517 J_imu_rtavb;
+    Mat1717 H_imu_travb;
+	Vec17 b_imu_travb;
+	Mat1517 J_imu_travb;
 
-	J_imu_rtavb.setZero();
-	// for rotation and translation
-//	J_imu_rtavb.topLeftCorner<9, 3>() = J_imu_Rt.block<9, 3>(0,3);
-//	J_imu_rtavb.block<9, 3>(0, 3) = J_imu_Rt.topLeftCorner<9, 3>();
-//    J_imu_rtavb.block<9, 3>(0, 8) = J_imu_v.topLeftCorner<9, 3>();
+	J_imu_travb.setZero();
+	// delta r/ navstate j trv
+	J_imu_travb.block<3, 3>(0, 0) = J_imu_Rt.block<3, 3>(0, 3);
+	J_imu_travb.block<3, 3>(0, 3) = J_imu_Rt.block<3, 3>(0, 0);
+    J_imu_travb.block<3, 3>(0, 8) = J_imu_v.block<3, 3>(0, 0);
 
-	J_imu_rtavb.block<6, 3>(0, 3) = J_imu_Rt.topLeftCorner<6, 3>();
-//	J_imu_rtavb.block<6, 3>(0, 3) = J_imu_Rt.topLeftCorner<6, 3>();
-	J_imu_rtavb.topLeftCorner<6, 3>() = J_imu_Rt.block<6, 3>(0, 3);
-	res_imu.segment<9>(6) = Eigen::Matrix<double,9,1>::Zero();
+	// delta t/ navstate j trv
+	J_imu_travb.block<3, 3>(3, 0) = J_imu_Rt.block<3, 3>(3, 3);
+	J_imu_travb.block<3, 3>(3, 3) = J_imu_Rt.block<3, 3>(3, 0);
+	J_imu_travb.block<3, 3>(3, 8) = J_imu_v.block<3, 3>(3, 0);
 
-    information_imu.topLeftCorner<3, 3>() /= SCALE_IMU_R;
-    information_imu.block<3,3>(3, 3) /= SCALE_IMU_T;
+	// delta v/ navstate j trv
+	J_imu_travb.block<3, 3>(6, 0) = J_imu_Rt.block<3, 3>(6, 3);
+	J_imu_travb.block<3, 3>(6, 3) = J_imu_Rt.block<3, 3>(6, 0);
+	J_imu_travb.block<3, 3>(6, 8) = J_imu_v.block<3, 3>(6, 0);
 
-	H_imu_rtavb = J_imu_rtavb.transpose() * information_imu * J_imu_rtavb;
-	b_imu_rtavb = J_imu_rtavb.transpose() * information_imu * res_imu;
+	// set the res vector
+
+
+    //computing blocks for velocity independently
+//    Mat33 H_imu_v = J_imu_v.transpose() * information_imu * J_imu_v;
+//    Vec3 b_imu_v = J_imu_v.transpose() * information_imu * res_imu;
+
+	//computing b vector and hessian matrix
+
+
+    //information_imu.topLeftCorner<3, 3>() /= SCALE_IMU_R;
+    //information_imu.block<3,3>(3, 3) /= SCALE_IMU_T;
+
+	H_imu_travb = J_imu_travb.transpose() * information_imu * J_imu_travb;
+//    H_imu_travb.block<3,3>(6,6) = H_imu_v;
+	b_imu_travb = J_imu_travb.transpose() * information_imu * res_imu;
+//    b_imu_travb.segment<3>(6) = b_imu_v;
+
+//  H_imu_travb.block<8,3>(0,0) *= SCALE_IMU_T;
+//  H_imu_travb.block<8,3>(0,3) *= SCALE_IMU_R;
+//  H_imu_travb.block<3,8>(0,0) *= SCALE_IMU_T;
+//  H_imu_travb.block<3,8>(3,0) *= SCALE_IMU_R;
+//	H_imu_travb.block<3,8>(8,0) *= SCALE_IMU_V;
+//	H_imu_travb.block<8,3>(0,8) *= SCALE_IMU_V;
+//    H_imu_travb.block<8,8>(0,0) *= 0.01;
+//    b_imu_travb.segment<8>(0) *= 0.01;
+//
+//    H_imu_travb.block<3,8>(8,0) *= SCALE_IMU_V;
+//	H_imu_travb.block<8,3>(0,8) *= SCALE_IMU_V;
+//	b_imu_travb.segment<3>(8) *= SCALE_IMU_V;
+
 	//H_imu_rtavb /= 1000.0;
 	//b_imu_rtavb /= 1000.0;
 
-    std::cout << "J_imu: \n " << J_imu_rtavb << std::endl;
-	std::cout << "H_imu: \n" << H_imu_rtavb.topLeftCorner<6,6>() << std::endl;
-	std::cout << "b_imu: \n" << b_imu_rtavb.segment<6>(0).transpose() << std::endl;
+//    std::cout << "J_imu: \n " << J_imu_travb << std::endl;
+    //std::cout<<" res_imu:\n"<<res_imu.transpose()<<std::endl;
+    //std::cout<<" information_imu: \n"<<information_imu.diagonal().transpose()<<std::endl;
+	std::cout<<"J_imu\n"<<J_imu_travb.transpose()<<std::endl;
+	std::cout<<"information:\n"<<information_imu.diagonal().transpose()<<std::endl;
+	std::cout << "H_imu: \n" << H_imu_travb.topLeftCorner<11,11>() << std::endl;
+	std::cout << "b_imu: \n" << b_imu_travb.segment<11>(0).transpose() << std::endl;
 
-	H_out += H_imu_rtavb;
-	b_out += b_imu_rtavb;
+    std::cout << "before adding: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+    std::cout << "before adding: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
 
-	H_out.block<8,3>(0,0) *= SCALE_XI_ROT;
-	H_out.block<8,3>(0,3) *= SCALE_XI_TRANS;
-	H_out.block<8,1>(0,6) *= SCALE_A;
-	H_out.block<8,1>(0,7) *= SCALE_B;
-	H_out.block<3,8>(0,0) *= SCALE_XI_ROT;
-	H_out.block<3,8>(3,0) *= SCALE_XI_TRANS;
-	H_out.block<1,8>(6,0) *= SCALE_A;
-	H_out.block<1,8>(7,0) *= SCALE_B;
+	H_out += H_imu_travb;
+	b_out += b_imu_travb;
+
+	std::cout << "before rescale: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+	std::cout << "before rescale: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+
+	H_out.block<11,3>(0,0) *= SCALE_XI_ROT;
+	H_out.block<11,3>(0,3) *= SCALE_XI_TRANS;
+	H_out.block<11,1>(0,6) *= SCALE_A;
+	H_out.block<11,1>(0,7) *= SCALE_B;
+	H_out.block<3,11>(0,0) *= SCALE_XI_ROT;
+	H_out.block<3,11>(3,0) *= SCALE_XI_TRANS;
+	H_out.block<1,11>(6,0) *= SCALE_A;
+	H_out.block<1,11>(7,0) *= SCALE_B;
+	H_out.block<3,11>(8,0) *= SCALE_IMU_V;
+	H_out.block<11,3>(0,8) *= SCALE_IMU_V;
+
 	b_out.segment<3>(0) *= SCALE_XI_ROT;
 	b_out.segment<3>(3) *= SCALE_XI_TRANS;
 	b_out.segment<1>(6) *= SCALE_A;
 	b_out.segment<1>(7) *= SCALE_B;
+	b_out.segment<3>(8) *= SCALE_IMU_V;
+
+	std::cout << "H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+	std::cout << "b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+
+
+//	H_out += H_imu_travb;
+//	b_out += b_imu_travb;
+
+//	std::cout << "H_final: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+//	std::cout << "b_final: \n" << b_out.segment<11>(0).transpose() << std::endl;
 }
 
 void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l)
@@ -769,6 +824,12 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState current_navstate, Vec6 bias)
             newFrame->shell->bias,
 			J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias_i, this->J_imu_bias
 	);
+//    std::cout<<"J_imu_Rt_i:\n"<<J_imu_Rt_i<<std::endl;
+//    std::cout<<"J_imu_v_i:\n"<<J_imu_v_i<<std::endl;
+//    std::cout<<"J_imu_Rt:\n"<<J_imu_Rt<<std::endl;
+//    std::cout<<"J_imu_v:\n"<<J_imu_v<<std::endl;
+//    std::cout<<"J_imu_bias_i:\n"<<J_imu_bias_i<<std::endl;
+//    std::cout<<"J_imu_bias:\n"<<J_imu_bias<<std::endl;
 
 	// in gtsam the error in Rtv due to bias is calcuated with respect to bias_i (of previous frame)
 	this->J_imu_bias.block<9, 6>(0, 0) = J_imu_bias_i.block<9, 6>(0, 0);
@@ -1107,9 +1168,8 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 		{
 			if(debugPlot) resImage->setPixel4(lpc_u[i], lpc_v[i], Vec3b(residual+128,residual+128,residual+128));
 			// information matrix (weight) based on pyramid level
-			float lvl_info = 1.0;// / pow(2.0, (double)lvl);
 			//residual * =lvl_info;
-			E += (hw *residual*residual*lvl_info*lvl_info*(2-hw)) ;
+			E += (hw *residual*residual*(2-hw)) ;
 			numTermsInE++;
 			buf_warped_rx[numTermsInWarped] = pr(0);
 			buf_warped_ry[numTermsInWarped] = pr(1);
@@ -1121,7 +1181,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 			buf_warped_dx[numTermsInWarped] = hitColor[1];
 			buf_warped_dy[numTermsInWarped] = hitColor[2];
 			buf_warped_residual[numTermsInWarped] = residual;
-			buf_warped_weight[numTermsInWarped] = hw * lvl_info;
+			buf_warped_weight[numTermsInWarped] = hw;
 			buf_warped_refColor[numTermsInWarped] = lpc_color[i];
 			numTermsInWarped++;
 		}
@@ -1147,14 +1207,18 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 
 
 
+	std::cout<<"----------------------------------------------------------------"<<std::endl;
 	Vec15 imu_error = calcIMURes(current_navstate, biases);
-	std::cout << "Before IMU error: " << imu_error.head<3>().transpose() << std::endl;
-	imu_error.segment<9>(6) = Eigen::Matrix<double,9,1>::Zero();
+	//std::cout << "Before IMU error: " << imu_error.head<3>().transpose() << std::endl;
+	imu_error.segment<6>(9) = Eigen::Matrix<double,6,1>::Zero();
+	//imu_error.segment<3>()
 
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
-	std::cout << "IMUenergy: " << IMUenergy << std::endl;
+	std::cout << "imu_error: " << imu_error.transpose() << std::endl;
     // TODO: make threshold a setting
-	float imu_huberTH = 1e5;
+	float imu_huberTH = 21.666;
+	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
+	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
     if (IMUenergy > imu_huberTH)
     {
         float hw_imu = fabs(IMUenergy) < imu_huberTH ? 1 : imu_huberTH / fabs(IMUenergy);
@@ -1165,15 +1229,16 @@ Vec6 CoarseTracker::calcResIMU(int lvl,const gtsam::NavState current_navstate, A
 
 //	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
 
-	std::cout<<"Unnormaliezd E is :"<<E << std::endl;
+	//std::cout<<"Unnormaliezd E is :"<<E << std::endl;
 	E/=numTermsInE;
-	IMUenergy/=SCALE_IMU_T;
+	//IMUenergy/=SCALE_IMU_T;
 
 
-	std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
-	std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
-	std::cout<<"number of points:"<<numTermsInE<<std::endl;
+	//std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
+	//std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
+	//std::cout<<"number of points:"<<numTermsInE<<std::endl;
 	std::cout<<"E vs IMU_error is :"<<E <<" "<<IMUenergy<< " " << lvl << std::endl;
+    std::cout<<"----------------------------------------------------------------"<<std::endl;
 	E += IMUenergy;
 //=============================================================================================================
 	if(debugPlot)
@@ -1536,6 +1601,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			incScaled.segment<3>(3) *= SCALE_XI_TRANS;
 			incScaled.segment<1>(6) *= SCALE_A;
 			incScaled.segment<1>(7) *= SCALE_B;
+            incScaled.segment<3>(8) *= SCALE_IMU_V;
 
 			std::cout<<"increment: \n"<<incScaled.transpose()<<std::endl;
 
@@ -1543,7 +1609,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			if(!std::isfinite(incScaled.sum())) incScaled.setZero();
 
 			SE3 IMUTow_new = SE3(navstate_current.pose().matrix()) * SE3::exp((Vec6)(incScaled.head<6>()));
-			//std::cout<<"increment of velocity: "<<incScaled.segment<3>(8).transpose()<<std::endl;
+			std::cout<<"increment of velocity: "<<incScaled.segment<3>(8).transpose()<<std::endl;
 			Vec3 velocity_new = navstate_current.velocity() + incScaled.segment<3>(8);
 			gtsam::NavState navstate_new = gtsam::NavState(
 					gtsam::Pose3(IMUTow_new.matrix()),
@@ -1582,6 +1648,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 			if(accept)
 			{
+				std::cout<<"resNew[0] : resOld[0] "<<resNew[0] <<" : " <<resOld[0]<<" ,accept this incre"<<std::endl;
 				calcGSSSESingleIMU(lvl, H, b, navstate_new, aff_g2l_new);
 				resOld = resNew;
 				aff_g2l_current = aff_g2l_new;
@@ -1595,6 +1662,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			}
 			else
 			{
+				std::cout<<"resNew[0] : resOld[0] "<<resNew[0] <<" : " <<resOld[0]<<" ,reject this incre"<<std::endl;
 				lambda *= 4;
 				if(lambda < lambdaExtrapolationLimit) lambda = lambdaExtrapolationLimit;
 			}
@@ -1608,7 +1676,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		}
 
 		// set last residual for that level, as well as flow indicators.
-		lastResiduals[lvl] = sqrtf((float)(resOld[0] / resOld[1]));
+		lastResiduals[lvl] = sqrtf((float)(resOld[0]));
 		lastFlowIndicators = resOld.segment<3>(2);
 		if(lastResiduals[lvl] > 1.5*minResForAbort[lvl]) return false;
 
@@ -1628,6 +1696,18 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	navstate_out = navstate_current;
 	aff_g2l_out = aff_g2l_current;
 	biases_out = biases_current;
+
+    Mat44 T_dso_euroc = newFrame->shell->navstate.pose().matrix() * newFrame->shell->groundtruth.pose.inverse().matrix();
+    Vec3 velocity_gt = T_dso_euroc.block<3,3>(0,0) * newFrame->shell->groundtruth.velocity;
+    float velocity_direction_error = acos(
+            velocity_gt.dot(navstate_out.velocity()) / (velocity_gt.norm() * navstate_out.velocity().norm())
+    ) * 180 / M_PI;
+	std::cout<<"Optimized velocity: "<<navstate_out.velocity().transpose()
+            <<"GT: " << velocity_gt.transpose()<<std::endl
+            << "Angle error: " << velocity_direction_error << std::endl;
+	std::cout<<"Optimized velocity norm: "<<navstate_out.velocity().norm()<<"GT norm:"<<newFrame->shell->groundtruth.velocity.norm()<<std::endl;
+
+
 
 //	std::cout<<" IMU version: affine a: "<< aff_g2l_out.a << "affine b: "<< aff_g2l_out.b<<std::endl;
 //	std::cout<<" NAVSTATE: \n" << navstate_current.pose().matrix()<<std::endl;

@@ -149,7 +149,7 @@ public:
 	 * @param mvIMUSinceLastKF
 	 * @param lastTimestamp timestamp of the last frame from which we want the IMU factor to be (for interpolation)
 	 */
-	void updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF);
+	void updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF, std::vector<dso_vi::IMUData> mvIMUSinceLastKF);
 
 	inline Mat33 RWC()
 	{

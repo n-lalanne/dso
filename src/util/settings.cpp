@@ -31,17 +31,17 @@ using namespace dso;
 
 namespace dso_vi
 {
-	double accel_noise_sigma = 2.0e-3;  //0.05924;// 0.0512000;
-	double gyro_noise_sigma =  8.0e-3;//0.000205689024915; // 1.0000e-03;
+	double accel_noise_sigma = 7.0e-1;  //0.05924;// 0.0512000;
+	double gyro_noise_sigma =  2.0e-3;//0.000205689024915; // 1.0000e-03;
 	double accel_bias_rw_sigma = 5e-3; //0.0000205;  // 2.5000e-05;
-	double gyro_bias_rw_sigma =  2e-5;//0.00004454441043; //4.0000e-05;
+	double gyro_bias_rw_sigma =  2e-4;//0.00004454441043; //4.0000e-05;
 	boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> imuParams;
 	SE3 Tbc = SE3();
     SE3 Tcb = SE3();
 
 	void initializeIMUParams()
 	{
-		imuParams = gtsam::PreintegratedCombinedMeasurements::Params::MakeSharedD();
+		imuParams = gtsam::PreintegratedCombinedMeasurements::Params::MakeSharedU();
 		Mat33 measured_acc_cov = Mat33::Identity(3,3) * pow(dso_vi::accel_noise_sigma,2);
 		Mat33 measured_omega_cov = Mat33::Identity(3,3) * pow(dso_vi::gyro_noise_sigma,2);
 		Mat33 integration_error_cov = Mat33::Identity(3,3)*1e-8; // error committed in integrating position from velocities
@@ -147,7 +147,7 @@ float setting_margWeightFac = 0.5*0.5;          // factor on hessian when margin
 
 /* when to re-track a frame */
 float setting_reTrackThreshold = 1.5; // (larger = re-track more often)
-
+float setting_reTrackThresholdVI = 3;
 
 
 /* require some minimum number of residuals for a point to become valid */

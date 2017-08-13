@@ -309,6 +309,7 @@ void FullSystem::printResult(std::string file)
 
 	for(FrameShell* s : allFrameHistory)
 	{
+        //std::cout<<"s->id: "<<s->id<<"s->timestamp: "<<s->timestamp<<" s->incoming_id: "<<s->incoming_id<<std::endl;
 		if(!s->poseValid) continue;
 
 		if(setting_onlyLogKFPoses && s->marginalizedAt == s->id) continue;
@@ -410,11 +411,11 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			{
 
                 lastF_2_fh_tries.push_back(prop_lastF_2_fh_r);
-//                lastF_2_fh_tries.push_back(
-//                        prop_slast_2_fh * prop_slast_2_fh *  prop_lastF_2_slast);    // assume double motion (frame skipped)
-//                lastF_2_fh_tries.push_back(
-//                        SE3::exp(prop_slast_2_fh.log() * 0.5) *
-//                                prop_lastF_2_slast); // assume half motion.
+                lastF_2_fh_tries.push_back(
+                        prop_slast_2_fh * prop_slast_2_fh *  prop_lastF_2_slast);    // assume double motion (frame skipped)
+                lastF_2_fh_tries.push_back(
+                        SE3::exp(prop_slast_2_fh.log() * 0.5) *
+                                prop_lastF_2_slast); // assume half motion.
                 lastF_2_fh_tries.push_back(prop_lastF_2_slast); // assume zero motion.
                 lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
 
@@ -698,9 +699,12 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			}
 		}
 
+		std::cout<<"lastCoarseRMSE is :"<<lastCoarseRMSE[0]<<std::endl;
 
-		if(haveOneGood &&  achievedRes[0] < lastCoarseRMSE[0]*setting_reTrackThreshold)
-			break;
+        float threshold = (isIMUinitialized()) ? setting_reTrackThreshold : setting_reTrackThresholdVI;
+        if (haveOneGood && achievedRes[0] < lastCoarseRMSE[0] * threshold)
+            break;
+
 
 	}
 
@@ -710,7 +714,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		flowVecs = Vec3(0,0,0);
 		aff_g2l = aff_last_2_l;
 		lastF_2_fh = lastF_2_fh_tries[0];
-		exit(0);
+		//exit(0);
 		if (IMUinitialized)
 		{
 			navstate_this = prop_navstate;
@@ -1466,6 +1470,7 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		}
 
         gyroBiasEstimate = allKeyFramesHistory.back()->bias.gyroscope();
+		accBiasEstimate << -0.013337, 0.103464, 0.093086;
 
 //		std::cout << "\"gyroscope bias initial calibration::::::; " << delta_bg.transpose() << std::endl;
 		std::cout << "\"gyroscope bias initial calibration::::::; " << gyroBiasEstimate.transpose() << std::endl;
@@ -1934,7 +1939,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 	shell->camToWorld = SE3(); 		// no lock required, as fh is not used anywhere yet.
 	shell->aff_g2l = AffLight(0,0);
     shell->marginalizedAt = shell->id = allFrameHistory.size();
-    shell->timestamp = image->timestamp;
+    shell->timestamp = ftimestamp;//image->timestamp;
     shell->viTimestamp = ftimestamp;
     shell->incoming_id = id;
     shell->groundtruth = groundtruth;
@@ -1982,7 +1987,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		{ // this condition is false for the first tracked frame
 			std::cout << "Frame/Keyframe: " << shell->id << "/" << shell->last_kf->id << std::endl;
 			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
-			shell->updateIMUmeasurements(mvIMUSinceLastF);
+			shell->updateIMUmeasurements(mvIMUSinceLastF, mvIMUSinceLastKF);
 		}
 	}
 
@@ -2023,7 +2028,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 			boost::unique_lock<boost::mutex> crlock(coarseTrackerSwapMutex);
 			CoarseTracker* tmp = coarseTracker; coarseTracker=coarseTracker_forNewKF; coarseTracker_forNewKF=tmp;
 		}
-
+        std::cout<<"tracking the frame "<<allFrameHistory.size()<<"========================================================"<<std::endl;
 		Vec4 tres = trackNewCoarse(fh);
 		if(!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) || !std::isfinite((double)tres[2]) || !std::isfinite((double)tres[3]))
         {
