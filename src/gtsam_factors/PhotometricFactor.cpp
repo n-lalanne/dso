@@ -5,12 +5,12 @@
 #include "PhotometricFactor.h"
 
 PhotometricFactor::PhotometricFactor(   Key j, CoarseTracker *coarseTracker,
-                                        int lvl, int pointIdx,
+                                        int lvl, int pointIdx, AffLight aff_g2l, float cutoffTH,
                                         const SharedNoiseModel& model
                                     )
     : NoiseModelFactor1<Pose3>(model, j),
       coarseTracker_(coarseTracker),
-      lvl_(lvl), pointIdx_(pointIdx)
+      lvl_(lvl), pointIdx_(pointIdx), aff_g2l_(aff_g2l), cutoffThreshold_(cutoffTH)
 {
 
 }
@@ -19,6 +19,22 @@ Vector PhotometricFactor::evaluateError (    const Pose3& pose,
                                              boost::optional<Matrix&> H
                                         ) const
 {
+    coarseTracker_->calcPointResIMU(
+            lvl_, pointIdx_,
+            gtsam::NavState(pose, coarseTracker_->newFrame->shell->navstate.velocity()),
+            aff_g2l_, cutoffThreshold_
+    );
+
+    // outlier, ignore
+    if (coarseTracker_->buf_warped_weight[pointIdx_] == 0)
+    {
+        if (H)
+        {
+            *H = Vec6::Zero().transpose();
+        }
+        return (Vector(1) << 0).finished();
+    }
+
     if (H)
     {
         SE3 Tib(pose.matrix());
@@ -61,12 +77,12 @@ Vector PhotometricFactor::evaluateError (    const Pose3& pose,
 
         *H = (gtsam::Vector6() << Jab(0), Jab(1), Jab(2), Jab(3), Jab(4), Jab(5)).finished().transpose();
 //        *H = Jab.transpose();
-        if (pointIdx_ % 100 == 0)
-        {
-            std::cout << "Point idx: " << pointIdx_ << std::endl;
-            std::cout << "H: \n" << *H << std::endl;
-            std::cout << "E: " << (Vector(1) << coarseTracker_->buf_warped_residual[pointIdx_]).finished().transpose() << std::endl;
-        }
+//        if (pointIdx_ % 100 == 0)
+//        {
+//            std::cout << "Point idx: " << pointIdx_ << std::endl;
+//            std::cout << "H: \n" << *H << std::endl;
+//            std::cout << "E: " << (Vector(1) << coarseTracker_->buf_warped_residual[pointIdx_]).finished().transpose() << std::endl;
+//        }
     }
     return (Vector(1) << (double)coarseTracker_->buf_warped_residual[pointIdx_]).finished();
 }

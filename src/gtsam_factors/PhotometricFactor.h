@@ -20,11 +20,13 @@ private:
     CoarseTracker *coarseTracker_;
     int lvl_;
     int pointIdx_;
+    AffLight aff_g2l_;
+    float cutoffThreshold_;
 
 public:
     PhotometricFactor(Key j,
                       CoarseTracker *coarseTracker,
-                      int lvl, int pointIdx,
+                      int lvl, int pointIdx, AffLight aff_g2l, float cutoffTH,
                       const SharedNoiseModel& model);
 
     virtual ~PhotometricFactor() {}
