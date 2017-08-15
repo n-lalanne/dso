@@ -15,6 +15,53 @@ Vec3 FrameShell::TWB()
     return Twb.block<3,1>(0,3);
 }
 
+FrameShell::~FrameShell()
+{
+    if (imu_factor_last_frame_)
+    {
+        delete imu_factor_last_frame_;
+    }
+}
+
+void FrameShell::linearizeImuFactorLastFrame(
+        gtsam::NavState previous_navstate,
+        gtsam::NavState current_navstate,
+        gtsam::imuBias::ConstantBias previous_bias,
+        gtsam::imuBias::ConstantBias current_bias
+)
+{
+    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
+
+    if (!imu_factor_last_frame_)
+    {
+        imu_factor_last_frame_ = new CombinedImuFactor(
+                X(0), V(0),
+                X(1), V(1),
+                B(0), B(1),
+                *preint_imu
+        );
+    }
+    else
+    {
+        *imu_factor_last_frame_ = CombinedImuFactor(
+                X(0), V(0),
+                X(1), V(1),
+                B(0), B(1),
+                *preint_imu
+        );
+    }
+
+    Values initial_values;
+    initial_values.insert(X(0), previous_navstate.pose());
+    initial_values.insert(X(1), current_navstate.pose());
+    initial_values.insert(V(0), previous_navstate.velocity());
+    initial_values.insert(V(1), current_navstate.velocity());
+    initial_values.insert(B(0), previous_bias);
+    initial_values.insert(B(1), current_bias);
+
+    imu_factor_last_frame_->linearize(initial_values);
+}
+
 Vec15 FrameShell::evaluateIMUerrors(
         gtsam::NavState previous_navstate,
         gtsam::NavState current_navstate,
@@ -27,24 +74,7 @@ Vec15 FrameShell::evaluateIMUerrors(
         gtsam::Matrix &J_imu_bias_j
 )
 {
-    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
-
-    CombinedImuFactor imu_factor(X(0), V(0),
-                         X(1), V(1),
-                         B(0), B(1),
-                         *preint_imu);
-
-    Values initial_values;
-    initial_values.insert(X(0), previous_navstate.pose());
-    initial_values.insert(X(1), current_navstate.pose());
-    initial_values.insert(V(0), previous_navstate.velocity());
-    initial_values.insert(V(1), current_navstate.velocity());
-    initial_values.insert(B(0), initial_bias);
-    initial_values.insert(B(1), this->bias);
-
-    imu_factor.linearize(initial_values);
-
-    Vec15 resreturn = imu_factor.evaluateError(
+    Vec15 resreturn = imu_factor_last_frame_->evaluateError(
             previous_navstate.pose(), previous_navstate.velocity(), current_navstate.pose(), current_navstate.velocity(),
             initial_bias, this->bias,
             J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j

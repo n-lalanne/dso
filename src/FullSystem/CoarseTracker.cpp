@@ -1654,6 +1654,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	Vec6 biases_current = biases_out;
 	gtsam::NavState navstate_j_current = navstate_out;
     gtsam::NavState navstate_i_current = newFrame->shell->last_frame->navstate;
+	gtsam::NavState navstate_i_first_estimate = newFrame->shell->last_frame->navstate;
 	AffLight aff_g2l_current = aff_g2l_out;
 
 	bool haveRepeated = false;
@@ -1662,11 +1663,20 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 //	std::cout<<"lastRef->Tib: "<<lastRef->shell->navstate.pose().matrix()<<std::endl;
 //	std::cout<<"lastRef->Tib from camtoworld: "<<(lastRef->shell->camToWorld * SE3(fullSystem->getTbc()).inverse()).matrix()<<std::endl;
 
+	Mat3232 H; Vec32 b;
+	Mat1717 H17; Vec17 b17;
+
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{
 //		std::cout<<"level: "<<lvl<<std::endl;
-		Mat3232 H; Vec32 b;
-        Mat1717 H17; Vec17 b17;
+
+        // linearize the imu factor (for first estimate jacobian)
+        newFrame->shell->linearizeImuFactorLastFrame(
+                navstate_i_first_estimate,
+                navstate_j_current,
+                newFrame->shell->last_frame->bias,
+                newFrame->shell->bias
+        );
 
         H.setZero(); b.setZero();
 
@@ -1842,6 +1852,28 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	// set!
 
 //	lastToNew_out = refToNew_current;
+
+	Mat1515 Hbb;
+	Mat1517 Hbm;
+	Mat1717 Hmm;
+
+	Hmm.topLeftCorner<2, 2>() = H.block<2, 2>(6, 6);
+	Hmm.bottomRightCorner<15, 15>() = H.bottomRightCorner<15, 15>();
+	Hmm.bottomLeftCorner<15, 2>() = H.block<15, 2>(17, 6);
+	Hmm.topRightCorner<2, 15>() = Hmm.bottomLeftCorner<15, 2>().transpose();
+
+	Hbb.topLeftCorner<6, 6>() = H.topLeftCorner<6, 6>();
+	Hbb.bottomRightCorner<9, 9>()= H.block<9, 9>(8, 8);
+	Hbb.bottomLeftCorner<9, 6>() = H.block<9, 6>(8, 0);
+	Hbb.bottomRightCorner<6, 9>() = Hbb.bottomLeftCorner<9, 6>().transpose();
+
+	Hbm.topLeftCorner<6, 2>() = H.block<6, 2>(0, 6);
+	Hbm.bottomLeftCorner<9, 2>() = H.block<9, 2>(8, 6);
+	Hbm.topRightCorner<6, 15>() = H.block<6, 15>(17, 0);
+	Hbm.bottomRightCorner<9, 15>() = H.block<9, 15>(8, 17);
+
+	fullSystem->Hprior = Hbb - Hbm * Hmm.inverse() * Hbm.transpose();
+
 	navstate_out = navstate_j_current;
 	aff_g2l_out = aff_g2l_current;
 	biases_out = biases_current;

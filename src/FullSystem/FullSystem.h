@@ -349,7 +349,7 @@ public:
 	}
 
     bool isIMUinitialized() { return IMUinitialized;}
-
+	Mat1515 Hprior;
 };
 }
 

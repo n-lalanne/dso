@@ -74,6 +74,8 @@ public:
 	PreintegrationType *imu_preintegrated_last_frame_;
 	PreintegrationType *imu_preintegrated_last_kf_;
 
+    CombinedImuFactor *imu_factor_last_frame_;
+
 	// Predicted pose/biases ;
 	gtsam::NavState navstate;
 
@@ -116,8 +118,11 @@ public:
 
         imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
 		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
+        imu_factor_last_frame_ = NULL;
 
 	}
+
+    ~FrameShell();
 
 	//==========================================IMU related methods==================================================
 	/**
@@ -127,6 +132,18 @@ public:
     gtsam::NavState PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp);
 
 	Mat1515 getIMUcovariance();
+
+    /**
+     *
+     * @brief linearizes the imu_factor at the given linearization point
+     */
+    void linearizeImuFactorLastFrame(
+            gtsam::NavState previous_navstate,
+            gtsam::NavState current_navstate,
+            gtsam::imuBias::ConstantBias previous_bias,
+            gtsam::imuBias::ConstantBias current_bias
+    );
+
 	/**
 	 *
 	 * @param J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias: output jacobians
@@ -144,7 +161,7 @@ public:
             gtsam::Matrix &J_imu_bias_j
 	);
 
-	/**
+    /**
 	 *
 	 * @param mvIMUSinceLastKF
 	 * @param lastTimestamp timestamp of the last frame from which we want the IMU factor to be (for interpolation)
