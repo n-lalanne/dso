@@ -80,6 +80,8 @@ namespace dso
 int pyrLevelsUsed = PYR_LEVELS;
 
 
+float setting_priorFactorWeight = 0.4;
+
 /* Parameters controlling when KF's are taken */
 float setting_keyframesPerSecond = 0;   // if !=0, takes a fixed number of KF per second.
 bool setting_realTimeMaxKF = false;   // if true, takes as many KF's as possible (will break the system if the camera stays stationary)

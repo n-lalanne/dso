@@ -350,6 +350,8 @@ public:
 
     bool isIMUinitialized() { return IMUinitialized;}
 	Mat1515 Hprior;
+	Vec15 bprior;
+	gtsam::NavState navstatePrior;
 };
 }
 

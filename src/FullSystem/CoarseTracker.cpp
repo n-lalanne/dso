@@ -37,6 +37,7 @@
 #include "IOWrapper/ImageRW.h"
 #include <algorithm>
 #include <boost/tuple/tuple.hpp>
+#include <opencv2/core/eigen.hpp>
 #include <GroundTruthIterator/GroundTruthIterator.h>
 
 
@@ -303,11 +304,11 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 }
 
 // order of states: t_j, R_j, a_j, b_j, v_j, ba_j, bg_j, t_i, R_i, v_i, ba_i, bg_i
-void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, const gtsam::NavState navState_, AffLight aff_g2l)
+void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, const gtsam::NavState navState_previous, const gtsam::NavState navState_current, AffLight aff_g2l)
 {
 	acc.initialize();
 	int n = buf_warped_n;
-	SE3 Tib(navState_.pose().matrix());
+	SE3 Tib(navState_current.pose().matrix());
 	SE3 Tw_reffromNAV = SE3(lastRef->shell->navstate.pose().matrix()) * imutocam().inverse();
 	SE3 Tw_ref = lastRef->shell->camToWorld;
 	Mat33 Rcb = imutocam().rotationMatrix();
@@ -315,7 +316,7 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 
 	// refToNew for debug
 	SE3 refToNew = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
-			(navState_.pose().inverse() * lastRef->shell->navstate.pose()).matrix()
+			(navState_current.pose().inverse() * lastRef->shell->navstate.pose()).matrix()
 	));
 
 	for(int i=0;i<n;i++)
@@ -392,6 +393,18 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     H_out += J_imu_complete.transpose() * information_imu * J_imu_complete;
     b_out += J_imu_complete.transpose() * information_imu * res_imu;
 
+	// ----------- Prior factor ----------- //
+	Mat1515 prior_information = setting_priorFactorWeight * fullSystem->Hprior;
+	Mat1515 H_prior = J_prior.transpose() * prior_information * J_prior;
+	Vec15 b_prior = J_prior.transpose() * prior_information * res_prior;
+
+	H_out.bottomLeftCorner<15, 15>() +=  H_prior;
+	b_out.tail(15) += b_prior;
+
+	std::cout	<< "H_prior: \n" << H_prior << std::endl
+				<< "b_prior: " << b_prior.transpose() << std::endl
+				<< "prior infomation: " << prior_information.diagonal().transpose() << std::endl;
+
     // ------------------ ignore the cross terms in hessian between i and jth poses ------------------
 //    H_previous.noalias() = J_imu_travb_previous.transpose() * information_imu * J_imu_travb_previous;
 //    b_previous.noalias() = J_imu_travb_previous.transpose() * information_imu * res_imu;
@@ -404,6 +417,9 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 //
 //    b_out.head<17> += b_current;
 //    b_out.tail<15> += b_previous;
+
+    H_unscaled = H_out;
+    b_unscaled = b_out;
 
     H_out.block<32,3>(0,0) *= SCALE_XI_ROT;
     H_out.block<32,3>(0,3) *= SCALE_XI_TRANS;
@@ -590,6 +606,9 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 
 	std::cout << "before rescale: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
 	std::cout << "before rescale: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+
+    H_unscaled.topLeftCorner<17, 17>() = H_out;
+    b_unscaled.head(17) = b_out;
 
 	H_out.block<17,3>(0,0) *= SCALE_XI_ROT;
 	H_out.block<17,3>(0,3) *= SCALE_XI_TRANS;
@@ -1358,8 +1377,65 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
         information_imu *= hw_imu;
     }
 
+	// -------------------------------------------------- Prior factor -------------------------------------------------- //
+	res_prior.setZero();
 
+	gtsam::Matrix3 D_dR_R, D_dt_R, D_dv_R;
+	const Rot3 dR = previous_navstate.pose().rotation().between(
+		fullSystem->navstatePrior.pose().rotation(),
+		&D_dR_R
+	);
+	gtsam::Point3 dt = previous_navstate.pose().rotation().unrotate(
+			previous_navstate.pose().translation() - fullSystem->navstatePrior.pose().translation(),
+			&D_dt_R
+	);
+	gtsam::Vector dv = previous_navstate.pose().rotation().unrotate(
+			previous_navstate.velocity() - fullSystem->navstatePrior.velocity(),
+			&D_dv_R
+	);
+
+	gtsam::Vector9 xi;
+	gtsam::Matrix3 D_xi_R;
+
+	res_prior.head(3) = dt.vector();
+	res_prior.segment<3>(3) = gtsam::Rot3::Logmap(dR, &D_xi_R);
+	res_prior.segment<3>(6) = dv;
+
+	J_prior.setZero();
+	// diagonals
+	J_prior.topLeftCorner<3, 3>() = -Mat33::Identity();
+	J_prior.block<3, 3>(3, 3) = D_xi_R * D_dR_R;
+	J_prior.block<3, 3>(6, 6) = -Mat33::Identity();
+	// off-diagonals
+	// t, R
+	J_prior.block<3, 3>(0, 3) = D_dt_R;
+	// v, R
+	J_prior.block<3, 3>(6, 3) = D_dv_R;
+
+	// Separate out derivatives
+	// Note that doing so requires special treatment of velocities, as when treated as
+	// separate variables the retract applied will not be the semi-direct product in NavState
+	// Instead, the velocities in nav are updated using a straight addition
+	// This is difference is accounted for by the R().transpose calls below
+	J_prior.rightCols<3>().noalias() = J_prior.rightCols<3>() * previous_navstate.R();
+	// TODO: bias error
+
+	double priorEnergy = res_prior.transpose() * fullSystem->Hprior * res_prior;
+	// TODO: make threshold a setting
+	float prior_huberTH = 21.666;
+	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
+	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
+	if (priorEnergy > prior_huberTH)
+	{
+		float hw_res = fabs(priorEnergy) < prior_huberTH ? 1 : prior_huberTH / fabs(priorEnergy);
+		IMUenergy = hw_res * priorEnergy * (2 - hw_res);
+		fullSystem->Hprior *= hw_res;
+	}
+
+	std::cout << "Res prior: " << res_prior.head(9).transpose() << std::endl;
+	std::cout << "Energy prior: " << priorEnergy << std::endl;
 //	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
+	// -------------------------------------------------- Prior factor -------------------------------------------------- //
 
 	//std::cout<<"Unnormaliezd E is :"<<E << std::endl;
 	E/=numTermsInE;
@@ -1666,6 +1742,9 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	Mat3232 H; Vec32 b;
 	Mat1717 H17; Vec17 b17;
 
+    // optimize only one pose if we the last frame is the last keyframe (map recently updated)
+    bool isOptimizeSingle = lastRef->shell == newFrameHessian->shell->last_frame;
+
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{
 //		std::cout<<"level: "<<lvl<<std::endl;
@@ -1695,10 +1774,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
 		}
 
-        // optimize only one pose if we the last frame is the last keyframe (map recently updated)
-        bool isOptimizeSingle = lastRef->shell == newFrameHessian->shell->last_frame;
-
-		//std::cout<<"resOld is: "<<resOld<<std::endl;
+        //std::cout<<"resOld is: "<<resOld<<std::endl;
         if (isOptimizeSingle)
         {
             calcGSSSESingleIMU(lvl, H17, b17, navstate_j_current, aff_g2l_current);
@@ -1707,7 +1783,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
         }
         else
         {
-            calcGSSSEDoubleIMU(lvl, H, b, navstate_j_current, aff_g2l_current);
+            calcGSSSEDoubleIMU(lvl, H, b, navstate_i_current, navstate_j_current, aff_g2l_current);
         }
 
 		float lambda = 0.01;
@@ -1806,7 +1882,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
                 }
                 else
                 {
-                    calcGSSSEDoubleIMU(lvl, H, b, navstate_j_current, aff_g2l_current);
+                    calcGSSSEDoubleIMU(lvl, H, b, navstate_i_current, navstate_j_current, aff_g2l_current);
                 }
 
 				resOld = resNew;
@@ -1857,22 +1933,65 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	Mat1517 Hbm;
 	Mat1717 Hmm;
 
-	Hmm.topLeftCorner<2, 2>() = H.block<2, 2>(6, 6);
-	Hmm.bottomRightCorner<15, 15>() = H.bottomRightCorner<15, 15>();
-	Hmm.bottomLeftCorner<15, 2>() = H.block<15, 2>(17, 6);
+    Vec15 bb;
+    Vec17 bm;
+
+	Hmm.topLeftCorner<2, 2>() = H_unscaled.block<2, 2>(6, 6);
+	Hmm.bottomRightCorner<15, 15>() = H_unscaled.bottomRightCorner<15, 15>();
+	Hmm.bottomLeftCorner<15, 2>() = H_unscaled.block<15, 2>(17, 6);
 	Hmm.topRightCorner<2, 15>() = Hmm.bottomLeftCorner<15, 2>().transpose();
 
-	Hbb.topLeftCorner<6, 6>() = H.topLeftCorner<6, 6>();
-	Hbb.bottomRightCorner<9, 9>()= H.block<9, 9>(8, 8);
-	Hbb.bottomLeftCorner<9, 6>() = H.block<9, 6>(8, 0);
+	Hbb.topLeftCorner<6, 6>() = H_unscaled.topLeftCorner<6, 6>();
+	Hbb.bottomRightCorner<9, 9>()= H_unscaled.block<9, 9>(8, 8);
+	Hbb.bottomLeftCorner<9, 6>() = H_unscaled.block<9, 6>(8, 0);
 	Hbb.bottomRightCorner<6, 9>() = Hbb.bottomLeftCorner<9, 6>().transpose();
 
-	Hbm.topLeftCorner<6, 2>() = H.block<6, 2>(0, 6);
-	Hbm.bottomLeftCorner<9, 2>() = H.block<9, 2>(8, 6);
-	Hbm.topRightCorner<6, 15>() = H.block<6, 15>(17, 0);
-	Hbm.bottomRightCorner<9, 15>() = H.block<9, 15>(8, 17);
+	Hbm.topLeftCorner<6, 2>() = H_unscaled.block<6, 2>(0, 6);
+	Hbm.bottomLeftCorner<9, 2>() = H_unscaled.block<9, 2>(8, 6);
+	Hbm.topRightCorner<6, 15>() = H_unscaled.block<6, 15>(17, 0);
+	Hbm.bottomRightCorner<9, 15>() = H_unscaled.block<9, 15>(8, 17);
 
-	fullSystem->Hprior = Hbb - Hbm * Hmm.inverse() * Hbm.transpose();
+    bm.head(2) = b_unscaled.segment<2>(6);
+    bm.tail(15) = b_unscaled.tail(15);
+
+    bb.head(6) = b_unscaled.head(6);
+    bb.tail(9) = b_unscaled.segment<9>(8);
+
+    if (isOptimizeSingle)
+    {
+		cv::Mat Hmm_cv(2, 2, CV_64F), Hmm_cv_inv(2, 2, CV_64F);
+		Mat22 Hmm_relevant = Hmm.topLeftCorner(2, 2);
+		cv::eigen2cv(Hmm_relevant, Hmm_cv);
+		// pseudo-inverse
+		cv::invert(Hmm_cv, Hmm_cv_inv, cv::DECOMP_SVD);
+
+		Mat22 Hmm_inv;
+		cv::cv2eigen(Hmm_cv_inv, Hmm_inv);
+
+        fullSystem->Hprior = Hbb - Hbm.leftCols(2) * Hmm_inv * Hbm.leftCols(2).transpose();
+        fullSystem->bprior = bb - Hbm.leftCols(2) * Hmm_inv * bm.head(2);
+    }
+    else
+    {
+//        fullSystem->Hprior = Hbb - Hbm * Hmm.inverse() * Hbm.transpose();
+//        fullSystem->bprior = bb - Hbm * Hmm.inverse() * bm;
+
+		// ignore the affine parameters
+		cv::Mat Hmm_cv(15, 15, CV_64F), Hmm_cv_inv(15, 15, CV_64F);
+		Mat1515 Hmm_relevant = Hmm.bottomRightCorner<15, 15>();
+		cv::eigen2cv(Hmm_relevant, Hmm_cv);
+		// pseudo-inverse
+		cv::invert(Hmm_cv, Hmm_cv_inv, cv::DECOMP_SVD);
+
+		Mat1515 Hmm_inv;
+		cv::cv2eigen(Hmm_cv_inv, Hmm_inv);
+		fullSystem->Hprior = Hbb - Hbm.rightCols(15) * Hmm_inv * Hbm.rightCols(15).transpose();
+		fullSystem->bprior = bb - Hbm.rightCols(15) * Hmm_inv * bm.tail(15);
+    }
+	fullSystem->navstatePrior = navstate_j_current;
+
+	std::cout << "Prior H: \n" << fullSystem->Hprior << std::endl
+			  << "Prior b: " << fullSystem->bprior.transpose() << std::endl;
 
 	navstate_out = navstate_j_current;
 	aff_g2l_out = aff_g2l_current;
@@ -1891,7 +2010,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 
 
-//	std::cout<<" IMU version: affine a: "<< aff_g2l_out.a << "affine b: "<< aff_g2l_out.b<<std::endl;
+//	std::cout<<" IMU version: affine a: "<< aff_g2l_out.a << "affine b_unscaled: "<< aff_g2l_out.b<<std::endl;
 //	std::cout<<" NAVSTATE: \n" << navstate_current.pose().matrix()<<std::endl;
 //	std::cout<<" after affine a: " << aff_g2l_out.a << "affine b: "<< aff_g2l_out.b<<std::endl;
 //	std::cout<< "\npreToworld:=\n "<<newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
