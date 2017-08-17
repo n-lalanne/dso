@@ -1024,23 +1024,23 @@ Vec15 CoarseTracker::calcPriorRes(gtsam::NavState previous_navstate, gtsam::NavS
 	res_prior.segment<3>(3) = gtsam::Rot3::Logmap(dR, &D_xi_R);
 	res_prior.segment<3>(6) = dv;
 
-	J_prior.setZero();
+    // Separate out derivatives
+    // Note that doing so requires special treatment of velocities, as when treated as
+    // separate variables the retract applied will not be the semi-direct product in NavState
+    // Instead, the velocities in nav are updated using a straight addition
+    // This is difference is accounted for by the R().transpose calls below
+
+    J_prior.setZero();
 	// diagonals
 	J_prior.topLeftCorner<3, 3>() = -Mat33::Identity();
 	J_prior.block<3, 3>(3, 3) = D_xi_R * D_dR_R;
-	J_prior.block<3, 3>(6, 6) = -Mat33::Identity();
+	J_prior.block<3, 3>(6, 6) = -previous_navstate.R().transpose();
 	// off-diagonals
 	// t, R
 	J_prior.block<3, 3>(0, 3) = D_dt_R;
 	// v, R
 	J_prior.block<3, 3>(6, 3) = D_dv_R;
 
-	// Separate out derivatives
-	// Note that doing so requires special treatment of velocities, as when treated as
-	// separate variables the retract applied will not be the semi-direct product in NavState
-	// Instead, the velocities in nav are updated using a straight addition
-	// This is difference is accounted for by the R().transpose calls below
-	J_prior.rightCols<3>().noalias() = J_prior.rightCols<3>() * previous_navstate.R().transpose();
 	// TODO: bias error
 
 	information_prior = fullSystem->Hprior.diagonal().asDiagonal();
