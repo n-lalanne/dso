@@ -370,6 +370,8 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>()  * (1.0f/n);
 	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
 
+
+
     Mat1515 H_previous;
     Vec15 b_previous;
     Mat1515 J_imu_travb_previous;
@@ -389,21 +391,30 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     Mat1532 J_imu_complete;
     J_imu_complete.leftCols(17) = J_imu_travb_current;
     J_imu_complete.rightCols(15) = J_imu_travb_previous;
+	std::cout<<"H_photometric of current pose:\n"<<H_out.block<8,8>(0,0)<<std::endl;
+	std::cout<<"H_imu of pervious pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).bottomRightCorner<15, 15>()<<std::endl;
 
     H_out += J_imu_complete.transpose() * information_imu * J_imu_complete;
     b_out += J_imu_complete.transpose() * information_imu * res_imu;
 
 	// ----------- Prior factor ----------- //
-	Mat1515 prior_information = setting_priorFactorWeight * fullSystem->Hprior;
-	Mat1515 H_prior = J_prior.transpose() * prior_information * J_prior;
-	Vec15 b_prior = J_prior.transpose() * prior_information * res_prior;
+	Mat1515 H_prior = J_prior.transpose() * information_prior * J_prior;
+	Vec15 b_prior = J_prior.transpose() * information_prior * res_prior;
 
-	H_out.bottomLeftCorner<15, 15>() +=  H_prior;
+
+	// Becareful!! the block for pervious pose still contains affine a and b!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	std::cout<<"H_imu+photometric of pervious pose:\n"<<H_out.bottomRightCorner<15, 15>()<<std::endl;
+	H_out.bottomRightCorner<15, 15>() +=  H_prior;
 	b_out.tail(15) += b_prior;
+
+
+
 
 	std::cout	<< "H_prior: \n" << H_prior << std::endl
 				<< "b_prior: " << b_prior.transpose() << std::endl
-				<< "prior infomation: " << prior_information.diagonal().transpose() << std::endl;
+				<< "prior infomation: " << information_prior.diagonal().transpose() << std::endl;
+
+	std::cout<<"H_imu+photometric+prior of pervious pose:\n"<<H_out.bottomRightCorner<15, 15>()<<std::endl;
 
     // ------------------ ignore the cross terms in hessian between i and jth poses ------------------
 //    H_previous.noalias() = J_imu_travb_previous.transpose() * information_imu * J_imu_travb_previous;
@@ -988,6 +999,58 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState previous_navstate, gtsam::NavSta
 	return res_imu;
 }
 
+Vec15 CoarseTracker::calcPriorRes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate)
+{
+	res_prior.setZero();
+
+	gtsam::Matrix3 D_dR_R, D_dt_R, D_dv_R;
+	const Rot3 dR = previous_navstate.pose().rotation().between(
+			fullSystem->navstatePrior.pose().rotation(),
+			&D_dR_R
+	);
+	gtsam::Point3 dt = previous_navstate.pose().rotation().unrotate(
+			fullSystem->navstatePrior.pose().translation() - previous_navstate.pose().translation(),
+			&D_dt_R
+	);
+	gtsam::Vector dv = previous_navstate.pose().rotation().unrotate(
+			fullSystem->navstatePrior.velocity() - previous_navstate.velocity(),
+			&D_dv_R
+	);
+
+	gtsam::Vector9 xi;
+	gtsam::Matrix3 D_xi_R;
+
+	res_prior.head(3) = dt.vector();
+	res_prior.segment<3>(3) = gtsam::Rot3::Logmap(dR, &D_xi_R);
+	res_prior.segment<3>(6) = dv;
+
+	J_prior.setZero();
+	// diagonals
+	J_prior.topLeftCorner<3, 3>() = -Mat33::Identity();
+	J_prior.block<3, 3>(3, 3) = D_xi_R * D_dR_R;
+	J_prior.block<3, 3>(6, 6) = -Mat33::Identity();
+	// off-diagonals
+	// t, R
+	J_prior.block<3, 3>(0, 3) = D_dt_R;
+	// v, R
+	J_prior.block<3, 3>(6, 3) = D_dv_R;
+
+	// Separate out derivatives
+	// Note that doing so requires special treatment of velocities, as when treated as
+	// separate variables the retract applied will not be the semi-direct product in NavState
+	// Instead, the velocities in nav are updated using a straight addition
+	// This is difference is accounted for by the R().transpose calls below
+	J_prior.rightCols<3>().noalias() = J_prior.rightCols<3>() * previous_navstate.R().transpose();
+	// TODO: bias error
+
+	information_prior = fullSystem->Hprior.diagonal().asDiagonal();
+	// more reduction for R ant t
+	information_prior.topLeftCorner<6, 6>() = setting_priorFactorWeight * information_prior.topLeftCorner<6, 6>();
+	information_prior.block<3, 3>(0, 3) = setting_priorFactorWeight * information_prior.block<3, 3>(0, 3);
+	information_prior.block<3, 3>(3, 0) = setting_priorFactorWeight * information_prior.block<3, 3>(3, 0);
+
+	return res_prior;
+}
 
 
 Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToNew, AffLight aff_g2l, float cutoffTH)
@@ -1332,7 +1395,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 			buf_warped_dx[numTermsInWarped] = hitColor[1];
 			buf_warped_dy[numTermsInWarped] = hitColor[2];
 			buf_warped_residual[numTermsInWarped] = residual;
-			buf_warped_weight[numTermsInWarped] = hw;
+			buf_warped_weight[numTermsInWarped] = hw * setting_visionFactorWeight;
 			buf_warped_refColor[numTermsInWarped] = lpc_color[i];
 			numTermsInWarped++;
 		}
@@ -1367,7 +1430,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 	std::cout << "imu_error: " << imu_error.transpose() << std::endl;
     // TODO: make threshold a setting
-	float imu_huberTH = 21.666;
+	float imu_huberTH = 21.66;
 	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
 	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
     if (IMUenergy > imu_huberTH)
@@ -1378,58 +1441,18 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
     }
 
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
-	res_prior.setZero();
+	res_prior = calcPriorRes(previous_navstate, current_navstate);
 
-	gtsam::Matrix3 D_dR_R, D_dt_R, D_dv_R;
-	const Rot3 dR = previous_navstate.pose().rotation().between(
-		fullSystem->navstatePrior.pose().rotation(),
-		&D_dR_R
-	);
-	gtsam::Point3 dt = previous_navstate.pose().rotation().unrotate(
-			previous_navstate.pose().translation() - fullSystem->navstatePrior.pose().translation(),
-			&D_dt_R
-	);
-	gtsam::Vector dv = previous_navstate.pose().rotation().unrotate(
-			previous_navstate.velocity() - fullSystem->navstatePrior.velocity(),
-			&D_dv_R
-	);
-
-	gtsam::Vector9 xi;
-	gtsam::Matrix3 D_xi_R;
-
-	res_prior.head(3) = dt.vector();
-	res_prior.segment<3>(3) = gtsam::Rot3::Logmap(dR, &D_xi_R);
-	res_prior.segment<3>(6) = dv;
-
-	J_prior.setZero();
-	// diagonals
-	J_prior.topLeftCorner<3, 3>() = -Mat33::Identity();
-	J_prior.block<3, 3>(3, 3) = D_xi_R * D_dR_R;
-	J_prior.block<3, 3>(6, 6) = -Mat33::Identity();
-	// off-diagonals
-	// t, R
-	J_prior.block<3, 3>(0, 3) = D_dt_R;
-	// v, R
-	J_prior.block<3, 3>(6, 3) = D_dv_R;
-
-	// Separate out derivatives
-	// Note that doing so requires special treatment of velocities, as when treated as
-	// separate variables the retract applied will not be the semi-direct product in NavState
-	// Instead, the velocities in nav are updated using a straight addition
-	// This is difference is accounted for by the R().transpose calls below
-	J_prior.rightCols<3>().noalias() = J_prior.rightCols<3>() * previous_navstate.R();
-	// TODO: bias error
-
-	double priorEnergy = res_prior.transpose() * fullSystem->Hprior * res_prior;
+	double priorEnergy = res_prior.transpose() * information_prior * res_prior;
 	// TODO: make threshold a setting
-	float prior_huberTH = 21.666;
+	float prior_huberTH = 10;
 	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
 	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
 	if (priorEnergy > prior_huberTH)
 	{
 		float hw_res = fabs(priorEnergy) < prior_huberTH ? 1 : prior_huberTH / fabs(priorEnergy);
-		IMUenergy = hw_res * priorEnergy * (2 - hw_res);
-		fullSystem->Hprior *= hw_res;
+		priorEnergy = hw_res * priorEnergy * (2 - hw_res);
+		information_prior *= hw_res;
 	}
 
 	std::cout << "Res prior: " << res_prior.head(9).transpose() << std::endl;
@@ -1447,7 +1470,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	//std::cout<<"number of points:"<<numTermsInE<<std::endl;
 	std::cout<<"E vs IMU_error is :"<<E <<" "<<IMUenergy<< " " << lvl << std::endl;
     std::cout<<"----------------------------------------------------------------"<<std::endl;
-	E += IMUenergy;
+	E += IMUenergy + priorEnergy;
 //=============================================================================================================
 	if(debugPlot)
 	{

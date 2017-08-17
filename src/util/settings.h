@@ -75,6 +75,7 @@ namespace dso
 extern int pyrLevelsUsed;
 
 extern float setting_priorFactorWeight;
+extern float setting_visionFactorWeight;
 
 extern float setting_keyframesPerSecond;
 extern bool setting_realTimeMaxKF;

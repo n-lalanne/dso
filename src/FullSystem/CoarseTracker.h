@@ -122,6 +122,7 @@ private:
 
     // for imu errors
     Vec15 calcIMURes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate, Vec6 bias);
+	Vec15 calcPriorRes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate);
     gtsam::Matrix  J_imu_Rt, J_imu_bias, J_imu_v;
     gtsam::Matrix  J_imu_Rt_previous, J_imu_bias_previous, J_imu_v_previous;
 	Mat1515 J_prior;
@@ -129,6 +130,7 @@ private:
     Vec15 res_imu;
 	Vec15 res_prior;
     Mat1515 information_imu;
+	Mat1515 information_prior;
 
 	Mat3232 H_unscaled;
 	Vec32 b_unscaled;
