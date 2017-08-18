@@ -36,6 +36,7 @@
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 #include "IOWrapper/ImageRW.h"
 #include <algorithm>
+#include <cmath>
 #include <boost/tuple/tuple.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <GroundTruthIterator/GroundTruthIterator.h>
@@ -392,7 +393,7 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     J_imu_complete.leftCols(17) = J_imu_travb_current;
     J_imu_complete.rightCols(15) = J_imu_travb_previous;
 	std::cout<<"H_photometric of current pose:\n"<<H_out.block<8,8>(0,0)<<std::endl;
-	std::cout<<"H_imu of pervious pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).bottomRightCorner<15, 15>()<<std::endl;
+	std::cout<<"H_imu of pervious pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<9, 9>(17,17)<<std::endl;
 
     H_out += J_imu_complete.transpose() * information_imu * J_imu_complete;
     b_out += J_imu_complete.transpose() * information_imu * res_imu;
@@ -403,18 +404,18 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 
 
 	// Becareful!! the block for pervious pose still contains affine a and b!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	std::cout<<"H_imu+photometric of pervious pose:\n"<<H_out.bottomRightCorner<15, 15>()<<std::endl;
+	std::cout<<"H_imu+photometric of pervious pose:\n"<<H_out.block<9, 9>(17,17)<<std::endl;
 	H_out.bottomRightCorner<15, 15>() +=  H_prior;
 	b_out.tail(15) += b_prior;
 
 
 
 
-	std::cout	<< "H_prior: \n" << H_prior << std::endl
-				<< "b_prior: " << b_prior.transpose() << std::endl
-				<< "prior infomation: " << information_prior.diagonal().transpose() << std::endl;
+	std::cout	<< "H_prior: \n" << H_prior.topLeftCorner<9, 9>() << std::endl
+				<< "b_prior: " << b_prior.head(9).transpose() << std::endl
+				<< "prior infomation: " << information_prior.diagonal().head(9).transpose() << std::endl;
 
-	std::cout<<"H_imu+photometric+prior of pervious pose:\n"<<H_out.bottomRightCorner<15, 15>()<<std::endl;
+	std::cout<<"H_imu+photometric+prior of pervious pose:\n"<<H_out.block<9, 9>(17,17)<<std::endl;
 
     // ------------------ ignore the cross terms in hessian between i and jth poses ------------------
 //    H_previous.noalias() = J_imu_travb_previous.transpose() * information_imu * J_imu_travb_previous;
@@ -1043,7 +1044,7 @@ Vec15 CoarseTracker::calcPriorRes(gtsam::NavState previous_navstate, gtsam::NavS
 
 	// TODO: bias error
 
-	information_prior = fullSystem->Hprior.diagonal().asDiagonal();
+	information_prior = fullSystem->Hprior; // .diagonal().asDiagonal();
 	// more reduction for R ant t
 	information_prior.topLeftCorner<6, 6>() = setting_priorFactorWeight * information_prior.topLeftCorner<6, 6>();
 	information_prior.block<3, 3>(0, 3) = setting_priorFactorWeight * information_prior.block<3, 3>(0, 3);
@@ -1383,7 +1384,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 			if(debugPlot) resImage->setPixel4(lpc_u[i], lpc_v[i], Vec3b(residual+128,residual+128,residual+128));
 			// information matrix (weight) based on pyramid level
 			//residual * =lvl_info;
-			E += (hw *residual*residual*(2-hw)) ;
+			E += (setting_visionFactorWeight * hw * residual * residual * (2-hw)) ;
 			numTermsInE++;
 			buf_warped_rx[numTermsInWarped] = pr(0);
 			buf_warped_ry[numTermsInWarped] = pr(1);
@@ -1433,6 +1434,12 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	float imu_huberTH = 21.66;
 	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
 	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
+
+	if(fabs(imu_error(8))>1.0&&fabs(imu_error(7))>1.0&&fabs(imu_error(6))>1.0){
+		std::cout<<" wrong imu_error!!!!"<<std::endl;
+//		exit(0);
+	}
+
     if (IMUenergy > imu_huberTH)
     {
         float hw_imu = fabs(IMUenergy) < imu_huberTH ? 1 : imu_huberTH / fabs(IMUenergy);
@@ -1440,14 +1447,21 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
         information_imu *= hw_imu;
     }
 
+	if (!std::isfinite(IMUenergy))
+	{
+		IMUenergy = 0;
+		information_imu.setZero();
+		std::cout << "undefined imu energy" << std::endl;
+	}
+
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
 	res_prior = calcPriorRes(previous_navstate, current_navstate);
 
 	double priorEnergy = res_prior.transpose() * information_prior * res_prior;
 	// TODO: make threshold a setting
 	float prior_huberTH = 10;
-	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
-	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
+	std::cout<<"priorEnergy(uncut): "<<priorEnergy<<std::endl;
+	std::cout<<"information_prior:(uncut)"<<information_prior.diagonal().transpose()<<std::endl;
 	if (priorEnergy > prior_huberTH)
 	{
 		float hw_res = fabs(priorEnergy) < prior_huberTH ? 1 : prior_huberTH / fabs(priorEnergy);
@@ -1455,7 +1469,18 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 		information_prior *= hw_res;
 	}
 
+	if (!std::isfinite(priorEnergy))
+	{
+		priorEnergy = 0;
+		information_prior.setZero();
+		std::cout << "undefined prior energy" << std::endl;
+	}
+
 	std::cout << "Res prior: " << res_prior.head(9).transpose() << std::endl;
+	if(fabs(res_prior(8))>1.0&&fabs(res_prior(7))>1.0&&fabs(res_prior(6))>1.0){
+		std::cout<<" wrong res_prior!!!!"<<std::endl;
+//		exit(0);
+	}
 	std::cout << "Energy prior: " << priorEnergy << std::endl;
 //	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
@@ -1819,11 +1844,21 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
             if (isOptimizeSingle)
             {
-                inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
+				// remove the bias blocks
+				inc.head<11>() = Hl.topLeftCorner<11, 11>().ldlt().solve(-b.head<11>());
+//                inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
             }
             else
             {
-                inc = Hl.ldlt().solve(-b);
+				// remove the bias blocks
+				Eigen::Matrix<double, 20, 20> H_no_bias;
+				// diagonals
+				H_no_bias.topLeftCorner<11, 11>() = H.topLeftCorner<11, 11>();
+				H_no_bias.block<9, 9>(11, 11) = H.block<9, 9>(17, 17);
+				// off-diagonals
+				H_no_bias.topRightCorner<11, 9>() = 
+
+//                inc = Hl.ldlt().solve(-b);
             }
 
             float extrapFac = 1;
@@ -1980,6 +2015,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
     bb.head(6) = b_unscaled.head(6);
     bb.tail(9) = b_unscaled.segment<9>(8);
 
+	fullSystem->Hprior.setZero();
+	fullSystem->bprior.setZero();
     if (isOptimizeSingle)
     {
 		cv::Mat Hmm_cv(2, 2, CV_64F), Hmm_cv_inv(2, 2, CV_64F);
@@ -1991,8 +2028,15 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		Mat22 Hmm_inv;
 		cv::cv2eigen(Hmm_cv_inv, Hmm_inv);
 
-        fullSystem->Hprior = Hbb - Hbm.leftCols(2) * Hmm_inv * Hbm.leftCols(2).transpose();
-        fullSystem->bprior = bb - Hbm.leftCols(2) * Hmm_inv * bm.head(2);
+		// exclude bias from computation
+		Mat99 Hbb_no_bias = Hbb.topLeftCorner<9, 9>();
+		Eigen::Matrix<double, 9, 11> Hbm_no_bias = Hbm.topLeftCorner<9, 11>();
+
+		fullSystem->Hprior.topLeftCorner(9, 9) = Hbb_no_bias - Hbm_no_bias.leftCols(2) * Hmm_inv * Hbm_no_bias.leftCols(2).transpose();
+		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias.leftCols(2) * Hmm_inv * bm.head(2);
+
+//        fullSystem->Hprior = Hbb - Hbm.leftCols(2) * Hmm_inv * Hbm.leftCols(2).transpose();
+//        fullSystem->bprior = bb - Hbm.leftCols(2) * Hmm_inv * bm.head(2);
     }
     else
     {
@@ -2008,8 +2052,16 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 		Mat1515 Hmm_inv;
 		cv::cv2eigen(Hmm_cv_inv, Hmm_inv);
-		fullSystem->Hprior = Hbb - Hbm.rightCols(15) * Hmm_inv * Hbm.rightCols(15).transpose();
-		fullSystem->bprior = bb - Hbm.rightCols(15) * Hmm_inv * bm.tail(15);
+
+		// exclude bias from computation
+		Mat99 Hbb_no_bias = Hbb.topLeftCorner<9, 9>();
+		Eigen::Matrix<double, 9, 11> Hbm_no_bias = Hbm.topLeftCorner<9, 11>();
+
+		fullSystem->Hprior.topLeftCorner(9, 9) = Hbb_no_bias - Hbm_no_bias.rightCols(9) * Hmm_inv * Hbm_no_bias.rightCols(9).transpose();
+		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias.rightCols(9) * Hmm_inv * bm.tail(9);
+
+//		fullSystem->Hprior = Hbb - Hbm.rightCols(15) * Hmm_inv * Hbm.rightCols(15).transpose();
+//		fullSystem->bprior = bb - Hbm.rightCols(15) * Hmm_inv * bm.tail(15);
     }
 	fullSystem->navstatePrior = navstate_j_current;
 
