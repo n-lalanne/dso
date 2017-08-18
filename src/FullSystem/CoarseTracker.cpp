@@ -408,8 +408,7 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 	H_out.bottomRightCorner<15, 15>() +=  H_prior;
 	b_out.tail(15) += b_prior;
 
-
-
+	std::cout << "J_prior: \n" << J_prior << std::endl;
 
 	std::cout	<< "H_prior: \n" << H_prior.topLeftCorner<9, 9>() << std::endl
 				<< "b_prior: " << b_prior.head(9).transpose() << std::endl
@@ -1435,7 +1434,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
 	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
 
-	if(fabs(imu_error(8))>1.0&&fabs(imu_error(7))>1.0&&fabs(imu_error(6))>1.0){
+	if(fabs(imu_error(8))>0.5&&fabs(imu_error(7))>0.5&&fabs(imu_error(6))>0.5){
 		std::cout<<" wrong imu_error!!!!"<<std::endl;
 //		exit(0);
 	}
@@ -1477,7 +1476,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	}
 
 	std::cout << "Res prior: " << res_prior.head(9).transpose() << std::endl;
-	if(fabs(res_prior(8))>1.0&&fabs(res_prior(7))>1.0&&fabs(res_prior(6))>1.0){
+	if(fabs(res_prior(8))>0.5&&fabs(res_prior(7))>0.5&&fabs(res_prior(6))>0.5){
 		std::cout<<" wrong res_prior!!!!"<<std::endl;
 //		exit(0);
 	}
@@ -1854,9 +1853,19 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				Eigen::Matrix<double, 20, 20> H_no_bias;
 				// diagonals
 				H_no_bias.topLeftCorner<11, 11>() = H.topLeftCorner<11, 11>();
-				H_no_bias.block<9, 9>(11, 11) = H.block<9, 9>(17, 17);
+				H_no_bias.bottomRightCorner<9, 9>() = H.block<9, 9>(17, 17);
 				// off-diagonals
-				H_no_bias.topRightCorner<11, 9>() = 
+				H_no_bias.topRightCorner<11, 9>() =H.block<11, 9>(0, 17);
+				H_no_bias.bottomLeftCorner<9, 11>() = H.block<9, 11>(17, 0);
+
+				Eigen::Matrix<double, 20, 1> b_no_bias;
+				b_no_bias.head(11) = b.head(11);
+				b_no_bias.tail(9) = b.segment<9>(17);
+
+				Eigen::Matrix<double, 20, 1> inc_temp = H_no_bias.ldlt().solve(-b_no_bias);
+
+				inc.head(11) = inc_temp.head(11);
+				inc.segment<9>(17) = inc_temp.tail(9);
 
 //                inc = Hl.ldlt().solve(-b);
             }
@@ -1876,8 +1885,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
             incScaled.segment<3>(20) *= SCALE_XI_TRANS;
             incScaled.segment<3>(23) *= SCALE_IMU_V;
 
-			std::cout<<"increment_j: \n"<<incScaled.head(17).transpose()<<std::endl;
-            std::cout<<"increment_i: \n"<<incScaled.tail(15).transpose()<<std::endl;
+			std::cout<<"increment_j: \n"<<incScaled.head(11).transpose()<<std::endl;
+            std::cout<<"increment_i: \n"<<incScaled.segment<9>(17).transpose()<<std::endl;
 
             if(!std::isfinite(incScaled.sum())) incScaled.setZero();
 
@@ -2002,11 +2011,11 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	Hbb.topLeftCorner<6, 6>() = H_unscaled.topLeftCorner<6, 6>();
 	Hbb.bottomRightCorner<9, 9>()= H_unscaled.block<9, 9>(8, 8);
 	Hbb.bottomLeftCorner<9, 6>() = H_unscaled.block<9, 6>(8, 0);
-	Hbb.bottomRightCorner<6, 9>() = Hbb.bottomLeftCorner<9, 6>().transpose();
+	Hbb.topRightCorner<6, 9>() = Hbb.bottomLeftCorner<9, 6>().transpose();
 
 	Hbm.topLeftCorner<6, 2>() = H_unscaled.block<6, 2>(0, 6);
 	Hbm.bottomLeftCorner<9, 2>() = H_unscaled.block<9, 2>(8, 6);
-	Hbm.topRightCorner<6, 15>() = H_unscaled.block<6, 15>(17, 0);
+	Hbm.topRightCorner<6, 15>() = H_unscaled.block<6, 15>(0, 17);
 	Hbm.bottomRightCorner<9, 15>() = H_unscaled.block<9, 15>(8, 17);
 
     bm.head(2) = b_unscaled.segment<2>(6);
@@ -2065,8 +2074,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
     }
 	fullSystem->navstatePrior = navstate_j_current;
 
-	std::cout << "Prior H: \n" << fullSystem->Hprior << std::endl
-			  << "Prior b: " << fullSystem->bprior.transpose() << std::endl;
+	std::cout << "Prior H: \n" << fullSystem->Hprior.topLeftCorner(9, 9) << std::endl
+			  << "Prior b: " << fullSystem->bprior.head(9).transpose() << std::endl;
 
 	navstate_out = navstate_j_current;
 	aff_g2l_out = aff_g2l_current;

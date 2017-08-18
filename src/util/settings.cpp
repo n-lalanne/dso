@@ -80,8 +80,8 @@ namespace dso
 int pyrLevelsUsed = PYR_LEVELS;
 
 
-float setting_priorFactorWeight = 0.1;
-float setting_visionFactorWeight = 10;
+float setting_priorFactorWeight = 0.001;
+float setting_visionFactorWeight = 1;
 
 /* Parameters controlling when KF's are taken */
 float setting_keyframesPerSecond = 0;   // if !=0, takes a fixed number of KF per second.
