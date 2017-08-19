@@ -393,6 +393,7 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     J_imu_complete.leftCols(17) = J_imu_travb_current;
     J_imu_complete.rightCols(15) = J_imu_travb_previous;
 	std::cout<<"H_photometric of current pose:\n"<<H_out.block<8,8>(0,0)<<std::endl;
+	std::cout<<"H_imu of current pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<11, 11>(0,0)<<std::endl;
 	std::cout<<"H_imu of pervious pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<9, 9>(17,17)<<std::endl;
 
     H_out += J_imu_complete.transpose() * information_imu * J_imu_complete;
@@ -401,6 +402,9 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 	// ----------- Prior factor ----------- //
 	Mat1515 H_prior = J_prior.transpose() * information_prior * J_prior;
 	Vec15 b_prior = J_prior.transpose() * information_prior * res_prior;
+
+//	Mat1515 H_prior = fullSystem->Hprior;
+//	Vec15 b_prior = fullSystem->bprior - ;
 
 
 	// Becareful!! the block for pervious pose still contains affine a and b!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1456,13 +1460,25 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
 	res_prior = calcPriorRes(previous_navstate, current_navstate);
 
+
+	std::cout << "Res prior: " << res_prior.transpose() << std::endl;
+	std::cout<<"information_prior:(uncut)"<<information_prior.diagonal().transpose()<<std::endl;
+
+//	Eigen::LLT<Eigen::MatrixXd> lltOfA(information_prior); // compute the Cholesky decomposition of A
+//	if(lltOfA.info() == Eigen::NumericalIssue)
+//	{
+//		std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
+//	}
+
 	double priorEnergy = res_prior.transpose() * information_prior * res_prior;
+	if(priorEnergy<0.0)std::cout<<"priorEnergy is nagetive!!!"<<std::endl;
 	// TODO: make threshold a setting
 	float prior_huberTH = 10;
 	std::cout<<"priorEnergy(uncut): "<<priorEnergy<<std::endl;
-	std::cout<<"information_prior:(uncut)"<<information_prior.diagonal().transpose()<<std::endl;
+
 	if (priorEnergy > prior_huberTH)
 	{
+		std::cout<<"information_prior needs to be cut off"<<std::endl;
 		float hw_res = fabs(priorEnergy) < prior_huberTH ? 1 : prior_huberTH / fabs(priorEnergy);
 		priorEnergy = hw_res * priorEnergy * (2 - hw_res);
 		information_prior *= hw_res;
@@ -1475,7 +1491,6 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 		std::cout << "undefined prior energy" << std::endl;
 	}
 
-	std::cout << "Res prior: " << res_prior.head(9).transpose() << std::endl;
 	if(fabs(res_prior(8))>0.5&&fabs(res_prior(7))>0.5&&fabs(res_prior(6))>0.5){
 		std::cout<<" wrong res_prior!!!!"<<std::endl;
 //		exit(0);
@@ -2042,6 +2057,17 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		Eigen::Matrix<double, 9, 11> Hbm_no_bias = Hbm.topLeftCorner<9, 11>();
 
 		fullSystem->Hprior.topLeftCorner(9, 9) = Hbb_no_bias - Hbm_no_bias.leftCols(2) * Hmm_inv * Hbm_no_bias.leftCols(2).transpose();
+		Mat99 Prior_cov = fullSystem->Hprior.topLeftCorner(9, 9);
+		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Prior_cov);
+		Eigen::MatrixXd Prior_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > 1e-6).select(saes.eigenvalues().array(), 0)).asDiagonal() * saes.eigenvectors().transpose();
+
+		Eigen::LLT<Eigen::MatrixXd> lltOfA(Prior_inv); // compute the Cholesky decomposition of A
+		if(lltOfA.info() == Eigen::NumericalIssue)
+		{
+			std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
+		}
+
+		fullSystem->Hprior.topLeftCorner(9, 9) = Prior_inv;
 		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias.leftCols(2) * Hmm_inv * bm.head(2);
 
 //        fullSystem->Hprior = Hbb - Hbm.leftCols(2) * Hmm_inv * Hbm.leftCols(2).transpose();
@@ -2053,21 +2079,69 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 //        fullSystem->bprior = bb - Hbm * Hmm.inverse() * bm;
 
 		// ignore the affine parameters
-		cv::Mat Hmm_cv(15, 15, CV_64F), Hmm_cv_inv(15, 15, CV_64F);
-		Mat1515 Hmm_relevant = Hmm.bottomRightCorner<15, 15>();
+//		cv::Mat Hmm_cv(15, 15, CV_64F), Hmm_cv_inv(15, 15, CV_64F);
+//		Mat1515 Hmm_relevant = Hmm.bottomRightCorner<15, 15>();
+//		cv::eigen2cv(Hmm_relevant, Hmm_cv);
+//		// pseudo-inverse
+//		cv::invert(Hmm_cv, Hmm_cv_inv, cv::DECOMP_SVD);
+//
+//		Mat1515 Hmm_inv;
+//		cv::cv2eigen(Hmm_cv_inv, Hmm_inv);
+
+		cv::Mat Hmm_cv(11, 11, CV_64F), Hmm_cv_inv(11, 11, CV_64F);
+		Eigen::Matrix<double, 11, 11> Hmm_relevant = Hmm.bottomRightCorner<11, 11>();
 		cv::eigen2cv(Hmm_relevant, Hmm_cv);
 		// pseudo-inverse
 		cv::invert(Hmm_cv, Hmm_cv_inv, cv::DECOMP_SVD);
 
-		Mat1515 Hmm_inv;
+		Eigen::Matrix<double, 11, 11> Hmm_inv;
 		cv::cv2eigen(Hmm_cv_inv, Hmm_inv);
+
+//		The method to compute the inverse of Hmm in VINS
+
+//		Eigen::MatrixXd Amm = 0.5 * (A.block(0, 0, m, m) + A.block(0, 0, m, m).transpose());
+//		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Amm);
+//
+//		//ROS_ASSERT_MSG(saes.eigenvalues().minCoeff() >= -1e-4, "min eigenvalue %f", saes.eigenvalues().minCoeff());
+//
+//		Eigen::MatrixXd Amm_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > eps).select(saes.eigenvalues().array().inverse(), 0)).asDiagonal() * saes.eigenvectors().transpose();
+//		//printf("error1: %f\n", (Amm * Amm_inv - Eigen::MatrixXd::Identity(m, m)).sum());
+//
+//		Eigen::VectorXd bmm = b.segment(0, m);
+//		Eigen::MatrixXd Amr = A.block(0, m, m, n);
+//		Eigen::MatrixXd Arm = A.block(m, 0, n, m);
+//		Eigen::MatrixXd Arr = A.block(m, m, n, n);
+//		Eigen::VectorXd brr = b.segment(m, n);
+//		A = Arr - Arm * Amm_inv * Amr;
+//		b = brr - Arm * Amm_inv * bmm;
+//
+//		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes2(A);
+//		Eigen::VectorXd S = Eigen::VectorXd((saes2.eigenvalues().array() > eps).select(saes2.eigenvalues().array(), 0));
+//		Eigen::VectorXd S_inv = Eigen::VectorXd((saes2.eigenvalues().array() > eps).select(saes2.eigenvalues().array().inverse(), 0));
+//
+//		Eigen::VectorXd S_sqrt = S.cwiseSqrt();
+//		Eigen::VectorXd S_inv_sqrt = S_inv.cwiseSqrt();
+//
+//		linearized_jacobians = S_sqrt.asDiagonal() * saes2.eigenvectors().transpose();
+//		linearized_residuals = S_inv_sqrt.asDiagonal() * saes2.eigenvectors().transpose() * b;
 
 		// exclude bias from computation
 		Mat99 Hbb_no_bias = Hbb.topLeftCorner<9, 9>();
 		Eigen::Matrix<double, 9, 11> Hbm_no_bias = Hbm.topLeftCorner<9, 11>();
 
-		fullSystem->Hprior.topLeftCorner(9, 9) = Hbb_no_bias - Hbm_no_bias.rightCols(9) * Hmm_inv * Hbm_no_bias.rightCols(9).transpose();
-		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias.rightCols(9) * Hmm_inv * bm.tail(9);
+		Mat99 Prior_cov = Hbb_no_bias - Hbm_no_bias * Hmm_inv * Hbm_no_bias.transpose();
+		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Prior_cov);
+		Eigen::MatrixXd Prior_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > 1e-6).select(saes.eigenvalues().array(), 0)).asDiagonal() * saes.eigenvectors().transpose();
+
+		std::cout << "Eigen values: " << Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd>(Prior_inv).eigenvalues().matrix().transpose() << std::endl;
+		Eigen::LLT<Eigen::MatrixXd> lltOfA(Prior_inv); // compute the Cholesky decomposition of A
+		if(lltOfA.info() == Eigen::NumericalIssue)
+		{
+			std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
+		}
+
+		fullSystem->Hprior.topLeftCorner(9, 9) = Prior_inv;
+		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias * Hmm_inv * bm.tail(9);
 
 //		fullSystem->Hprior = Hbb - Hbm.rightCols(15) * Hmm_inv * Hbm.rightCols(15).transpose();
 //		fullSystem->bprior = bb - Hbm.rightCols(15) * Hmm_inv * bm.tail(15);
