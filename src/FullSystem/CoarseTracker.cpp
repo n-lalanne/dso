@@ -368,8 +368,8 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 
 	H_out.setZero();
 	b_out.setZero();
-	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>()  * (1.0f/n);
-	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>(); //  * (1.0f/n);
+	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>(); // * (1.0f/n);
 
 
 
@@ -404,7 +404,7 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 	Vec15 b_prior = J_prior.transpose() * information_prior * res_prior;
 
 //	Mat1515 H_prior = fullSystem->Hprior;
-//	Vec15 b_prior = fullSystem->bprior - ;
+//	Vec15 b_prior = fullSystem->bprior + fullSystem->Hprior * res_imu;
 
 
 	// Becareful!! the block for pervious pose still contains affine a and b!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1006,54 +1006,73 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState previous_navstate, gtsam::NavSta
 Vec15 CoarseTracker::calcPriorRes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate)
 {
 	res_prior.setZero();
+	J_prior.setZero();
+	information_prior.setZero();
 
-	gtsam::Matrix3 D_dR_R, D_dt_R, D_dv_R;
-	const Rot3 dR = previous_navstate.pose().rotation().between(
-			fullSystem->navstatePrior.pose().rotation(),
-			&D_dR_R
-	);
-	gtsam::Point3 dt = previous_navstate.pose().rotation().unrotate(
-			fullSystem->navstatePrior.pose().translation() - previous_navstate.pose().translation(),
-			&D_dt_R
-	);
-	gtsam::Vector dv = previous_navstate.pose().rotation().unrotate(
-			fullSystem->navstatePrior.velocity() - previous_navstate.velocity(),
-			&D_dv_R
-	);
+	//return res_prior;
 
-	gtsam::Vector9 xi;
-	gtsam::Matrix3 D_xi_R;
+	//delta T
+	res_prior.segment<3>(0) = fullSystem->navstatePrior.pose().translation() - previous_navstate.pose().translation();
+	//delta R
+	res_prior.segment<3>(3) = gtsam::Rot3::Logmap(fullSystem->navstatePrior.pose().rotation().inverse() * previous_navstate.pose().rotation());
+	//delta V
+	res_prior.segment<3>(6) = fullSystem->navstatePrior.velocity() - previous_navstate.velocity();
+	// eR = log(R_prior^-1 * R_est)
 
-	res_prior.head(3) = dt.vector();
-	res_prior.segment<3>(3) = gtsam::Rot3::Logmap(dR, &D_xi_R);
-	res_prior.segment<3>(6) = dv;
-
-    // Separate out derivatives
-    // Note that doing so requires special treatment of velocities, as when treated as
-    // separate variables the retract applied will not be the semi-direct product in NavState
-    // Instead, the velocities in nav are updated using a straight addition
-    // This is difference is accounted for by the R().transpose calls below
-
-    J_prior.setZero();
-	// diagonals
-	J_prior.topLeftCorner<3, 3>() = -Mat33::Identity();
-	J_prior.block<3, 3>(3, 3) = D_xi_R * D_dR_R;
-	J_prior.block<3, 3>(6, 6) = -previous_navstate.R().transpose();
-	// off-diagonals
-	// t, R
-	J_prior.block<3, 3>(0, 3) = D_dt_R;
-	// v, R
-	J_prior.block<3, 3>(6, 3) = D_dv_R;
-
-	// TODO: bias error
+	//J_prior = Matrix<double,9,9>::Zero();
+	J_prior.block<3,3>(0,0) = -previous_navstate.pose().rotation().matrix();
+	J_prior.block<3,3>(3,3) = Rot3::LogmapDerivative(res_prior.segment<3>(3));
+	J_prior.block<3,3>(6,6) = -Mat33::Identity();
 
 	information_prior = fullSystem->Hprior; // .diagonal().asDiagonal();
-	// more reduction for R ant t
-	information_prior.topLeftCorner<6, 6>() = setting_priorFactorWeight * information_prior.topLeftCorner<6, 6>();
-	information_prior.block<3, 3>(0, 3) = setting_priorFactorWeight * information_prior.block<3, 3>(0, 3);
-	information_prior.block<3, 3>(3, 0) = setting_priorFactorWeight * information_prior.block<3, 3>(3, 0);
 
 	return res_prior;
+
+//	gtsam::Matrix3 D_dR_R, D_dt_R, D_dv_R;
+//	const Rot3 dR = previous_navstate.pose().rotation().between(
+//			fullSystem->navstatePrior.pose().rotation(),
+//			&D_dR_R
+//	);
+//	gtsam::Point3 dt = previous_navstate.pose().rotation().unrotate(
+//			fullSystem->navstatePrior.pose().translation() - previous_navstate.pose().translation(),
+//			&D_dt_R
+//	);
+//	gtsam::Vector dv = previous_navstate.pose().rotation().unrotate(
+//			fullSystem->navstatePrior.velocity() - previous_navstate.velocity(),
+//			&D_dv_R
+//	);
+//
+//	gtsam::Vector9 xi;
+//	gtsam::Matrix3 D_xi_R;
+//	res_prior.head(3) = dt.vector();
+//	res_prior.segment<3>(3) = gtsam::Rot3::Logmap(dR, &D_xi_R);
+//	res_prior.segment<3>(6) = dv;
+//
+//    // Separate out derivatives
+//    // Note that doing so requires special treatment of velocities, as when treated as
+//    // separate variables the retract applied will not be the semi-direct product in NavState
+//    // Instead, the velocities in nav are updated using a straight addition
+//    // This is difference is accounted for by the R().transpose calls below
+//
+//    // diagonals
+//	J_prior.topLeftCorner<3, 3>() = -Mat33::Identity();
+//	J_prior.block<3, 3>(3, 3) = D_xi_R * D_dR_R;
+//	J_prior.block<3, 3>(6, 6) = -previous_navstate.R().transpose();
+//	// off-diagonals
+//	// t, R
+//	J_prior.block<3, 3>(0, 3) = D_dt_R;
+//	// v, R
+//	J_prior.block<3, 3>(6, 3) = D_dv_R;
+//
+//	// TODO: bias error
+//
+//	information_prior = fullSystem->Hprior.diagonal().asDiagonal();
+//	// more reduction for R ant t
+////	information_prior.topLeftCorner<6, 6>() = setting_priorFactorWeight * information_prior.topLeftCorner<6, 6>();
+////	information_prior.block<3, 3>(0, 3) = setting_priorFactorWeight * information_prior.block<3, 3>(0, 3);
+////	information_prior.block<3, 3>(3, 0) = setting_priorFactorWeight * information_prior.block<3, 3>(3, 0);
+//
+//	return res_prior;
 }
 
 
@@ -1471,9 +1490,9 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 //	}
 
 	double priorEnergy = res_prior.transpose() * information_prior * res_prior;
-	if(priorEnergy<0.0)std::cout<<"priorEnergy is nagetive!!!"<<std::endl;
+	if(priorEnergy<0.0)std::cout<<"priorEnergy is negative!!!"<<std::endl;
 	// TODO: make threshold a setting
-	float prior_huberTH = 10;
+	float prior_huberTH = 50;
 	std::cout<<"priorEnergy(uncut): "<<priorEnergy<<std::endl;
 
 	if (priorEnergy > prior_huberTH)
@@ -1853,8 +1872,10 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		for(int iteration=0; iteration < maxIterations[lvl]; iteration++)
 		{
 			Mat3232 Hl = H;
-			for(int i=0;i<17;i++) Hl(i,i) *= (1+lambda);
+			for(int i=0;i<H.rows() ;i++) Hl(i,i) *= (1+lambda);
 			Vec32 inc = Vec32::Zero();
+
+			std::cout << "lambda: " << lambda << std::endl;
 
             if (isOptimizeSingle)
             {
@@ -1867,11 +1888,11 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				// remove the bias blocks
 				Eigen::Matrix<double, 20, 20> H_no_bias;
 				// diagonals
-				H_no_bias.topLeftCorner<11, 11>() = H.topLeftCorner<11, 11>();
-				H_no_bias.bottomRightCorner<9, 9>() = H.block<9, 9>(17, 17);
+				H_no_bias.topLeftCorner<11, 11>() = Hl.topLeftCorner<11, 11>();
+				H_no_bias.bottomRightCorner<9, 9>() = Hl.block<9, 9>(17, 17);
 				// off-diagonals
-				H_no_bias.topRightCorner<11, 9>() =H.block<11, 9>(0, 17);
-				H_no_bias.bottomLeftCorner<9, 11>() = H.block<9, 11>(17, 0);
+				H_no_bias.topRightCorner<11, 9>() =Hl.block<11, 9>(0, 17);
+				H_no_bias.bottomLeftCorner<9, 11>() = Hl.block<9, 11>(17, 0);
 
 				Eigen::Matrix<double, 20, 1> b_no_bias;
 				b_no_bias.head(11) = b.head(11);
@@ -2156,15 +2177,15 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	biases_out = biases_current;
 
     newFrame->shell->last_frame->navstate = navstate_i_current;
-//    Mat44 T_dso_euroc = newFrame->shell->navstate.pose().matrix() * newFrame->shell->groundtruth.pose.inverse().matrix();
-//    Vec3 velocity_gt = T_dso_euroc.block<3,3>(0,0) * newFrame->shell->groundtruth.velocity;
-//    float velocity_direction_error = acos(
-//            velocity_gt.dot(navstate_out.velocity()) / (velocity_gt.norm() * navstate_out.velocity().norm())
-//    ) * 180 / M_PI;
-//	std::cout<<"Optimized velocity: "<<navstate_out.velocity().transpose()
-//            <<"GT: " << velocity_gt.transpose()<<std::endl
-//            << "Angle error: " << velocity_direction_error << std::endl;
-//	std::cout<<"Optimized velocity norm: "<<navstate_out.velocity().norm()<<"GT norm:"<<newFrame->shell->groundtruth.velocity.norm()<<std::endl;
+    Mat44 T_dso_euroc = newFrame->shell->navstate.pose().matrix() * newFrame->shell->groundtruth.pose.inverse().matrix();
+    Vec3 velocity_gt = T_dso_euroc.block<3,3>(0,0) * newFrame->shell->groundtruth.velocity;
+    float velocity_direction_error = acos(
+            velocity_gt.dot(navstate_out.velocity()) / (velocity_gt.norm() * navstate_out.velocity().norm())
+    ) * 180 / M_PI;
+	std::cout<<"Optimized velocity: "<<navstate_out.velocity().transpose()
+            <<"GT: " << velocity_gt.transpose()<<std::endl
+            << "Angle error: " << velocity_direction_error << std::endl;
+	std::cout<<"Optimized velocity norm: "<<navstate_out.velocity().norm()<<"GT norm:"<<newFrame->shell->groundtruth.velocity.norm()<<std::endl;
 
 
 
