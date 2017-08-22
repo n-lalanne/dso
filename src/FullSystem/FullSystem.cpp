@@ -121,6 +121,7 @@ Mat33 g2R(const Eigen::Vector3d &g)
 FullSystem::FullSystem()
 {
 	dso_vi::initializeIMUParams();
+
 	int retstat =0;
 	if(setting_logStuff)
 	{

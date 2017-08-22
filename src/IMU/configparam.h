@@ -29,6 +29,11 @@ public:
     static int GetLocalWindowSize();
     static double GetImageDelayToIMU();
     static bool GetAccMultiply9p8();
+    static bool Getaddprior();
+    static double Getaccel_noise_sigma();
+    static double Getgyro_noise_sigma();
+    static double Getaccel_bias_rw_sigma();
+    static double Getgyro_bias_rw_sigma();
     
     static cv::Mat GetMatAccBias();
     static Eigen::Vector3d GetEigAccBias();
@@ -48,6 +53,12 @@ public:
     std::string _imageTopic;
     std::string _imuTopic;
 
+    static bool addprior;
+    static double accel_noise_sigma;
+    static double gyro_noise_sigma;
+    static double accel_bias_rw_sigma;
+    static double gyro_bias_rw_sigma;
+
     static double GetVINSInitTime(){return _nVINSInitTime;}
 
 private:
@@ -58,6 +69,7 @@ private:
     static int _LocalWindowSize;
     static double _ImageDelayToIMU;
     static bool _bAccMultiply9p8;
+
 
     static double _g;
     static double _nVINSInitTime;

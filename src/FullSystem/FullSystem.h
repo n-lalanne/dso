@@ -164,6 +164,7 @@ public:
 	bool initFailed;
 	bool initialized;
 	bool linearizeOperation;
+	bool addprior = true;
 
 
 	void setGammaFunction(float* BInv);
@@ -340,7 +341,13 @@ private:
 
     std::atomic<bool> isLocalBADone;
 
+
 public:
+
+	double accel_noise_sigma;
+	double gyro_noise_sigma;
+	double accel_bias_rw_sigma;
+	double gyro_bias_rw_sigma;
 
     void setBiasEstimate(Vec3 accBias, Vec3 gyroBias)
     {
