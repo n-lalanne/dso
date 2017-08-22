@@ -1593,7 +1593,6 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	std::cout << "First KF: " << Rs[0] << ", " << Ps[0].transpose() << std::endl;
 
 	// verify with the groundtruth that the scaling is right
-
 	for (int i = 1; i < allKeyFramesHistory.size(); i++)
 	{
 		SE3 groundtruth_T0(allKeyFramesHistory[i-1]->groundtruth.pose.matrix());
@@ -1614,15 +1613,53 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 					 << "translation dir error: " << translation_direction_error
 					 << std::endl;
 
+		// calculate error in gravity direction
+		Vec3 gravity_gt = allKeyFramesHistory[i]->groundtruth.pose.rotation().matrix().bottomRows(1).transpose();
+		Vec3 gravity_est = Rs[i].matrix().bottomRows(1).transpose();
+		float gravity_error = acos(
+				gravity_gt.dot(gravity_est) / (gravity_gt.norm() * gravity_est.norm())
+		) * 180 / M_PI;
+
+		std::cout << "Orientation error: " << gravity_error << std::endl;
+
+		T_dsoworld_eurocworld = allKeyFramesHistory[0]->navstate.pose().matrix() * allKeyFramesHistory[0]->groundtruth.pose.inverse().matrix();
+
+		Vec3 velocity_gt = T_dsoworld_eurocworld.block<3,3>(0,0) * allKeyFramesHistory[i]->groundtruth.velocity;
+		float velocity_direction_error = acos(
+				velocity_gt.dot(Vs[i]) / (velocity_gt.norm() * Vs[i].norm())
+		) * 180 / M_PI;
 		std::cout << "Velocity GT VS Our: \n"
-				  << allKeyFramesHistory[i]->groundtruth.velocity.transpose() << std::endl
-				  << Vs[i].transpose()
-				  << std::endl;
+				  << velocity_gt.transpose() << std::endl
+				  << Vs[i].transpose() << std::endl
+				  << "norm: " << velocity_gt.norm() << "  VS  " << Vs[i].norm() << std::endl
+				  << "angle error: " << velocity_direction_error
+				  << std::endl << std::endl;
 	}
 
 	std::cout <<"----------------------normal frames--------------------------"<<std::endl;
+
+	// TODO: don't use groundtruth
+	T_dsoworld_eurocworld.setIdentity();
+	allFrameHistory[0]->navstate = gtsam::NavState(
+			gtsam::Pose3(T_dsoworld_eurocworld * allFrameHistory[0]->groundtruth.pose.matrix()),
+			T_dsoworld_eurocworld.topLeftCorner(3, 3) * allFrameHistory[0]->groundtruth.velocity
+	);
+	allFrameHistory[0]->camToWorld = SE3(
+			allFrameHistory[0]->navstate.pose().rotation().matrix(),
+			allFrameHistory[0]->navstate.pose().translation()
+	) * TBC;
 	for (int i = 1; i < allFrameHistory.size(); i++)
 	{
+		// TODO: don't use groundtruth
+		allFrameHistory[i]->navstate = gtsam::NavState(
+				gtsam::Pose3(T_dsoworld_eurocworld * allFrameHistory[i]->groundtruth.pose.matrix()),
+				T_dsoworld_eurocworld.topLeftCorner(3, 3) * allFrameHistory[i]->groundtruth.velocity
+		);
+		allFrameHistory[i]->camToWorld = SE3(
+				allFrameHistory[i]->navstate.pose().rotation().matrix(),
+				allFrameHistory[i]->navstate.pose().translation()
+		) * TBC;
+
 		SE3 groundtruth_T0(allFrameHistory[i-1]->groundtruth.pose.matrix());
 		SE3 estimated_T0 = SE3(allFrameHistory[i-1]->navstate.pose().matrix());
 

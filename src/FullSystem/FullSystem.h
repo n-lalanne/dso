@@ -165,7 +165,7 @@ public:
 	bool initialized;
 	bool linearizeOperation;
 	bool addprior = true;
-
+	bool addimu =true;
 
 	void setGammaFunction(float* BInv);
 	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
@@ -359,6 +359,8 @@ public:
 	Mat1515 Hprior;
 	Vec15 bprior;
 	gtsam::NavState navstatePrior;
+
+	Mat44 T_dsoworld_eurocworld;
 };
 }
 

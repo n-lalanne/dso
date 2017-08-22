@@ -21,6 +21,7 @@ Eigen::Vector3d ConfigParam::_EigGyroBias = Eigen::Vector3d::Zero();
 cv::Mat ConfigParam::_MatGyroBias = cv::Mat::zeros(3, 1, CV_32F);
 
 bool ConfigParam::addprior = true;
+bool ConfigParam::addimu = true;
 double ConfigParam::accel_noise_sigma = 2.0e-2;
 double ConfigParam::gyro_noise_sigma = 2.0e-4;
 double ConfigParam::accel_bias_rw_sigma = 5e-3;
@@ -49,6 +50,8 @@ ConfigParam::ConfigParam(std::string configfile)
 
     _ImageDelayToIMU = fSettings["Camera.delaytoimu"];
     std::cout<<"timestamp image delay to imu: "<<_ImageDelayToIMU<<std::endl;
+
+
 
     accel_noise_sigma = fSettings["accel_noise_sigma"];
     gyro_noise_sigma = fSettings["gyro_noise_sigma"];
@@ -98,6 +101,16 @@ ConfigParam::ConfigParam(std::string configfile)
         addprior = (tmpBool != 0);
         std::cout<<"whether add prior? 0/1: "<<addprior<<std::endl;
     }
+
+    {
+        int tmpBool = fSettings["addimu"];
+        addimu = (tmpBool != 0);
+        if (addprior == true) {
+            addimu = true;
+        }
+        std::cout<<"whether add imu? 0/1: "<<addimu<<std::endl;
+    }
+
 
     // acc bias
     cv::FileNode accBias_ = fSettings["IMU.accBias"];
@@ -197,6 +210,10 @@ double ConfigParam::Getgyro_bias_rw_sigma(){
 bool ConfigParam::Getaddprior()
 {
     return addprior;
+}
+
+bool ConfigParam::Getaddimu(){
+    return addimu;
 }
 
 cv::Mat ConfigParam::GetMatAccBias()

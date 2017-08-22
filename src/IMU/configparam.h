@@ -30,6 +30,7 @@ public:
     static double GetImageDelayToIMU();
     static bool GetAccMultiply9p8();
     static bool Getaddprior();
+    static bool Getaddimu();
     static double Getaccel_noise_sigma();
     static double Getgyro_noise_sigma();
     static double Getaccel_bias_rw_sigma();
@@ -54,6 +55,7 @@ public:
     std::string _imuTopic;
 
     static bool addprior;
+    static bool addimu;
     static double accel_noise_sigma;
     static double gyro_noise_sigma;
     static double accel_bias_rw_sigma;
