@@ -1637,29 +1637,41 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	}
 
 	std::cout <<"----------------------normal frames--------------------------"<<std::endl;
+//	T_dsoworld_eurocworld.setIdentity();
+//	scale = 1.0;
+//	// TODO: don't use groundtruth
+//	for (int i = 0; i < allFrameHistory.size(); i++)
+//	{
+//		// TODO: don't use groundtruth
+//		allFrameHistory[i]->navstate = gtsam::NavState(
+//				gtsam::Pose3(T_dsoworld_eurocworld * allFrameHistory[i]->groundtruth.pose.matrix()),
+//				T_dsoworld_eurocworld.topLeftCorner(3, 3) * allFrameHistory[i]->groundtruth.velocity
+//		);
+//		allFrameHistory[i]->camToWorld = SE3(
+//				allFrameHistory[i]->navstate.pose().rotation().matrix(),
+//				allFrameHistory[i]->navstate.pose().translation()
+//		) * TBC;
+//	}
+//
+//	for (int i = 0; i < allKeyFramesHistory.size(); i++)
+//	{
+//		// TODO: don't use groundtruth
+//		allKeyFramesHistory[i]->navstate = gtsam::NavState(
+//				gtsam::Pose3(T_dsoworld_eurocworld * allKeyFramesHistory[i]->groundtruth.pose.matrix()),
+//				T_dsoworld_eurocworld.topLeftCorner(3, 3) * allKeyFramesHistory[i]->groundtruth.velocity
+//		);
+//		allKeyFramesHistory[i]->camToWorld = SE3(
+//				allKeyFramesHistory[i]->navstate.pose().rotation().matrix(),
+//				allKeyFramesHistory[i]->navstate.pose().translation()
+//		) * TBC;
+//
+//		Rs[i] = allKeyFramesHistory[i]->navstate.pose().rotation().matrix();
+//		Ps[i] = allKeyFramesHistory[i]->navstate.pose().translation();
+//		Vs[i] = allKeyFramesHistory[i]->navstate.velocity();
+//	}
 
-	// TODO: don't use groundtruth
-	T_dsoworld_eurocworld.setIdentity();
-	allFrameHistory[0]->navstate = gtsam::NavState(
-			gtsam::Pose3(T_dsoworld_eurocworld * allFrameHistory[0]->groundtruth.pose.matrix()),
-			T_dsoworld_eurocworld.topLeftCorner(3, 3) * allFrameHistory[0]->groundtruth.velocity
-	);
-	allFrameHistory[0]->camToWorld = SE3(
-			allFrameHistory[0]->navstate.pose().rotation().matrix(),
-			allFrameHistory[0]->navstate.pose().translation()
-	) * TBC;
 	for (int i = 1; i < allFrameHistory.size(); i++)
 	{
-		// TODO: don't use groundtruth
-		allFrameHistory[i]->navstate = gtsam::NavState(
-				gtsam::Pose3(T_dsoworld_eurocworld * allFrameHistory[i]->groundtruth.pose.matrix()),
-				T_dsoworld_eurocworld.topLeftCorner(3, 3) * allFrameHistory[i]->groundtruth.velocity
-		);
-		allFrameHistory[i]->camToWorld = SE3(
-				allFrameHistory[i]->navstate.pose().rotation().matrix(),
-				allFrameHistory[i]->navstate.pose().translation()
-		) * TBC;
-
 		SE3 groundtruth_T0(allFrameHistory[i-1]->groundtruth.pose.matrix());
 		SE3 estimated_T0 = SE3(allFrameHistory[i-1]->navstate.pose().matrix());
 
@@ -1701,7 +1713,10 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 			if (allKeyFramesHistory[i]->fh == fh)
 			{
 				int shell_idx = i;
-				SE3 imuToWorld = SE3(Rs[shell_idx], Ps[shell_idx]);
+				SE3 imuToWorld = SE3(
+						fh->shell->navstate.pose().rotation().matrix(), // Rs[shell_idx],
+						fh->shell->navstate.pose().translation() //Ps[shell_idx]
+				);
 				SE3 camToWorld = imuToWorld * TBC;
 
 				fh->shell->camToWorld = camToWorld;

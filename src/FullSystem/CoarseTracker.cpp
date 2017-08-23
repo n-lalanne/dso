@@ -396,8 +396,8 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 	std::cout<<"H_imu of current pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<11, 11>(0,0)<<std::endl;
 	std::cout<<"H_imu of pervious pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<9, 9>(17,17)<<std::endl;
 
-//    H_out += J_imu_complete.transpose() * information_imu * J_imu_complete;
-//    b_out += J_imu_complete.transpose() * information_imu * res_imu;
+    H_out += J_imu_complete.transpose() * information_imu * J_imu_complete;
+    b_out += J_imu_complete.transpose() * information_imu * res_imu;
 
 	// ----------- Prior factor ----------- //
 	Mat1515 H_prior = J_prior.transpose() * information_prior * J_prior;
@@ -1294,6 +1294,12 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 			(current_navstate.pose().inverse() * lastRef->shell->navstate.pose()).matrix()
 	));
 
+	SE3 refToNew_gt = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
+			(newFrame->shell->groundtruth.pose.inverse() * lastRef->shell->groundtruth.pose).matrix()
+	));
+
+	std::cout << "Ref to new error: " << (refToNew_gt.inverse() * refToNew).log().transpose() << std::endl;
+
 	Mat33f RKi = (refToNew.rotationMatrix().cast<float>() * Ki[lvl]);
 	Vec3f t = (refToNew.translation()).cast<float>();
 	Vec2f affLL = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l).cast<float>();
@@ -1543,7 +1549,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	Vec6 pose_error_previous =  gtsam::Pose3::Logmap(gtsam::Pose3(
 			(fullSystem->T_dsoworld_eurocworld * newFrame->shell->last_frame->groundtruth.pose.matrix()).inverse() * previous_navstate.pose().matrix()
 	));
-	Vec3 velocity_error_previous = previous_navstate.velocity() - fullSystem->T_dsoworld_eurocworld.topLeftCorner(3, 3) * newFrame->shell->groundtruth.velocity;
+	Vec3 velocity_error_previous = previous_navstate.velocity() - fullSystem->T_dsoworld_eurocworld.topLeftCorner(3, 3) * newFrame->shell->last_frame->groundtruth.velocity;
 
 	std::cout << "error_j: " << pose_error_current.transpose() << " " << velocity_error_current.transpose() << std::endl;
 	std::cout << "error_i: " << pose_error_previous.transpose() << " " << velocity_error_previous.transpose() << std::endl;
@@ -1844,6 +1850,24 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	gtsam::NavState navstate_i_first_estimate = newFrame->shell->last_frame->navstate;
 	AffLight aff_g2l_current = aff_g2l_out;
 
+	gtsam::NavState navstate_i_gt = gtsam::NavState(
+			gtsam::Pose3(fullSystem->T_dsoworld_eurocworld).compose(newFrame->shell->last_frame->groundtruth.pose),
+			fullSystem->T_dsoworld_eurocworld.topLeftCorner(3, 3) * newFrame->shell->last_frame->groundtruth.velocity
+	);
+	gtsam::NavState navstate_j_gt = gtsam::NavState(
+			gtsam::Pose3(fullSystem->T_dsoworld_eurocworld).compose(newFrame->shell->groundtruth.pose),
+			fullSystem->T_dsoworld_eurocworld.topLeftCorner(3, 3) * newFrame->shell->groundtruth.velocity
+	);
+
+	gtsam::NavState navstate_last_ref_gt = gtsam::NavState(
+			gtsam::Pose3(fullSystem->T_dsoworld_eurocworld).compose(lastRef->shell->groundtruth.pose),
+			fullSystem->T_dsoworld_eurocworld.topLeftCorner(3, 3) * lastRef->shell->groundtruth.velocity
+	);
+	std::cout << "Last ref error: "
+			  << gtsam::Pose3::Logmap(navstate_last_ref_gt.pose().inverse().compose(lastRef->shell->navstate.pose())).transpose()
+			  << " " << (lastRef->shell->navstate.velocity() - navstate_last_ref_gt.velocity()).transpose()
+			  << std::endl;
+
 	bool haveRepeated = false;
 
 //	std::cout<<"in tracking: lastRef id : "<<lastRef->shell->id<<std::endl;
@@ -1859,8 +1883,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{
 //		std::cout<<"level: "<<lvl<<std::endl;
-
-        // linearize the imu factor (for first estimate jacobian)
+		// linearize the imu factor (for first estimate jacobian)
         newFrame->shell->linearizeImuFactorLastFrame(
                 navstate_i_first_estimate,
                 navstate_j_current,
@@ -1879,13 +1902,13 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		{
 			//std::cout<<"cut off!"<<std::endl;
 			levelCutoffRepeat*=2;
-			resOld = calcResIMU(lvl, navstate_j_current, navstate_j_current, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
+			resOld = calcResIMU(lvl, navstate_i_current, navstate_j_current, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
 
 			if(!setting_debugout_runquiet)
 				printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
 		}
 
-        //std::cout<<"resOld is: "<<resOld<<std::endl;
+		//std::cout<<"resOld is: "<<resOld<<std::endl;
         if (isOptimizeSingle||!fullSystem->addimu)
         {
             calcGSSSESingleIMU(lvl, H17, b17, navstate_j_current, aff_g2l_current);
@@ -1939,6 +1962,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 				inc.head(11) = inc_temp.head(11);
 				inc.segment<9>(17) = inc_temp.tail(9);
+
+				std::cout << "Initial increment: " << inc_temp.transpose() << std::endl;
 
 //                inc = Hl.ldlt().solve(-b);
             }
@@ -2068,6 +2093,23 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			haveRepeated=true;
 			printf("REPEAT LEVEL!\n");
 		}
+
+		// res at groundtruth
+		std::cout << "Res at groundtruth: " << std::endl;
+		newFrame->shell->linearizeImuFactorLastFrame(
+				navstate_i_gt,
+				navstate_j_gt,
+				newFrame->shell->last_frame->bias,
+				newFrame->shell->bias
+		);
+
+		Vec6 res_gt = calcResIMU(
+				lvl,
+				navstate_i_gt,
+				navstate_j_gt,
+				aff_g2l_current, biases_current, 1
+		);
+		std::cout << "res gt: " << res_gt.transpose() << std::endl;
 	}
 
 	// set!
@@ -2236,6 +2278,16 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	) * 180 / M_PI;
 
 	std::cout << "Orientation error: " << gravity_error << std::endl;
+
+	std::cout << "Previous pose error: "
+			  << gtsam::Pose3::Logmap(navstate_i_gt.pose().inverse().compose(navstate_i_current.pose())).transpose() << " "
+			  << (navstate_i_current.velocity() - navstate_i_gt.velocity()).transpose()
+			  << std::endl;
+
+	std::cout << "Current pose error: "
+			  << gtsam::Pose3::Logmap(navstate_j_gt.pose().inverse().compose(navstate_j_current.pose())).transpose() << " "
+			  << (navstate_j_current.velocity() - navstate_j_gt.velocity()).transpose()
+			  << std::endl;
 
 //	std::cout<<" IMU version: affine a: "<< aff_g2l_out.a << "affine b_unscaled: "<< aff_g2l_out.b<<std::endl;
 //	std::cout<<" NAVSTATE: \n" << navstate_current.pose().matrix()<<std::endl;
