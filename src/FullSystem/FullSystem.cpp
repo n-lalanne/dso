@@ -601,8 +601,12 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 
 	Vec5 achievedRes = Vec5::Constant(NAN);
+
 	gtsam::NavState navstate_this;
+	gtsam::NavState navstate_current = prop_navstate;
+	gtsam::NavState slast_trynavstate = slast_navstate;
 	Vec6 biases_this;
+
 	bool haveOneGood = false;
 	int tryIterations=0;
 	for (unsigned int i=0;i<lastF_2_fh_tries.size();i++)
@@ -638,7 +642,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //			std::cout<<"lastRef->Tib from camtoworld: "<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
 
 			trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
-					fh, navstate_this, biases_this, aff_g2l_thisIMU,
+					fh, slast_trynavstate, navstate_this, biases_this, aff_g2l_thisIMU,
 					pyrLevelsUsed-1,
 					achievedRes);
 
@@ -687,8 +691,15 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			flowVecs = coarseTracker->lastFlowIndicators;
 			aff_g2l = aff_g2l_this;
 			lastF_2_fh = lastF_2_fh_this;
+			navstate_current = navstate_this;
+			slast_navstate = slast_trynavstate;
 			haveOneGood = true;
         }
+		else
+		{
+			// reset to the last known good previous pose
+			slast_trynavstate = slast_navstate;
+		}
 
 		// take over achieved res (always).
 		if(haveOneGood)
@@ -706,7 +717,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
         if (haveOneGood && achievedRes[0] < lastCoarseRMSE[0] * threshold)
             break;
 
-
+		std::cout << "Error above threshold: " << achievedRes[0] << " > " << lastCoarseRMSE[0] * threshold << std::endl;
 	}
 
 	if(!haveOneGood)

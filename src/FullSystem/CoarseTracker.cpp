@@ -1825,7 +1825,7 @@ bool CoarseTracker::trackNewestCoarse(
 }
 
 bool CoarseTracker::trackNewestCoarsewithIMU(
-		FrameHessian* newFrameHessian, gtsam::NavState &navstate_out,
+		FrameHessian* newFrameHessian, gtsam::NavState &navstate_i_out, gtsam::NavState &navstate_out,
 		Vec6 &biases_out , AffLight &aff_g2l_out,
 		int coarsestLvl,
 		Vec5 minResForAbort,
@@ -1846,8 +1846,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 	Vec6 biases_current = biases_out;
 	gtsam::NavState navstate_j_current = navstate_out;
-    gtsam::NavState navstate_i_current = newFrame->shell->last_frame->navstate;
-	gtsam::NavState navstate_i_first_estimate = newFrame->shell->last_frame->navstate;
+	gtsam::NavState navstate_i_current = navstate_i_out;
+	gtsam::NavState navstate_i_first_estimate = navstate_i_current;
 	AffLight aff_g2l_current = aff_g2l_out;
 
 	gtsam::NavState navstate_i_gt = gtsam::NavState(
@@ -2095,21 +2095,21 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		}
 
 		// res at groundtruth
-		std::cout << "Res at groundtruth: " << std::endl;
-		newFrame->shell->linearizeImuFactorLastFrame(
-				navstate_i_gt,
-				navstate_j_gt,
-				newFrame->shell->last_frame->bias,
-				newFrame->shell->bias
-		);
-
-		Vec6 res_gt = calcResIMU(
-				lvl,
-				navstate_i_gt,
-				navstate_j_gt,
-				aff_g2l_current, biases_current, 1
-		);
-		std::cout << "res gt: " << res_gt.transpose() << std::endl;
+//		std::cout << "Res at groundtruth: " << std::endl;
+//		newFrame->shell->linearizeImuFactorLastFrame(
+//				navstate_i_gt,
+//				navstate_j_gt,
+//				newFrame->shell->last_frame->bias,
+//				newFrame->shell->bias
+//		);
+//
+//		Vec6 res_gt = calcResIMU(
+//				lvl,
+//				navstate_i_gt,
+//				navstate_j_gt,
+//				aff_g2l_current, biases_current, 1
+//		);
+//		std::cout << "res gt: " << res_gt.transpose() << std::endl;
 	}
 
 	// set!
@@ -2257,10 +2257,10 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			  << "Prior b: " << fullSystem->bprior.head(9).transpose() << std::endl;
 
 	navstate_out = navstate_j_current;
+	navstate_i_out = navstate_i_current;
 	aff_g2l_out = aff_g2l_current;
 	biases_out = biases_current;
 
-    newFrame->shell->last_frame->navstate = navstate_i_current;
     Vec3 velocity_gt =fullSystem->T_dsoworld_eurocworld.block<3,3>(0,0) * newFrame->shell->groundtruth.velocity;
     float velocity_direction_error = acos(
             velocity_gt.dot(navstate_out.velocity()) / (velocity_gt.norm() * navstate_out.velocity().norm())

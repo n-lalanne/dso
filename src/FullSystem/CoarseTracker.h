@@ -57,7 +57,7 @@ public:
 
 	bool trackNewestCoarsewithIMU(
 			FrameHessian* newFrameHessian,
-			gtsam::NavState &navstate_out,  Vec6 &biases_out, AffLight &aff_g2l_out,
+			gtsam::NavState &navstate_i_out, gtsam::NavState &navstate_out,  Vec6 &biases_out, AffLight &aff_g2l_out,
 			int coarsestLvl,
 			Vec5 minResForAbort,
 			IOWrap::Output3DWrapper* wrap=0);
