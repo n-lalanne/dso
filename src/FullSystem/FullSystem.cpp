@@ -352,7 +352,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	Vec3 shared_velocity;
     Vec6 final_biases, current_biases;
 	//for debuging
-	SE3 groundtruth_lastF_2_fh;
+	//SE3 groundtruth_lastF_2_fh;
 
 	if(allFrameHistory.size() == 2)
 	{
@@ -366,6 +366,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		// get last delta-movement.
 		if(!slast->poseValid || !sprelast->poseValid || !lastF->shell->poseValid)
 		{
+			std::cout<<"previous poses are not valid!"<<std::endl;
+			lastF_2_fh_tries.clear();
 			lastF_2_fh_tries.push_back(SE3());
 		}
 		else
@@ -393,9 +395,9 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //			std::cout<<"from SE3: fh_2_slast:\n"<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
 
 
-            groundtruth_lastF_2_fh = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
-                    fh->shell->groundtruth.pose.inverse().compose(lastF->shell->groundtruth.pose).matrix()
-            ));
+//            groundtruth_lastF_2_fh = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
+//                    fh->shell->groundtruth.pose.inverse().compose(lastF->shell->groundtruth.pose).matrix()
+//            ));
 
             //just use the initial pose from IMU
             //when we determine the last key frame, we will propagate the pose by using the preintegration measurement and the pose of the last key frame
@@ -601,15 +603,20 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 
 	Vec5 achievedRes = Vec5::Constant(NAN);
-	gtsam::NavState navstate_this;
-	Vec6 biases_this;
-	bool haveOneGood = false;
+
+    gtsam::NavState navstate_this;
+    gtsam::NavState navstate_current = prop_navstate;
+    Vec6 biases_this;
+    gtsam::NavState slast_trynavstate = slast_navstate;
+
+    bool haveOneGood = false;
 	int tryIterations=0;
 	for (unsigned int i=0;i<lastF_2_fh_tries.size();i++)
 	{
 		AffLight aff_g2l_this = aff_last_2_l;
 		SE3 lastF_2_fh_this = lastF_2_fh_tries[i];
 		SE3 slast_2_fh_this = lastF_2_fh_this * lastF_2_slast.inverse();
+
 		biases_this = fh->shell->bias.vector();
 		bool trackingIsGood;
 		if (IMUinitialized)
@@ -636,9 +643,9 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //			std::cout<<"lastRef id : "<<lastF->shell->id<<std::endl;
 //			std::cout<<"lastRef->Tib: "<<lastF->shell->navstate.pose().matrix()<<std::endl;
 //			std::cout<<"lastRef->Tib from camtoworld: "<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
-
+			fh->shell->navstate = navstate_this;
 			trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
-					fh, navstate_this, biases_this, aff_g2l_thisIMU,
+					fh, slast_trynavstate, navstate_this, biases_this, aff_g2l_thisIMU,
 					pyrLevelsUsed-1,
 					achievedRes);
 
@@ -687,7 +694,15 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			flowVecs = coarseTracker->lastFlowIndicators;
 			aff_g2l = aff_g2l_this;
 			lastF_2_fh = lastF_2_fh_this;
+            navstate_current = navstate_this;
+            slast_navstate = slast_trynavstate;
+
 			haveOneGood = true;
+        }
+        else
+        {
+            // reset to the last known good previous pose
+            slast_trynavstate = slast_navstate;
         }
 
 		// take over achieved res (always).
@@ -747,9 +762,21 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //		fh->shell->navstate = gtsam::NavState(gtsam::Pose3(imuToWorld.matrix()),Vec3(0,0,0));
 //
 //		std::cout << "camToWorld normal: \n" << fh->shell->camToWorld.matrix() << std::endl;
+		std::cout<<"overall incrment of the current pose: velocity: "<<fh->shell->navstate.velocity()-navstate_current.velocity()<<std::endl;
+		std::cout<<"overall incrment of the previous pose: velocity: "<<fh->shell->last_frame->navstate.velocity()-slast_navstate.velocity()<<std::endl;
 
+		std::cout<<"current states before optimization:\n"<<fh->shell->navstate<<std::endl;
+		std::cout<<"current states after optimization:\n"<<navstate_current<<std::endl;
 
-		fh->shell->navstate = navstate_this;
+		std::cout<<"previous states before optimization:\n"<<fh->shell->last_frame->navstate<<std::endl;
+		std::cout<<"previous states after optimization:\n"<<slast_navstate<<std::endl;
+
+		std::cout<<"current bias before optimization:\n"<<fh->shell->bias.vector()<<std::endl;
+		std::cout<<"current bias after optimization:\n"<<biases_this<<std::endl;
+
+		fh->shell->navstate = navstate_current;
+        fh->shell->last_frame->navstate = slast_navstate;
+
 		fh->shell->bias = gtsam::imuBias::ConstantBias(biases_this);
 		fh->shell->camToTrackingRef = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
 				(lastF->shell->navstate.pose().inverse() * navstate_this.pose()).matrix()
@@ -1614,9 +1641,16 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 					 << "translation dir error: " << translation_direction_error
 					 << std::endl;
 
+        Mat44 T_dsoworld_eurocworld = allKeyFramesHistory[0]->navstate.pose().matrix() * allKeyFramesHistory[0]->groundtruth.pose.inverse().matrix();
+        Vec3 velocity_gt = T_dsoworld_eurocworld.topLeftCorner(3, 3) * allKeyFramesHistory[i]->groundtruth.velocity;
+        float velocity_direction_error = acos(
+                velocity_gt.dot(Vs[i]) / (velocity_gt.norm() * Vs[i].norm())
+        ) * 180.0 / M_PI;
 		std::cout << "Velocity GT VS Our: \n"
-				  << allKeyFramesHistory[i]->groundtruth.velocity.transpose() << std::endl
-				  << Vs[i].transpose()
+				  << velocity_gt.transpose() << std::endl
+				  << Vs[i].transpose() << std::endl
+                  << "error: " << velocity_direction_error << std::endl
+				  << "norm: " << velocity_gt.norm() << " VS " << Vs[i].norm()
 				  << std::endl;
 	}
 

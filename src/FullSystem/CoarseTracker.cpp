@@ -395,6 +395,8 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 	std::cout<<"H_photometric of current pose:\n"<<H_out.block<8,8>(0,0)<<std::endl;
 	std::cout<<"H_imu of current pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<11, 11>(0,0)<<std::endl;
 	std::cout<<"H_imu of pervious pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<9, 9>(17,17)<<std::endl;
+	std::cout<<"b_imu of current pose:\n"<< (J_imu_complete.transpose() * information_imu * res_imu).segment<11>(0).transpose()<<std::endl;
+	std::cout<<"b_imu of pervious pose:\n"<< (J_imu_complete.transpose() * information_imu * res_imu).segment<9>(17).transpose()<<std::endl;
 
     H_out += J_imu_complete.transpose() * information_imu * J_imu_complete;
     b_out += J_imu_complete.transpose() * information_imu * res_imu;
@@ -409,8 +411,12 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 
 	// Becareful!! the block for pervious pose still contains affine a and b!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	std::cout<<"H_imu+photometric of pervious pose:\n"<<H_out.block<9, 9>(17,17)<<std::endl;
-	H_out.bottomRightCorner<15, 15>() +=  H_prior;
-	b_out.tail(15) += b_prior;
+	if(fullSystem->addprior)
+		{
+			H_out.bottomRightCorner<15, 15>() +=  H_prior;
+			b_out.tail(15) += b_prior;
+		}
+
 
 	std::cout << "J_prior: \n" << J_prior << std::endl;
 
@@ -542,8 +548,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 
     H_out.setZero();
     b_out.setZero();
-	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>()  * (1.0f/n);
-	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>();//  * (1.0f/n);
+	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>();// * (1.0f/n);
 	//std::cout<<"H_out:\n"<<H_out.block<8,8>(0,0)<<std::endl;
 	//std::cout<<"b_out:\n"<<b_out.segment<8>(0)<<std::endl;
 	// here rtvab means rotation, translation, affine, velocity and biases
@@ -1457,9 +1463,9 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
 	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
 
-	if(fabs(imu_error(8))>0.5&&fabs(imu_error(7))>0.5&&fabs(imu_error(6))>0.5){
+	if(fabs(imu_error(8))>0.5||fabs(imu_error(7))>0.5||fabs(imu_error(6))>0.5){
 		std::cout<<" wrong imu_error!!!!"<<std::endl;
-//		exit(0);
+		//exit(0);
 	}
 
     if (IMUenergy > imu_huberTH)
@@ -1478,7 +1484,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
 	res_prior = calcPriorRes(previous_navstate, current_navstate);
-
+    information_prior *= 0.001;
 
 	std::cout << "Res prior: " << res_prior.transpose() << std::endl;
 	std::cout<<"information_prior:(uncut)"<<information_prior.diagonal().transpose()<<std::endl;
@@ -1488,11 +1494,10 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 //	{
 //		std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
 //	}
-
 	double priorEnergy = res_prior.transpose() * information_prior * res_prior;
 	if(priorEnergy<0.0)std::cout<<"priorEnergy is negative!!!"<<std::endl;
 	// TODO: make threshold a setting
-	float prior_huberTH = 50;
+	float prior_huberTH = 60;
 	std::cout<<"priorEnergy(uncut): "<<priorEnergy<<std::endl;
 
 	if (priorEnergy > prior_huberTH)
@@ -1510,9 +1515,9 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 		std::cout << "undefined prior energy" << std::endl;
 	}
 
-	if(fabs(res_prior(8))>0.5&&fabs(res_prior(7))>0.5&&fabs(res_prior(6))>0.5){
+	if(fabs(res_prior(8))>0.5||fabs(res_prior(7))>0.5||fabs(res_prior(6))>0.5){
 		std::cout<<" wrong res_prior!!!!"<<std::endl;
-//		exit(0);
+		//exit(0);
 	}
 	std::cout << "Energy prior: " << priorEnergy << std::endl;
 //	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
@@ -1528,7 +1533,12 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	//std::cout<<"number of points:"<<numTermsInE<<std::endl;
 	std::cout<<"E vs IMU_error is :"<<E <<" "<<IMUenergy<< " " << lvl << std::endl;
     std::cout<<"----------------------------------------------------------------"<<std::endl;
-	E += IMUenergy + priorEnergy;
+
+	E += IMUenergy;
+	if(fullSystem->addprior)
+	{
+		E += priorEnergy;
+	}
 //=============================================================================================================
 	if(debugPlot)
 	{
@@ -1767,6 +1777,7 @@ bool CoarseTracker::trackNewestCoarse(
 	SE3 T_world_new = T_world_ref * T_ref_new;
 	SE3 nav_state = T_world_new * SE3(fullSystem->getTbc()).inverse();
 
+
 //	std::cout<<" IMU free version: affine a: "<<aff_g2l_out.a<< " affine b: "<<aff_g2l_out.b<<std::endl;
 //	std::cout << "IMU free navstate: " << nav_state.matrix() << std::endl;
 
@@ -1789,7 +1800,7 @@ bool CoarseTracker::trackNewestCoarse(
 }
 
 bool CoarseTracker::trackNewestCoarsewithIMU(
-		FrameHessian* newFrameHessian, gtsam::NavState &navstate_out,
+		FrameHessian* newFrameHessian, gtsam::NavState &navstate_i_out, gtsam::NavState &navstate_out,
 		Vec6 &biases_out , AffLight &aff_g2l_out,
 		int coarsestLvl,
 		Vec5 minResForAbort,
@@ -1810,8 +1821,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 	Vec6 biases_current = biases_out;
 	gtsam::NavState navstate_j_current = navstate_out;
-    gtsam::NavState navstate_i_current = newFrame->shell->last_frame->navstate;
-	gtsam::NavState navstate_i_first_estimate = newFrame->shell->last_frame->navstate;
+	gtsam::NavState navstate_i_current = navstate_i_out;
+	gtsam::NavState navstate_i_first_estimate = navstate_i_current;
 	AffLight aff_g2l_current = aff_g2l_out;
 
 	bool haveRepeated = false;
@@ -1849,7 +1860,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		{
 			//std::cout<<"cut off!"<<std::endl;
 			levelCutoffRepeat*=2;
-			resOld = calcResIMU(lvl, navstate_j_current, navstate_j_current, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
+			resOld = calcResIMU(lvl, navstate_i_current, navstate_j_current, aff_g2l_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
 
 			if(!setting_debugout_runquiet)
 				printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
@@ -2082,11 +2093,11 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Prior_cov);
 		Eigen::MatrixXd Prior_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > 1e-6).select(saes.eigenvalues().array(), 0)).asDiagonal() * saes.eigenvectors().transpose();
 
-		Eigen::LLT<Eigen::MatrixXd> lltOfA(Prior_inv); // compute the Cholesky decomposition of A
-		if(lltOfA.info() == Eigen::NumericalIssue)
-		{
-			std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
-		}
+//		Eigen::LLT<Eigen::MatrixXd> lltOfA(Prior_inv); // compute the Cholesky decomposition of A
+//		if(lltOfA.info() == Eigen::NumericalIssue)
+//		{
+//			std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
+//		}
 
 		fullSystem->Hprior.topLeftCorner(9, 9) = Prior_inv;
 		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias.leftCols(2) * Hmm_inv * bm.head(2);
@@ -2154,18 +2165,16 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Prior_cov);
 		Eigen::MatrixXd Prior_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > 1e-6).select(saes.eigenvalues().array(), 0)).asDiagonal() * saes.eigenvectors().transpose();
 
-		std::cout << "Eigen values: " << Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd>(Prior_inv).eigenvalues().matrix().transpose() << std::endl;
-		Eigen::LLT<Eigen::MatrixXd> lltOfA(Prior_inv); // compute the Cholesky decomposition of A
-		if(lltOfA.info() == Eigen::NumericalIssue)
-		{
-			std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
-		}
+//		std::cout << "Eigen values: " << Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd>(Prior_inv).eigenvalues().matrix().transpose() << std::endl;
+//		Eigen::LLT<Eigen::MatrixXd> lltOfA(Prior_inv); // compute the Cholesky decomposition of A
+//		if(lltOfA.info() == Eigen::NumericalIssue)
+//		{
+//			std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
+//		}
 
 		fullSystem->Hprior.topLeftCorner(9, 9) = Prior_inv;
 		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias * Hmm_inv * bm.tail(9);
 
-//		fullSystem->Hprior = Hbb - Hbm.rightCols(15) * Hmm_inv * Hbm.rightCols(15).transpose();
-//		fullSystem->bprior = bb - Hbm.rightCols(15) * Hmm_inv * bm.tail(15);
     }
 	fullSystem->navstatePrior = navstate_j_current;
 
@@ -2173,10 +2182,13 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			  << "Prior b: " << fullSystem->bprior.head(9).transpose() << std::endl;
 
 	navstate_out = navstate_j_current;
+	navstate_i_out = navstate_i_current;
 	aff_g2l_out = aff_g2l_current;
 	biases_out = biases_current;
 
-    newFrame->shell->last_frame->navstate = navstate_i_current;
+
+	//std::cout<<"Overall increment:\n"<<na
+
     Mat44 T_dso_euroc = newFrame->shell->navstate.pose().matrix() * newFrame->shell->groundtruth.pose.inverse().matrix();
     Vec3 velocity_gt = T_dso_euroc.block<3,3>(0,0) * newFrame->shell->groundtruth.velocity;
     float velocity_direction_error = acos(
