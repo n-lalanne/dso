@@ -280,7 +280,7 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
 //    std::cout << "Vel initialized: " << last_frame->navstate.velocity().transpose() << std::endl;
 //    std::cout << "GT Vel initialized: " << last_frame->groundtruth.velocity.transpose() << std::endl;
 
-    gtsam::NavState predicted_pose_imu = imu_preintegrated_last_frame_->predict(last_frame->navstate, bias);
+    gtsam::NavState predicted_pose_imu = imu_preintegrated_last_frame_->predict(ref_pose_imu, bias);
 
     if  (
             !std::isfinite(predicted_pose_imu.pose().translation().x()) ||

@@ -1499,7 +1499,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 	std::cout << "imu_error: " << imu_error.transpose() << std::endl;
     // TODO: make threshold a setting
-	float imu_huberTH = 10.0; // 21.66;
+	float imu_huberTH = 21.66;
 	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
 	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
 
@@ -2166,35 +2166,39 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	fullSystem->bprior.setZero();
     if (isOptimizeSingle)
     {
-		cv::Mat Hmm_cv(2, 2, CV_64F), Hmm_cv_inv(2, 2, CV_64F);
-		Mat22 Hmm_relevant = Hmm.topLeftCorner(2, 2);
-		cv::eigen2cv(Hmm_relevant, Hmm_cv);
-		// pseudo-inverse
-		cv::invert(Hmm_cv, Hmm_cv_inv, cv::DECOMP_SVD);
+		fullSystem->Hprior.setIdentity();
+		fullSystem->Hprior.topLeftCorner(6, 6) *= 1e2;
+		fullSystem->Hprior.block<3, 3>(6, 6) *= 1;
 
-		Mat22 Hmm_inv;
-		cv::cv2eigen(Hmm_cv_inv, Hmm_inv);
-
-		// exclude bias from computation
-		Mat99 Hbb_no_bias = Hbb.topLeftCorner<9, 9>();
-		Eigen::Matrix<double, 9, 11> Hbm_no_bias = Hbm.topLeftCorner<9, 11>();
-
-		fullSystem->Hprior.topLeftCorner(9, 9) = Hbb_no_bias - Hbm_no_bias.leftCols(2) * Hmm_inv * Hbm_no_bias.leftCols(2).transpose();
-		Mat99 Prior_cov = fullSystem->Hprior.topLeftCorner(9, 9);
-		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Prior_cov);
-		Eigen::MatrixXd Prior_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > 1e-6).select(saes.eigenvalues().array(), 0)).asDiagonal() * saes.eigenvectors().transpose();
-
-		Eigen::LLT<Eigen::MatrixXd> lltOfA(Prior_inv); // compute the Cholesky decomposition of A
-		if(lltOfA.info() == Eigen::NumericalIssue)
-		{
-			std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
-		}
-
-		fullSystem->Hprior.topLeftCorner(9, 9) = Prior_inv;
-		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias.leftCols(2) * Hmm_inv * bm.head(2);
-
-//        fullSystem->Hprior = Hbb - Hbm.leftCols(2) * Hmm_inv * Hbm.leftCols(2).transpose();
-//        fullSystem->bprior = bb - Hbm.leftCols(2) * Hmm_inv * bm.head(2);
+//		cv::Mat Hmm_cv(2, 2, CV_64F), Hmm_cv_inv(2, 2, CV_64F);
+//		Mat22 Hmm_relevant = Hmm.topLeftCorner(2, 2);
+//		cv::eigen2cv(Hmm_relevant, Hmm_cv);
+//		// pseudo-inverse
+//		cv::invert(Hmm_cv, Hmm_cv_inv, cv::DECOMP_SVD);
+//
+//		Mat22 Hmm_inv;
+//		cv::cv2eigen(Hmm_cv_inv, Hmm_inv);
+//
+//		// exclude bias from computation
+//		Mat99 Hbb_no_bias = Hbb.topLeftCorner<9, 9>();
+//		Eigen::Matrix<double, 9, 11> Hbm_no_bias = Hbm.topLeftCorner<9, 11>();
+//
+//		fullSystem->Hprior.topLeftCorner(9, 9) = Hbb_no_bias - Hbm_no_bias.leftCols(2) * Hmm_inv * Hbm_no_bias.leftCols(2).transpose();
+//		Mat99 Prior_cov = fullSystem->Hprior.topLeftCorner(9, 9);
+//		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Prior_cov);
+//		Eigen::MatrixXd Prior_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > 1e-6).select(saes.eigenvalues().array(), 0)).asDiagonal() * saes.eigenvectors().transpose();
+//
+//		Eigen::LLT<Eigen::MatrixXd> lltOfA(Prior_inv); // compute the Cholesky decomposition of A
+//		if(lltOfA.info() == Eigen::NumericalIssue)
+//		{
+//			std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
+//		}
+//
+//		fullSystem->Hprior.topLeftCorner(9, 9) = Prior_inv;
+//		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias.leftCols(2) * Hmm_inv * bm.head(2);
+//
+////        fullSystem->Hprior = Hbb - Hbm.leftCols(2) * Hmm_inv * Hbm.leftCols(2).transpose();
+////        fullSystem->bprior = bb - Hbm.leftCols(2) * Hmm_inv * bm.head(2);
     }
     else
     {
@@ -2269,7 +2273,6 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 //		fullSystem->Hprior = Hbb - Hbm.rightCols(15) * Hmm_inv * Hbm.rightCols(15).transpose();
 //		fullSystem->bprior = bb - Hbm.rightCols(15) * Hmm_inv * bm.tail(15);
     }
-	fullSystem->navstatePrior = navstate_j_current;
 
 	std::cout << "Prior H: \n" << fullSystem->Hprior.topLeftCorner(9, 9) << std::endl
 			  << "Prior b: " << fullSystem->bprior.head(9).transpose() << std::endl;
