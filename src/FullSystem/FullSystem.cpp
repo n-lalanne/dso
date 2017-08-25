@@ -399,6 +399,11 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
             //just use the initial pose from IMU
             //when we determine the last key frame, we will propagate the pose by using the preintegration measurement and the pose of the last key frame
+			// TODO: don't use groundtruth velocity
+			slast_navstate = gtsam::NavState(
+					fh->shell->last_frame->navstate.pose(),
+					T_dsoworld_eurocworld.topLeftCorner(3, 3) * fh->shell->last_frame->groundtruth.velocity
+			);
 			prop_navstate = fh->shell->PredictPose(slast_navstate, slast_timestamp);
 			//std::cout<<"last pose(from SE3):\n"<<slast->navstate.pose().matrix()<<std::endl;
             //std::cout<<"last pose(from navstate): \n"<<slast_navstate.pose().matrix()<<"\npredicted current pose\n"<<prop_navstate.pose().matrix()<<std::endl;

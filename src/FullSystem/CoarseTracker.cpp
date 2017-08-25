@@ -112,6 +112,42 @@ CoarseTracker::~CoarseTracker()
     ptrToDelete.clear();
 }
 
+void CoarseTracker::setUnscaledGaussNewtonSys(Mat3232 H, Vec32 b)
+{
+	H_unscaled = H;
+	b_unscaled = b;
+}
+
+void CoarseTracker::splitHessianForMarginalization(
+		Mat1515 &Hbb,
+		Mat1517 &Hbm,
+		Mat1717 &Hmm,
+		Vec15 &bb,
+		Vec17 &bm
+)
+{
+	Hmm.topLeftCorner<2, 2>() = H_unscaled.block<2, 2>(6, 6);
+	Hmm.bottomRightCorner<15, 15>() = H_unscaled.bottomRightCorner<15, 15>();
+	Hmm.bottomLeftCorner<15, 2>() = H_unscaled.block<15, 2>(17, 6);
+	Hmm.topRightCorner<2, 15>() = H_unscaled.block<2, 15>(6, 17);
+
+	Hbb.topLeftCorner<6, 6>() = H_unscaled.topLeftCorner<6, 6>();
+	Hbb.bottomRightCorner<9, 9>()= H_unscaled.block<9, 9>(8, 8);
+	Hbb.bottomLeftCorner<9, 6>() = H_unscaled.block<9, 6>(8, 0);
+	Hbb.topRightCorner<6, 9>() = H_unscaled.block<6, 9>(0, 8);
+
+	Hbm.topLeftCorner<6, 2>() = H_unscaled.block<6, 2>(0, 6);
+	Hbm.bottomLeftCorner<9, 2>() = H_unscaled.block<9, 2>(8, 6);
+	Hbm.topRightCorner<6, 15>() = H_unscaled.block<6, 15>(0, 17);
+	Hbm.bottomRightCorner<9, 15>() = H_unscaled.block<9, 15>(8, 17);
+
+	bm.head(2) = b_unscaled.segment<2>(6);
+	bm.tail(15) = b_unscaled.tail(15);
+
+	bb.head(6) = b_unscaled.head(6);
+	bb.tail(9) = b_unscaled.segment<9>(8);
+}
+
 void CoarseTracker::makeK(CalibHessian* HCalib)
 {
 	w[0] = wG[0];
@@ -415,8 +451,6 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 		H_out.bottomRightCorner<15, 15>() +=  H_prior;
 		b_out.tail(15) += b_prior;
 	}
-
-	std::cout << "J_prior: \n" << J_prior << std::endl;
 
 	std::cout	<< "H_prior: \n" << H_prior.topLeftCorner<9, 9>() << std::endl
 				<< "b_prior: " << b_prior.head(9).transpose() << std::endl
@@ -1465,7 +1499,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 	std::cout << "imu_error: " << imu_error.transpose() << std::endl;
     // TODO: make threshold a setting
-	float imu_huberTH = 21.66;
+	float imu_huberTH = 10.0; // 21.66;
 	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
 	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
 
@@ -2123,26 +2157,10 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
     Vec15 bb;
     Vec17 bm;
 
-	Hmm.topLeftCorner<2, 2>() = H_unscaled.block<2, 2>(6, 6);
-	Hmm.bottomRightCorner<15, 15>() = H_unscaled.bottomRightCorner<15, 15>();
-	Hmm.bottomLeftCorner<15, 2>() = H_unscaled.block<15, 2>(17, 6);
-	Hmm.topRightCorner<2, 15>() = Hmm.bottomLeftCorner<15, 2>().transpose();
-
-	Hbb.topLeftCorner<6, 6>() = H_unscaled.topLeftCorner<6, 6>();
-	Hbb.bottomRightCorner<9, 9>()= H_unscaled.block<9, 9>(8, 8);
-	Hbb.bottomLeftCorner<9, 6>() = H_unscaled.block<9, 6>(8, 0);
-	Hbb.topRightCorner<6, 9>() = Hbb.bottomLeftCorner<9, 6>().transpose();
-
-	Hbm.topLeftCorner<6, 2>() = H_unscaled.block<6, 2>(0, 6);
-	Hbm.bottomLeftCorner<9, 2>() = H_unscaled.block<9, 2>(8, 6);
-	Hbm.topRightCorner<6, 15>() = H_unscaled.block<6, 15>(0, 17);
-	Hbm.bottomRightCorner<9, 15>() = H_unscaled.block<9, 15>(8, 17);
-
-    bm.head(2) = b_unscaled.segment<2>(6);
-    bm.tail(15) = b_unscaled.tail(15);
-
-    bb.head(6) = b_unscaled.head(6);
-    bb.tail(9) = b_unscaled.segment<9>(8);
+	splitHessianForMarginalization(
+			Hbb, Hbm, Hmm,
+			bb, bm
+	);
 
 	fullSystem->Hprior.setZero();
 	fullSystem->bprior.setZero();

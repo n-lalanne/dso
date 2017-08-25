@@ -62,6 +62,16 @@ public:
 			Vec5 minResForAbort,
 			IOWrap::Output3DWrapper* wrap=0);
 
+	void setUnscaledGaussNewtonSys(Mat3232 H, Vec32 b);
+
+	void splitHessianForMarginalization(
+			Mat1515 &Hbb,
+			Mat1517 &Hbm,
+			Mat1717 &Hmm,
+			Vec15 &bb,
+			Vec17 &bm
+	);
+
 	void setCoarseTrackingRef(
 			std::vector<FrameHessian*> frameHessians);
 

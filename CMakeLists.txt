@@ -151,3 +151,7 @@ target_link_libraries(dso gtsam boost_system boost_thread cxsparse ${LIBZIP_LIBR
 #	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
 #endif()
 
+# tests
+add_executable(matrix_assignments_test ${PROJECT_SOURCE_DIR}/src/tests/matrix_assignments.cpp)
+target_link_libraries(matrix_assignments_test dso)
+
