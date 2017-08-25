@@ -368,8 +368,8 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 
 	H_out.setZero();
 	b_out.setZero();
-	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>(); //  * (1.0f/n);
-	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>(); // * (1.0f/n);
+	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>()  * (1.0f/n);
+	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
 
 
 
@@ -1461,7 +1461,14 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
     // TODO: make threshold a setting
 	float imu_huberTH = 21.66;
 	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
+//	Mat1515 information_imu_man;
+//	information_imu_man.setIdentity();
+//	information_imu_man.block<3,3>(0,0) *= 1000000;
+//	information_imu_man.block<3,3>(3,3) *= 100000000;
+//	information_imu_man.block<3,3>(6,6) *= 1000000;
+//	information_imu = information_imu_man;
 	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
+
 
 	if(fabs(imu_error(8))>0.5||fabs(imu_error(7))>0.5||fabs(imu_error(6))>0.5){
 		std::cout<<" wrong imu_error!!!!"<<std::endl;
@@ -1484,7 +1491,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
 	res_prior = calcPriorRes(previous_navstate, current_navstate);
-    information_prior *= 0.001;
+    //information_prior *= 0.001;
 
 	std::cout << "Res prior: " << res_prior.transpose() << std::endl;
 	std::cout<<"information_prior:(uncut)"<<information_prior.diagonal().transpose()<<std::endl;
@@ -1531,7 +1538,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	//std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
 	//std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
 	//std::cout<<"number of points:"<<numTermsInE<<std::endl;
-	std::cout<<"E vs IMU_error is :"<<E <<" "<<IMUenergy<< " " << lvl << std::endl;
+	std::cout<<"E vs IMU_error is :"<<E <<" "<<IMUenergy<<" number of depthpix: "<< numTermsInE << " " << lvl << std::endl;
     std::cout<<"----------------------------------------------------------------"<<std::endl;
 
 	E += IMUenergy;
@@ -2173,7 +2180,12 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 //		}
 
 		fullSystem->Hprior.topLeftCorner(9, 9) = Prior_inv;
+
 		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias * Hmm_inv * bm.tail(9);
+
+		fullSystem->Hprior.block<9,3>(0,3) *= 0.01;
+		fullSystem->Hprior.block<3,9>(3,0) *= 0.01;
+
 
     }
 	fullSystem->navstatePrior = navstate_j_current;

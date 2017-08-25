@@ -38,7 +38,7 @@ imutopic: "/imu0"
 imagetopic: "/cam0/image_raw"
 
 #if withprior(1: with prior 0: without prior)
-addprior: 0
+addprior: 1
 
 # Timestamp shift. Timage = Timu + image_delay
 Camera.delaytoimu: 0
@@ -55,14 +55,16 @@ Camera.Tbc:
 
 IMU.accBias: [-0.013337, 0.103464, 0.093086]
 IMU.gyroBias: [-0.002153, 0.020744, 0.075806]
+#IMU.accBias: [-0.026895, 0.13691, 0.059287]
+#IMU.gyroBias: [-0.002153, 0.020744, 0.075806]
 
 # Local Window size
 LocalMapping.LocalWindowSize: 20
 
-accel_noise_sigma: 0.05
-gyro_noise_sigma: 0.002
-accel_bias_rw_sigma: 0.005
-gyro_bias_rw_sigma: 0.0002
+accel_noise_sigma: 0.002
+gyro_noise_sigma: 0.00017
+accel_bias_rw_sigma: 0.003
+gyro_bias_rw_sigma: 0.00002
 
 #--------------------------------------------------------------------------------------------
 # Camera Parameters. Adjust them!
