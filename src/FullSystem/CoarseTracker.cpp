@@ -336,6 +336,7 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 			}
 
 		pc_n[lvl] = lpc_n;
+		std::cout<<"produced "<<lpc_n<<"pixels on level"<<lvl<<std::endl;
 	}
 
 }
@@ -1358,6 +1359,11 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	float* lpc_idepth = pc_idepth[lvl];
 	float* lpc_color = pc_color[lvl];
 
+	if(lvl == 0 && nl < 50){
+		std::cout<<"not enough depth!"<<std::endl;
+		exit(0);
+	}
+
 //	std::cout << "CalcResIMU: " << std::endl;
 //	std::cout << "ref2cam: \n" << refToNew.matrix() << std::endl;
 
@@ -1563,9 +1569,8 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 
 //	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
-
-	//std::cout<<"Unnormaliezd E is :"<<E << std::endl;
-	E/=numTermsInE;
+    E/=numTermsInE;
+	std::cout<<nl<<"pixels with depth avaliable :"<<numTermsInE<<" inliers, vision error is "<< E << std::endl;
 	//IMUenergy/=SCALE_IMU_T;
 
 
@@ -1912,7 +1917,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	Mat1717 H17; Vec17 b17;
 
     // optimize only one pose if we the last frame is the last keyframe (map recently updated)
-    bool isOptimizeSingle = lastRef->shell == newFrameHessian->shell->last_frame;
+    bool isOptimizeSingle = (lastRef->shell == newFrameHessian->shell->last_frame);
 
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{

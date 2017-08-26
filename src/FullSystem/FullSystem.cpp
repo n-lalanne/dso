@@ -411,6 +411,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 			prop_navstate = fh->shell->PredictPose(slast_navstate, slast_timestamp);
 			navstatePrior = fh->shell->last_frame->navstate;
+			slast_navstate = navstatePrior;
 
 			//std::cout<<"last pose(from SE3):\n"<<slast->navstate.pose().matrix()<<std::endl;
             //std::cout<<"last pose(from navstate): \n"<<slast_navstate.pose().matrix()<<"\npredicted current pose\n"<<prop_navstate.pose().matrix()<<std::endl;
@@ -2153,7 +2154,7 @@ void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
 {
 
 	isLocalBADone = false;
-	if(linearizeOperation)
+	if(true) // (linearizeOperation)
 	{
 		if(goStepByStep && lastRefStopID != coarseTracker->refFrameID)
 		{

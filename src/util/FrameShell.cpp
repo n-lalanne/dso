@@ -260,7 +260,7 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
 
     // conversion from EUROC reference to our reference
 //    Mat44 T_dso_euroc = ref_pose_imu.pose().matrix() * last_frame->groundtruth.pose.inverse().matrix();
-
+//
 //    std::cout << "Velocity: " << (last_frame->navstate.velocity()).norm() <<" GT: " << ( last_frame->groundtruth.velocity).norm() << std::endl;
 //    std::cout << "DSO vs EuRoC rotation: \n" << T_dso_euroc.block<3,3>(0,0) << std::endl;
 //
@@ -273,6 +273,8 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
 //            ref_pose_imu.pose(),
 //            ref_pose_imu.velocity()
 //    );
+//
+//    last_frame->navstate = ref_pose_imu;
 
 //    std::cout<<"last id: "<<fh->shell->last_frame->id<<std::endl;
 //    std::cout<<"last_frame->id: "<<last_frame->id<<std::endl;
