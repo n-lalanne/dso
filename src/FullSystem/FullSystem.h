@@ -331,7 +331,7 @@ private:
 
 	int lastRefStopID;
     bool IMUinitialized = false;
-    int WINDOW_SIZE = 30;
+
 
 	//gravity respect to inertial frame
 	Vec3 gravity;
@@ -348,6 +348,7 @@ public:
 	double gyro_noise_sigma;
 	double accel_bias_rw_sigma;
 	double gyro_bias_rw_sigma;
+	int WINDOW_SIZE = 40;
 
     void setBiasEstimate(Vec3 accBias, Vec3 gyroBias)
     {
