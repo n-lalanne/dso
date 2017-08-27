@@ -1495,7 +1495,7 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		}
 
         gyroBiasEstimate = allKeyFramesHistory.back()->bias.gyroscope();
-		accBiasEstimate << -0.013337, 0.103464, 0.093086;
+		accBiasEstimate << -0.015406, 0.083464, 0.036466; //-0.013337, 0.103464, 0.093086;
 
 //		std::cout << "\"gyroscope bias initial calibration::::::; " << delta_bg.transpose() << std::endl;
 		std::cout << "\"gyroscope bias initial calibration::::::; " << gyroBiasEstimate.transpose() << std::endl;
@@ -2442,9 +2442,25 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	printLogLine();
     //printEigenValLine();
 
+
+	//update navstates of all keyframes in the localwindow
+	for(unsigned int i=0;i<frameHessians.size();i++)
+	{
+		SE3 newC2W = frameHessians[i]->shell->camToWorld;
+		SE3 oldB2W = SE3(frameHessians[i]->shell->navstate.pose().matrix());
+		Vec3 oldV = frameHessians[i]->shell->navstate.v();
+		SE3 newB2W = newC2W * SE3(getTbc()).inverse();
+		Mat33 old2new = newB2W.rotationMatrix().inverse() * oldB2W.rotationMatrix();
+		Vec3 newV = old2new * oldV;
+		gtsam::NavState newstate(gtsam::Pose3(newB2W.matrix()), newV);
+		frameHessians[i]->shell->navstate = newstate;
+	}
+
 // 	=========================== Clear the IMU buffer for next round ===========
 	// This is wrong. The new keyframe will not be the current frame, but something between the previous keyframe and the current frame
 	// Hence, the IMU measurements since last keyframe is not empty
+
+
 	mvIMUSinceLastKF.clear();
 }
 
