@@ -2021,6 +2021,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
     shell->incoming_id = id;
     shell->groundtruth = groundtruth;
 	shell->fh = fh;
+	shell->fullSystem = this;
 	fh->shell = shell;
 	allFrameHistory.push_back(shell);
 
@@ -2137,7 +2138,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 
 
 
-
+		//// TODO: draw velocity of the current frame for debugging
         for(IOWrap::Output3DWrapper* ow : outputWrapper)
             ow->publishCamPose(fh->shell, &Hcalib);
 
@@ -2154,7 +2155,7 @@ void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
 {
 
 	isLocalBADone = false;
-	if(true) // (linearizeOperation)
+	if(linearizeOperation)
 	{
 		if(goStepByStep && lastRefStopID != coarseTracker->refFrameID)
 		{

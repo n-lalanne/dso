@@ -33,6 +33,7 @@
 #include "IMU/imudata.h"
 #include "GroundTruthIterator/GroundTruthIterator.h"
 
+
 using gtsam::symbol_shorthand::X; // Pose3 (x,y,z,r,p,y)
 using gtsam::symbol_shorthand::V; // Vel   (xdot,ydot,zdot)
 using gtsam::symbol_shorthand::B; // Bias  (ax,ay,az,gx,gy,gz)
@@ -42,8 +43,7 @@ using namespace gtsam;
 
 namespace dso
 {
-
-
+class FullSystem;
 class FrameShell
 {
 public:
@@ -96,6 +96,10 @@ public:
 
 	// corresponding frame hessian
 	FrameHessian * fh;
+
+	FullSystem* fullSystem;
+
+
 
 	inline FrameShell(Vec3 acceleroBias, Vec3 gyroBias)
 	{

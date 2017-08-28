@@ -89,6 +89,9 @@ public:
 	int id;
 	bool active;
 	SE3 camToWorld;
+	Vec3 velocity;
+	Vec3 GTvelocity;
+	FrameShell *frameShell;
 
     inline bool operator < (const KeyFrameDisplay& other) const
     {
