@@ -319,7 +319,7 @@ namespace dso
 
 
 
-		if((debugSaveImages&&false))
+		if(debugSaveImages&&false)
 		{
 			for(unsigned int f=0;f<frameHessians.size();f++)
 			{

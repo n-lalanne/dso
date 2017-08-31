@@ -35,7 +35,14 @@ namespace dso
 {
 
 
-
+/**
+ *
+ * @tparam mode	　0 - for the point constraints whose pose are linked with marginalization factor (such that they cannot be relinearized)
+ * 				  1 - for the point constraints whose pose aren't linke with marginalization factor (such that they can be relinearized)
+ * @param p
+ * @param ef
+ * @param tid
+ */
 template<int mode>
 void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * const ef, int tid)	// 0 = active, 1 = linearized, 2=marginalize
 {

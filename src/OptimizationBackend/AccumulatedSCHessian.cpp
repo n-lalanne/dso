@@ -30,7 +30,19 @@
 
 namespace dso
 {
-
+/**
+ *
+ * @param p
+ * @param shiftPriorToZero
+ * @param tid
+ * @brief 	add points to the Gauss-Newton System by marginalization
+ * 			The state to be marginalized is just one dimensional (depth)
+ * 			Hence, the hessian update:
+ * 				H_lambda_lambda -= H_lambda_mu * H_mu_mu.inv() * H_mu_lambda
+ * 								-= H_lambda_mu * H_lambda_mu.transpose() * point->HdiF
+ * 				b_lambda -= H_lambda_mu * b_mu * point->Hdif
+ * 				(hence the hessian and b are subtracted instead of added to the GN system
+ */
 void AccumulatedSCHessianSSE::addPoint(EFPoint* p, bool shiftPriorToZero, int tid)
 {
 	int ngoodres = 0;

@@ -336,7 +336,7 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 			}
 
 		pc_n[lvl] = lpc_n;
-		std::cout<<"produced "<<lpc_n<<"pixels on level"<<lvl<<std::endl;
+		//std::cout<<"produced "<<lpc_n<<"pixels on level"<<lvl<<std::endl;
 	}
 
 }
@@ -429,9 +429,9 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     Mat1532 J_imu_complete;
     J_imu_complete.leftCols(17) = J_imu_travb_current;
     J_imu_complete.rightCols(15) = J_imu_travb_previous;
-	std::cout<<"H_photometric of current pose:\n"<<H_out.block<8,8>(0,0)<<std::endl;
-	std::cout<<"H_imu of current pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<11, 11>(0,0)<<std::endl;
-	std::cout<<"H_imu of pervious pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<9, 9>(17,17)<<std::endl;
+//	std::cout<<"H_photometric of current pose:\n"<<H_out.block<8,8>(0,0)<<std::endl;
+//	std::cout<<"H_imu of current pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<11, 11>(0,0)<<std::endl;
+//	std::cout<<"H_imu of pervious pose:\n"<<(J_imu_complete.transpose() * information_imu * J_imu_complete).block<9, 9>(17,17)<<std::endl;
 
     H_out += J_imu_complete.transpose() * information_imu * J_imu_complete;
     b_out += J_imu_complete.transpose() * information_imu * res_imu;
@@ -445,19 +445,19 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 
 
 	// Becareful!! the block for pervious pose still contains affine a and b!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	std::cout<<"H_imu+photometric of pervious pose:\n"<<H_out.block<9, 9>(17,17)<<std::endl;
+	//std::cout<<"H_imu+photometric of pervious pose:\n"<<H_out.block<9, 9>(17,17)<<std::endl;
 	if(fullSystem->addprior)
 	{
-		std::cout<<"prior added here!"<<std::endl;
+		//std::cout<<"prior added here!"<<std::endl;
 		H_out.bottomRightCorner<15, 15>() +=  H_prior;
 		b_out.tail(15) += b_prior;
 	}
 
-	std::cout	<< "H_prior: \n" << H_prior.topLeftCorner<9, 9>() << std::endl
-				<< "b_prior: " << b_prior.head(9).transpose() << std::endl
-				<< "prior infomation: " << information_prior.diagonal().head(9).transpose() << std::endl;
-
-	std::cout<<"H_imu+photometric+prior of pervious pose:\n"<<H_out.block<9, 9>(17,17)<<std::endl;
+//	std::cout	<< "H_prior: \n" << H_prior.topLeftCorner<9, 9>() << std::endl
+//				<< "b_prior: " << b_prior.head(9).transpose() << std::endl
+//				<< "prior infomation: " << information_prior.diagonal().head(9).transpose() << std::endl;
+//
+//	std::cout<<"H_imu+photometric+prior of pervious pose:\n"<<H_out.block<9, 9>(17,17)<<std::endl;
 
     // ------------------ ignore the cross terms in hessian between i and jth poses ------------------
 //    H_previous.noalias() = J_imu_travb_previous.transpose() * information_imu * J_imu_travb_previous;
@@ -1503,11 +1503,11 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	//imu_error.segment<3>()
 
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
-	std::cout << "imu_error: " << imu_error.transpose() << std::endl;
+	//std::cout << "imu_error: " << imu_error.transpose() << std::endl;
     // TODO: make threshold a setting
 	float imu_huberTH = 21.66;
-	std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
-	std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
+	//std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
+	//std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
 
 	if(fabs(imu_error(8))>0.5||fabs(imu_error(7))>0.5||fabs(imu_error(6))>0.5){
 		std::cout<<" wrong imu_error!!!!"<<std::endl;
@@ -1525,15 +1525,15 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	{
 		IMUenergy = 0;
 		information_imu.setZero();
-		std::cout << "undefined imu energy" << std::endl;
+		//std::cout << "undefined imu energy" << std::endl;
 	}
 
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
 	res_prior = calcPriorRes(previous_navstate, current_navstate);
 
 
-	std::cout << "Res prior: " << res_prior.transpose() << std::endl;
-	std::cout<<"information_prior:(uncut)"<<information_prior.diagonal().transpose()<<std::endl;
+	//std::cout << "Res prior: " << res_prior.transpose() << std::endl;
+	//std::cout<<"information_prior:(uncut)"<<information_prior.diagonal().transpose()<<std::endl;
 
 //	Eigen::LLT<Eigen::MatrixXd> lltOfA(information_prior); // compute the Cholesky decomposition of A
 //	if(lltOfA.info() == Eigen::NumericalIssue)
@@ -1549,7 +1549,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 
 	if (priorEnergy > prior_huberTH)
 	{
-		std::cout<<"information_prior needs to be cut off"<<std::endl;
+		//std::cout<<"information_prior needs to be cut off"<<std::endl;
 		float hw_res = fabs(priorEnergy) < prior_huberTH ? 1 : prior_huberTH / fabs(priorEnergy);
 		priorEnergy = hw_res * priorEnergy * (2 - hw_res);
 		information_prior *= hw_res;
@@ -1559,7 +1559,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	{
 		priorEnergy = 0;
 		information_prior.setZero();
-		std::cout << "undefined prior energy" << std::endl;
+		//std::cout << "undefined prior energy" << std::endl;
 	}
 
 	if(fabs(res_prior(8))>0.5||fabs(res_prior(7))>0.5||fabs(res_prior(6))>0.5){
@@ -1570,7 +1570,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 //	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
     E/=numTermsInE;
-	std::cout<<nl<<"pixels with depth avaliable :"<<numTermsInE<<" inliers, vision error is "<< E << std::endl;
+	//std::cout<<nl<<"pixels with depth avaliable :"<<numTermsInE<<" inliers, vision error is "<< E << std::endl;
 	//IMUenergy/=SCALE_IMU_T;
 
 
@@ -2155,12 +2155,79 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 //	lastToNew_out = refToNew_current;
 
+
+	navstate_out = navstate_j_current;
+	navstate_i_out = navstate_i_current;
+	aff_g2l_out = aff_g2l_current;
+	biases_out = biases_current;
+
+    Vec3 velocity_gt =fullSystem->T_dsoworld_eurocworld.block<3,3>(0,0) * newFrame->shell->groundtruth.velocity;
+    float velocity_direction_error = acos(
+            velocity_gt.dot(navstate_out.velocity()) / (velocity_gt.norm() * navstate_out.velocity().norm())
+    ) * 180 / M_PI;
+	std::cout<<"Optimized velocity: "<<navstate_out.velocity().transpose()
+            <<" GT: " << velocity_gt.transpose()<<std::endl
+            << "Angle error: " << velocity_direction_error << std::endl;
+	std::cout<<"Optimized velocity norm: "<<navstate_out.velocity().norm()<<" GT norm: "<<newFrame->shell->groundtruth.velocity.norm()<<std::endl;
+
+	// calculate error in gravity direction
+	Vec3 gravity_gt = newFrame->shell->last_frame->groundtruth.pose.rotation().matrix().bottomRows(1).transpose();
+	Vec3 gravity_est = navstate_i_current.pose().rotation().matrix().bottomRows(1).transpose();
+	float gravity_error = acos(
+		gravity_gt.dot(gravity_est) / (gravity_gt.norm() * gravity_est.norm())
+	) * 180 / M_PI;
+
+	std::cout << "Orientation error: " << gravity_error << std::endl;
+
+	std::cout << "Previous pose error: "
+			  << gtsam::Pose3::Logmap(navstate_i_gt.pose().inverse().compose(navstate_i_current.pose())).transpose() << " "
+			  << (navstate_i_current.velocity() - navstate_i_gt.velocity()).transpose()
+			  << std::endl;
+
+	std::cout << "Current pose error: "
+			  << gtsam::Pose3::Logmap(navstate_j_gt.pose().inverse().compose(navstate_j_current.pose())).transpose() << " "
+			  << (navstate_j_current.velocity() - navstate_j_gt.velocity()).transpose()
+			  << std::endl;
+
+//	std::cout<<" IMU version: affine a: "<< aff_g2l_out.a << "affine b_unscaled: "<< aff_g2l_out.b<<std::endl;
+//	std::cout<<" NAVSTATE: \n" << navstate_current.pose().matrix()<<std::endl;
+//	std::cout<<" after affine a: " << aff_g2l_out.a << "affine b: "<< aff_g2l_out.b<<std::endl;
+//	std::cout<< "\npreToworld:=\n "<<newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
+//	std::cout<< "\n(before optimization)NewToworld:=\n "<<navbak.pose().matrix()<<std::endl;
+//	std::cout<< "\n(after optimization)NewToworld:=\n "<<navstate_out.pose().matrix()<<std::endl;
+//	std::cout<< "\n(before optimization)perviousToNew_out:=\n "<<navbak.pose().inverse().matrix() * newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
+//	std::cout<< "\n(after optimization)perviousToNew_out:=\n "<<navstate_out.pose().inverse().matrix() * newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
+//	std::cout<<" \nperviousToworld_GT:=\n "<< newFrame->shell->last_frame->groundtruth.pose.matrix()<<std::endl;
+//	std::cout<<" \nnewToworld_GT:=\n "<< newFrame->shell->groundtruth.pose.matrix()<<std::endl;
+//	std::cout<<" \nperviousToNew_GT:=\n "<< newFrame->shell->groundtruth.pose.inverse().matrix() * newFrame->shell->last_frame->groundtruth.pose.matrix()<<std::endl;
+
+
+	if((setting_affineOptModeA != 0 && (fabsf(aff_g2l_out.a) > 1.2))
+	   || (setting_affineOptModeB != 0 && (fabsf(aff_g2l_out.b) > 200)))
+		return false;
+
+	Vec2f relAff = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l_out).cast<float>();
+
+	if((setting_affineOptModeA == 0 && (fabsf(logf((float)relAff[0])) > 1.5))
+	   || (setting_affineOptModeB == 0 && (fabsf((float)relAff[1]) > 200)))
+		return false;
+
+
+
+	if(setting_affineOptModeA < 0) aff_g2l_out.a=0;
+	if(setting_affineOptModeB < 0) aff_g2l_out.b=0;
+
+	return true;
+}
+
+void CoarseTracker::updatePriors()
+{
 	Mat1515 Hbb;
 	Mat1517 Hbm;
 	Mat1717 Hmm;
 
-    Vec15 bb;
-    Vec17 bm;
+	Vec15 bb;
+	Vec17 bm;
 
 	splitHessianForMarginalization(
 			Hbb, Hbm, Hmm,
@@ -2169,8 +2236,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 	fullSystem->Hprior.setZero();
 	fullSystem->bprior.setZero();
-    if (isOptimizeSingle)
-    {
+	if (lastRef->shell == newFrame->shell->last_frame)
+	{
 		fullSystem->Hprior.setIdentity();
 		fullSystem->Hprior.topLeftCorner(6, 6) *= 1e2;
 		fullSystem->Hprior.block<3, 3>(6, 6) *= 1;
@@ -2204,9 +2271,9 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 //
 ////        fullSystem->Hprior = Hbb - Hbm.leftCols(2) * Hmm_inv * Hbm.leftCols(2).transpose();
 ////        fullSystem->bprior = bb - Hbm.leftCols(2) * Hmm_inv * bm.head(2);
-    }
-    else
-    {
+	}
+	else
+	{
 //        fullSystem->Hprior = Hbb - Hbm * Hmm.inverse() * Hbm.transpose();
 //        fullSystem->bprior = bb - Hbm * Hmm.inverse() * bm;
 
@@ -2277,73 +2344,10 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 //		fullSystem->Hprior = Hbb - Hbm.rightCols(15) * Hmm_inv * Hbm.rightCols(15).transpose();
 //		fullSystem->bprior = bb - Hbm.rightCols(15) * Hmm_inv * bm.tail(15);
-    }
+	}
 
 	std::cout << "Prior H: \n" << fullSystem->Hprior.topLeftCorner(9, 9) << std::endl
 			  << "Prior b: " << fullSystem->bprior.head(9).transpose() << std::endl;
-
-	navstate_out = navstate_j_current;
-	navstate_i_out = navstate_i_current;
-	aff_g2l_out = aff_g2l_current;
-	biases_out = biases_current;
-
-    Vec3 velocity_gt =fullSystem->T_dsoworld_eurocworld.block<3,3>(0,0) * newFrame->shell->groundtruth.velocity;
-    float velocity_direction_error = acos(
-            velocity_gt.dot(navstate_out.velocity()) / (velocity_gt.norm() * navstate_out.velocity().norm())
-    ) * 180 / M_PI;
-	std::cout<<"Optimized velocity: "<<navstate_out.velocity().transpose()
-            <<" GT: " << velocity_gt.transpose()<<std::endl
-            << "Angle error: " << velocity_direction_error << std::endl;
-	std::cout<<"Optimized velocity norm: "<<navstate_out.velocity().norm()<<" GT norm: "<<newFrame->shell->groundtruth.velocity.norm()<<std::endl;
-
-	// calculate error in gravity direction
-	Vec3 gravity_gt = newFrame->shell->last_frame->groundtruth.pose.rotation().matrix().bottomRows(1).transpose();
-	Vec3 gravity_est = navstate_i_current.pose().rotation().matrix().bottomRows(1).transpose();
-	float gravity_error = acos(
-		gravity_gt.dot(gravity_est) / (gravity_gt.norm() * gravity_est.norm())
-	) * 180 / M_PI;
-
-	std::cout << "Orientation error: " << gravity_error << std::endl;
-
-	std::cout << "Previous pose error: "
-			  << gtsam::Pose3::Logmap(navstate_i_gt.pose().inverse().compose(navstate_i_current.pose())).transpose() << " "
-			  << (navstate_i_current.velocity() - navstate_i_gt.velocity()).transpose()
-			  << std::endl;
-
-	std::cout << "Current pose error: "
-			  << gtsam::Pose3::Logmap(navstate_j_gt.pose().inverse().compose(navstate_j_current.pose())).transpose() << " "
-			  << (navstate_j_current.velocity() - navstate_j_gt.velocity()).transpose()
-			  << std::endl;
-
-//	std::cout<<" IMU version: affine a: "<< aff_g2l_out.a << "affine b_unscaled: "<< aff_g2l_out.b<<std::endl;
-//	std::cout<<" NAVSTATE: \n" << navstate_current.pose().matrix()<<std::endl;
-//	std::cout<<" after affine a: " << aff_g2l_out.a << "affine b: "<< aff_g2l_out.b<<std::endl;
-//	std::cout<< "\npreToworld:=\n "<<newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
-//	std::cout<< "\n(before optimization)NewToworld:=\n "<<navbak.pose().matrix()<<std::endl;
-//	std::cout<< "\n(after optimization)NewToworld:=\n "<<navstate_out.pose().matrix()<<std::endl;
-//	std::cout<< "\n(before optimization)perviousToNew_out:=\n "<<navbak.pose().inverse().matrix() * newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
-//	std::cout<< "\n(after optimization)perviousToNew_out:=\n "<<navstate_out.pose().inverse().matrix() * newFrame->shell->last_frame->navstate.pose().matrix()<<std::endl;
-//	std::cout<<" \nperviousToworld_GT:=\n "<< newFrame->shell->last_frame->groundtruth.pose.matrix()<<std::endl;
-//	std::cout<<" \nnewToworld_GT:=\n "<< newFrame->shell->groundtruth.pose.matrix()<<std::endl;
-//	std::cout<<" \nperviousToNew_GT:=\n "<< newFrame->shell->groundtruth.pose.inverse().matrix() * newFrame->shell->last_frame->groundtruth.pose.matrix()<<std::endl;
-
-
-	if((setting_affineOptModeA != 0 && (fabsf(aff_g2l_out.a) > 1.2))
-	   || (setting_affineOptModeB != 0 && (fabsf(aff_g2l_out.b) > 200)))
-		return false;
-
-	Vec2f relAff = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l_out).cast<float>();
-
-	if((setting_affineOptModeA == 0 && (fabsf(logf((float)relAff[0])) > 1.5))
-	   || (setting_affineOptModeB == 0 && (fabsf((float)relAff[1]) > 200)))
-		return false;
-
-
-
-	if(setting_affineOptModeA < 0) aff_g2l_out.a=0;
-	if(setting_affineOptModeB < 0) aff_g2l_out.b=0;
-
-	return true;
 }
 
 void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::vector<IOWrap::Output3DWrapper*> &wraps)

@@ -435,6 +435,7 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 	nFrames++;
 	fh->efFrame = eff;
 
+	//bM.conservativeResize(11 *nFrames+CPARS -11);
 	assert(HM.cols() == 8*nFrames+CPARS-8);
 	bM.conservativeResize(8*nFrames+CPARS);
 	HM.conservativeResize(8*nFrames+CPARS,8*nFrames+CPARS);
@@ -593,8 +594,7 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 
 
-//	VecX eigenvaluesPost = HM.eigenvalues().real();
-//	std::sort(eigenvaluesPost.data(), eigenvaluesPost.data()+eigenvaluesPost.size());
+//	VecX eigenvalues
 
 //	std::cout << std::setprecision(16) << "HMPost:\n" << HM << "\n\n";
 
@@ -781,8 +781,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	assert(EFAdjointsValid);
 	assert(EFIndicesValid);
 
-	MatXX HL_top, HA_top, H_sc;
-	VecX  bL_top, bA_top, bM_top, b_sc;
+	MatXX HL_top, HA_top, H_sc , H_imu;
+	VecX  bL_top, bA_top, bM_top, b_sc, b_imu;
 
 	accumulateAF_MT(HA_top, bA_top,multiThreading);
 
@@ -810,7 +810,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	{
 		// have a look if prior is there.
 		bool haveFirstFrame = false;
-		for(EFFrame* f : frames) if(f->frameID==0) haveFirstFrame=true;
+		for(EFFrame* f : frames)
+			if(f->frameID==0) haveFirstFrame=true;
 
 
 
@@ -821,7 +822,6 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 		if(!haveFirstFrame)
 			orthogonalize(&bT_act, &HT_act);
-
 		HFinal_top = HT_act + HM;
 		bFinal_top = bT_act + bM_top;
 

@@ -728,8 +728,10 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
         float threshold = (isIMUinitialized()) ? setting_reTrackThreshold : setting_reTrackThresholdVI;
         if (haveOneGood && achievedRes[0] < lastCoarseRMSE[0] * threshold)
-            break;
-
+		{
+			coarseTracker->updatePriors();
+			break;
+		}
 		std::cout << "Error above threshold: " << achievedRes[0] << " > " << lastCoarseRMSE[0] * threshold << std::endl;
 	}
 
@@ -750,6 +752,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	lastCoarseRMSE = achievedRes;
 
 	// no lock required, as fh is not used anywhere yet.
+
+	std::cout<<"after tracking, achievedRes is "<<achievedRes[0]<<std::endl;
     if (!IMUinitialized)
 	{
         fh->shell->camToTrackingRef = lastF_2_fh.inverse();
