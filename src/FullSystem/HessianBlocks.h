@@ -136,7 +136,6 @@ struct FrameHessian
 
 
 
-
 	int frameID;						// incremental ID for keyframes only!
 	static int instanceCounter;
 	int idx;
@@ -168,6 +167,8 @@ struct FrameHessian
 
 
     EIGEN_STRONG_INLINE const SE3 &get_worldToCam_evalPT() const {return worldToCam_evalPT;}
+	EIGEN_STRONG_INLINE const SE3 &get_worldToImu_evalPT() const {return dso_vi::Tbc * worldToCam_evalPT;}
+	EIGEN_STRONG_INLINE const SE3 &get_imuToWorld_evalPT() const {return get_worldToImu_evalPT().inverse();}
     EIGEN_STRONG_INLINE const Vec10 &get_state_zero() const {return state_zero;}
     EIGEN_STRONG_INLINE const Vec10 &get_state() const {return state;}
     EIGEN_STRONG_INLINE const Vec10 &get_state_scaled() const {return state_scaled;}
@@ -177,6 +178,8 @@ struct FrameHessian
 	// precalc values
 	SE3 PRE_worldToCam;
 	SE3 PRE_camToWorld;
+	SE3 PRE_worldToImu;
+	SE3 PRE_ImuToworld;
 	std::vector<FrameFramePrecalc,Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc;
 	MinimalImageB3* debugImage;
 
@@ -185,6 +188,7 @@ struct FrameHessian
 
 	//photometric fucitons
 
+	inline Vec6 b2w_rightEps() const {return get_state_scaled().head<6>();}
     inline Vec6 w2c_leftEps() const {return get_state_scaled().head<6>();}
     inline AffLight aff_g2l() const {return AffLight(get_state_scaled()[6], get_state_scaled()[7]);}
     inline AffLight aff_g2l_0() const {return AffLight(get_state_zero()[6]*SCALE_A, get_state_zero()[7]*SCALE_B);}
@@ -192,6 +196,25 @@ struct FrameHessian
 
 
 	void setStateZero(const Vec10 &state_zero);
+	void setStateZeror(const Vec10 &state_zero);
+//	inline void setState(const Vec10 &state)
+//	{
+//
+//		this->state = state;
+//		state_scaled.segment<3>(0) = SCALE_XI_TRANS * state.segment<3>(0);
+//		state_scaled.segment<3>(3) = SCALE_XI_ROT * state.segment<3>(3);
+//		state_scaled[6] = SCALE_A * state[6];
+//		state_scaled[7] = SCALE_B * state[7];
+//		state_scaled[8] = SCALE_A * state[8];
+//		state_scaled[9] = SCALE_B * state[9];
+//
+//		PRE_worldToCam = SE3::exp(w2c_leftEps()) * get_worldToCam_evalPT();
+//		PRE_camToWorld = PRE_worldToCam.inverse();
+//		PRE_worldToImu = dso_vi::Tbc * PRE_worldToCam;
+//		PRE_ImuToworld = PRE_worldToImu.inverse();
+//		//setCurrentNullspace();
+//	};
+
 	inline void setState(const Vec10 &state)
 	{
 
@@ -203,10 +226,32 @@ struct FrameHessian
 		state_scaled[8] = SCALE_A * state[8];
 		state_scaled[9] = SCALE_B * state[9];
 
-		PRE_worldToCam = SE3::exp(w2c_leftEps()) * get_worldToCam_evalPT();
+		PRE_worldToImu = get_worldToImu_evalPT().inverse() * SE3::exp(b2w_rightEps());
+		PRE_ImuToworld = PRE_worldToImu.inverse();
+		PRE_worldToCam = dso_vi::Tcb * PRE_worldToImu;
 		PRE_camToWorld = PRE_worldToCam.inverse();
+
 		//setCurrentNullspace();
 	};
+
+//	inline void setStateScaled(const Vec10 &state_scaled)
+//	{
+//
+//		this->state_scaled = state_scaled;
+//		state.segment<3>(0) = SCALE_XI_TRANS_INVERSE * state_scaled.segment<3>(0);
+//		state.segment<3>(3) = SCALE_XI_ROT_INVERSE * state_scaled.segment<3>(3);
+//		state[6] = SCALE_A_INVERSE * state_scaled[6];
+//		state[7] = SCALE_B_INVERSE * state_scaled[7];
+//		state[8] = SCALE_A_INVERSE * state_scaled[8];
+//		state[9] = SCALE_B_INVERSE * state_scaled[9];
+//
+//		PRE_worldToCam = SE3::exp(w2c_leftEps()) * get_worldToCam_evalPT();
+//		PRE_camToWorld = PRE_worldToCam.inverse();
+//		PRE_worldToImu = dso_vi::Tbc * PRE_worldToCam;
+//		PRE_ImuToworld = PRE_worldToImu.inverse();
+//		//setCurrentNullspace();
+//	};
+
 	inline void setStateScaled(const Vec10 &state_scaled)
 	{
 
@@ -218,10 +263,21 @@ struct FrameHessian
 		state[8] = SCALE_A_INVERSE * state_scaled[8];
 		state[9] = SCALE_B_INVERSE * state_scaled[9];
 
-		PRE_worldToCam = SE3::exp(w2c_leftEps()) * get_worldToCam_evalPT();
+		PRE_worldToImu = get_worldToImu_evalPT().inverse() * SE3::exp(b2w_rightEps());
+		PRE_ImuToworld = PRE_worldToImu.inverse();
+		PRE_worldToCam = dso_vi::Tcb * PRE_worldToImu;
 		PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
 	};
+
+//	inline void setEvalPT(const SE3 &worldToCam_evalPT, const Vec10 &state)
+//	{
+//
+//		this->worldToCam_evalPT = worldToCam_evalPT;
+//		setState(state);
+//		setStateZero(state);
+//	};
+
 	inline void setEvalPT(const SE3 &worldToCam_evalPT, const Vec10 &state)
 	{
 
@@ -231,6 +287,16 @@ struct FrameHessian
 	};
 
 
+
+//	inline void setEvalPT_scaled(const SE3 &worldToCam_evalPT, const AffLight &aff_g2l)
+//	{
+//		Vec10 initial_state = Vec10::Zero();
+//		initial_state[6] = aff_g2l.a;
+//		initial_state[7] = aff_g2l.b;
+//		this->worldToCam_evalPT = worldToCam_evalPT;
+//		setStateScaled(initial_state);
+//		setStateZero(this->get_state());
+//	};
 
 	inline void setEvalPT_scaled(const SE3 &worldToCam_evalPT, const AffLight &aff_g2l)
 	{

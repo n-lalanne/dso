@@ -57,7 +57,7 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 			FrameHessian* host = frames[h]->data;
 			FrameHessian* target = frames[t]->data;
 
-			SE3 hostToTarget = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
+			SE3 hostToTarget = target->get_worldToImu_evalPT() * host->get_worldToImu_evalPT().inverse();
 
 			Mat88 AH = Mat88::Identity();
 			Mat88 AT = Mat88::Identity();
@@ -104,6 +104,68 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 
 	EFAdjointsValid = true;
 }
+
+//void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
+//{
+//
+//	if(adHost != 0) delete[] adHost;
+//	if(adTarget != 0) delete[] adTarget;
+//	adHost = new Mat88[nFrames*nFrames];
+//	adTarget = new Mat88[nFrames*nFrames];
+//
+//	for(int h=0;h<nFrames;h++)
+//		for(int t=0;t<nFrames;t++)
+//		{
+//			FrameHessian* host = frames[h]->data;
+//			FrameHessian* target = frames[t]->data;
+//
+//			SE3 hostToTarget = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
+//
+//			Mat88 AH = Mat88::Identity();
+//			Mat88 AT = Mat88::Identity();
+//
+//			AH.topLeftCorner<6,6>() = -hostToTarget.Adj().transpose();
+//			AT.topLeftCorner<6,6>() = Mat66::Identity();
+//
+//
+//			Vec2f affLL = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l_0(), target->aff_g2l_0()).cast<float>();
+//			AT(6,6) = -affLL[0];
+//			AH(6,6) = affLL[0];
+//			AT(7,7) = -1;
+//			AH(7,7) = affLL[0];
+//
+//			AH.block<3,8>(0,0) *= SCALE_XI_TRANS;
+//			AH.block<3,8>(3,0) *= SCALE_XI_ROT;
+//			AH.block<1,8>(6,0) *= SCALE_A;
+//			AH.block<1,8>(7,0) *= SCALE_B;
+//			AT.block<3,8>(0,0) *= SCALE_XI_TRANS;
+//			AT.block<3,8>(3,0) *= SCALE_XI_ROT;
+//			AT.block<1,8>(6,0) *= SCALE_A;
+//			AT.block<1,8>(7,0) *= SCALE_B;
+//
+//			adHost[h+t*nFrames] = AH;
+//			adTarget[h+t*nFrames] = AT;
+//		}
+//	cPrior = VecC::Constant(setting_initialCalibHessian);
+//
+//
+//	if(adHostF != 0) delete[] adHostF;
+//	if(adTargetF != 0) delete[] adTargetF;
+//	adHostF = new Mat88f[nFrames*nFrames];
+//	adTargetF = new Mat88f[nFrames*nFrames];
+//
+//	for(int h=0;h<nFrames;h++)
+//		for(int t=0;t<nFrames;t++)
+//		{
+//			adHostF[h+t*nFrames] = adHost[h+t*nFrames].cast<float>();
+//			adTargetF[h+t*nFrames] = adTarget[h+t*nFrames].cast<float>();
+//		}
+//
+//	cPriorF = cPrior.cast<float>();
+//
+//
+//	EFAdjointsValid = true;
+//}
 
 
 
@@ -519,12 +581,13 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 		int io = fh->idx*8+CPARS;	// index of frame to move to end
 		int ntail = 8*(nFrames-fh->idx-1);
 		assert((io+8+ntail) == nFrames*8+CPARS);
-
+		// move the b vector of the marg frame to the bottom
 		Vec8 bTmp = bM.segment<8>(io);
 		VecX tailTMP = bM.tail(ntail);
 		bM.segment(io,ntail) = tailTMP;
 		bM.tail<8>() = bTmp;
 
+		// move the hessian block of the marg frame to the bottom right
 		MatXX HtmpCol = HM.block(0,io,odim,8);
 		MatXX rightColsTmp = HM.rightCols(ntail);
 		HM.block(0,io,odim,ntail) = rightColsTmp;
@@ -538,7 +601,9 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 
 //	// marginalize. First add prior here, instead of to active.
-    HM.bottomRightCorner<8,8>().diagonal() += fh->prior;
+//	std::cout<<"the prior of the marginaliezd frame is:"<<fh->prior.transpose()<<std::endl;
+//    HM.bottomRightCorner<8,8>().diagonal() += fh->prior;
+//	std::cout<<"the deltaprior of the marginaliezd frame is:"<<fh->prior.cwiseProduct(fh->delta_prior)<<std::endl;
     bM.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
 
 
@@ -559,9 +624,9 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 	// invert bottom part!
 	Mat88 hpi = HMScaled.bottomRightCorner<8,8>();
-	hpi = 0.5f*(hpi+hpi);
+	hpi = 0.5f*(hpi+hpi.transpose());
 	hpi = hpi.inverse();
-	hpi = 0.5f*(hpi+hpi);
+	hpi = 0.5f*(hpi+hpi.transpose());
 
 	// schur-complement!
 	MatXX bli = HMScaled.bottomLeftCorner(8,ndim).transpose() * hpi;
@@ -617,7 +682,6 @@ void EnergyFunctional::marginalizePointsF()
 	assert(EFDeltaValid);
 	assert(EFAdjointsValid);
 	assert(EFIndicesValid);
-
 
 	allPointsToMarg.clear();
 	for(EFFrame* f : frames)
@@ -894,11 +958,11 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 
-	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
-	{
-		VecX xOld = x;
-		orthogonalize(&x, 0);
-	}
+//	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
+//	{
+//		VecX xOld = x;
+//		orthogonalize(&x, 0);
+//	}
 
 
 	lastX = x;

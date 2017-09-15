@@ -54,7 +54,7 @@ void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointF
 	for(int k=min;k<max;k++)
 	{
 		PointFrameResidual* r = activeResiduals[k];
-		(*stats)[0] += r->linearize(&Hcalib);
+		(*stats)[0] += r->linearizeright(&Hcalib);
 
 		if(fixLinearization)
 		{
