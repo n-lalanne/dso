@@ -39,6 +39,7 @@
 #include "util/globalCalib.h"
 #include <Eigen/SVD>
 #include <Eigen/Eigenvalues>
+#include <GroundTruthIterator/GroundTruthIterator.h>
 
 #include "FullSystem/ResidualProjections.h"
 #include "OptimizationBackend/EnergyFunctional.h"
@@ -93,7 +94,6 @@ double PointFrameResidual::linearizeright(CalibHessian* HCalib)
 	Vec2f affLL = precalc->PRE_aff_mode;
 	float b0 = precalc->PRE_b0_mode;
 
-
 	Vec6f d_xi_x, d_xi_y;
 	Vec4f d_C_x, d_C_y;
 	float d_d_x, d_d_y;
@@ -104,7 +104,9 @@ double PointFrameResidual::linearizeright(CalibHessian* HCalib)
 
 		if(!projectPoint(point->u, point->v, point->idepth_zero_scaled, 0, 0,HCalib,
 						 PRE_RTll_0,PRE_tTll_0, drescale, u, v, Ku, Kv, KliP, new_idepth))
-		{ state_NewState = ResState::OOB; return state_energy; }
+		{
+			state_NewState = ResState::OOB; return state_energy;
+		}
 
 		centerProjectedTo = Vec3f(Ku, Kv, new_idepth);
 
@@ -138,8 +140,8 @@ double PointFrameResidual::linearizeright(CalibHessian* HCalib)
 		d_C_y[3] = (d_C_y[3]+1)*SCALE_C;
 
 		SE3 T_new_ref(
-				precalc->PRE_RTll.cast<double>(),
-				precalc->PRE_tTll.cast<double>()
+				precalc->PRE_RTll_0.cast<double>(),
+				precalc->PRE_tTll_0.cast<double>()
 		);
 
 		SE3 Trb = T_new_ref.inverse() * SE3(dso_vi::Tcb);
@@ -150,6 +152,7 @@ double PointFrameResidual::linearizeright(CalibHessian* HCalib)
 				(point->v - HCalib->cyl())*HCalib->fyli(),
 				1
 		) / point->idepth_zero_scaled;
+
 		Matrix23 Maux;
 		Maux.setZero();
 		Maux(0,0) = HCalib->fxl();
@@ -164,6 +167,21 @@ double PointFrameResidual::linearizeright(CalibHessian* HCalib)
 
 		d_xi_x = d_xi_xy.row(0).cast<float>();
 		d_xi_y = d_xi_xy.row(1).cast<float>();                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         ;
+
+		if(!setting_debugout_runquietVI)
+		{
+			SE3 gt(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
+					target->shell->groundtruth.pose.inverse().compose(host->shell->groundtruth.pose).matrix()
+			));
+			Vec6 error = (gt.inverse() * T_new_ref).log();
+
+//			std::cout << "--------------------" << std::endl;
+//			std::cout << "err: " << error.transpose() << std::endl;
+//			std::cout << "GT_new_ref: \n" << gt.matrix() << std::endl;
+//			std::cout << "T_new_ref: \n" << T_new_ref.matrix() << std::endl;
+//			std::cout << "Point: " << point->u << ", " << point->v << std::endl;
+//			std::cout << "Pr: " << Pr.transpose() << std::endl;
+		}
 
 	}
 
@@ -195,11 +213,12 @@ double PointFrameResidual::linearizeright(CalibHessian* HCalib)
 	{
 		float Ku, Kv;
 		if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
-		{ state_NewState = ResState::OOB; return state_energy; }
+		{
+			state_NewState = ResState::OOB; return state_energy;
+		}
 
 		projectedTo[idx][0] = Ku;
 		projectedTo[idx][1] = Kv;
-
 
 		Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
 		float residual = hitColor[0] - (float)(affLL[0] * color[idx] + affLL[1]);
@@ -208,10 +227,12 @@ double PointFrameResidual::linearizeright(CalibHessian* HCalib)
 
 		float drdA = (color[idx]-b0);
 		if(!std::isfinite((float)hitColor[0]))
-		{ state_NewState = ResState::OOB; return state_energy; }
+		{
+            state_NewState = ResState::OOB;
+            return state_energy;
+        }
 
-
-		float w = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + hitColor.tail<2>().squaredNorm()));
+        float w = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + hitColor.tail<2>().squaredNorm()));
 		// one for target one for host
 		w = 0.5f*(w + weights[idx]);
 

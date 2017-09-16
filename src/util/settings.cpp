@@ -238,7 +238,7 @@ float freeDebugParam5 = 1;
 
 bool disableReconfigure=false;
 bool debugSaveImages = true;
-bool multiThreading = true;
+bool multiThreading = false; // true;
 bool disableAllDisplay = false;
 bool setting_onlyLogKFPoses = true;
 bool setting_logStuff = true;
@@ -259,6 +259,7 @@ bool setting_render_displayDepth = true;
 bool setting_fullResetRequested = false;
 
 bool setting_debugout_runquiet = false;
+bool setting_debugout_runquietVI = false;
 
 int sparsityFactor = 5;	// not actually a setting, only some legacy stuff for coarse initializer.
 

@@ -333,8 +333,10 @@ void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	VecCf cstep = xF.head<CPARS>();
 	for(EFFrame* h : frames)
 	{
+		std::cout<<"the step of the frame "<<h->frameID<<" before:\n"<<h->data->step.head<8>().transpose()<<std::endl;
 		h->data->step.head<8>() = - x.segment<8>(CPARS+8*h->idx);
 		h->data->step.tail<2>().setZero();
+		std::cout<<"the step of the frame"<<h->frameID<<" after:\n"<<h->data->step.head<8>().transpose()<<std::endl;
 
 		for(EFFrame* t : frames)
 			xAd[nFrames*h->idx + t->idx] = xF.segment<8>(CPARS+8*h->idx).transpose() *   adHostF[h->idx+nFrames*t->idx]

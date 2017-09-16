@@ -51,10 +51,30 @@ namespace dso
 
 void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointFrameResidual*>* toRemove, int min, int max, Vec10* stats, int tid)
 {
+	int inliercount, outliercount, oobcount;
+	inliercount = 0;
+	outliercount = 0;
+	oobcount = 0;
+	if (frameHessians.size() > 1)
+	{
+		std::cout << "host_state: " << frameHessians[0]->get_state().transpose() << std::endl;
+		std::cout << "host_state0: " << frameHessians[0]->get_state_zero().transpose() << std::endl;
+		std::cout << "target_state: " << frameHessians[1]->get_state().transpose() << std::endl;
+		std::cout << "target_state0: " << frameHessians[1]->get_state_zero().transpose() << std::endl;
+	}
 	for(int k=min;k<max;k++)
 	{
 		PointFrameResidual* r = activeResiduals[k];
 		(*stats)[0] += r->linearizeright(&Hcalib);
+		if(r->state_NewState == ResState::IN){
+			inliercount++;
+		}
+		else if(r->state_NewState == ResState::OUTLIER){
+			outliercount++;
+		}
+		else{
+			oobcount++;
+		}
 
 		if(fixLinearization)
 		{
@@ -82,6 +102,7 @@ void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointF
 			}
 		}
 	}
+	std::cout<<inliercount<<" inliers "<< outliercount<< " outliers "<<oobcount<<" oobs"<<std::endl;
 }
 
 
@@ -160,7 +181,6 @@ Vec3 FullSystem::linearizeAll(bool fixLinearization)
 		linearizeAll_Reductor(fixLinearization, toRemove, 0,activeResiduals.size(),&stats,0);
 		lastEnergyP = stats[0];
 	}
-
 
 	setNewFrameEnergyTH();
 
@@ -259,7 +279,9 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 		Hcalib.setValue(Hcalib.value_backup + stepfacC*Hcalib.step);
 		for(FrameHessian* fh : frameHessians)
 		{
+			std::cout<<"the state of frame "<<fh->idx<<" is \n"<<fh->state<<std::endl;
 			fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
+			std::cout<<"the updated state of frame "<<fh->idx<<" is \n"<<fh->state<<std::endl;
 			sumA += fh->step[6]*fh->step[6];
 			sumB += fh->step[7]*fh->step[7];
 			sumT += fh->step.segment<3>(0).squaredNorm();
@@ -283,6 +305,8 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	sumT /= frameHessians.size();
 	sumID /= numID;
 	sumNID /= numID;
+
+	std::cout<<"actual inc norms:\n sumA:"<<sumA<<"\n sumB:"<<sumB<<"\nsumR:"<<sumR<<"\nsumT"<<sumT<<std::endl;
 
 
 
@@ -491,6 +515,7 @@ float FullSystem::optimize(int mnumOptIts)
 
 		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize);
 
+        std::cout << "the error after one iteration: " << sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA))) << std::endl;
 
 
 

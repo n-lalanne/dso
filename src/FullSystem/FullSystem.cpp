@@ -2379,6 +2379,10 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 			printf("I THINK INITIALIZATINO FAILED! Resetting.\n");
 			initFailed=true;
 		}
+		if (initFailed)
+		{
+			exit(0);
+		}
 	}
 
 
