@@ -333,10 +333,10 @@ void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	VecCf cstep = xF.head<CPARS>();
 	for(EFFrame* h : frames)
 	{
-		std::cout<<"the step of the frame "<<h->frameID<<" before:\n"<<h->data->step.head<8>().transpose()<<std::endl;
+//		std::cout<<"the step of the frame "<<h->frameID<<" before:\n"<<h->data->step.head<8>().transpose()<<std::endl;
 		h->data->step.head<8>() = - x.segment<8>(CPARS+8*h->idx);
 		h->data->step.tail<2>().setZero();
-		std::cout<<"the step of the frame"<<h->frameID<<" after:\n"<<h->data->step.head<8>().transpose()<<std::endl;
+//		std::cout<<"the step of the frame"<<h->frameID<<" after:\n"<<h->data->step.head<8>().transpose()<<std::endl;
 
 		for(EFFrame* t : frames)
 			xAd[nFrames*h->idx + t->idx] = xF.segment<8>(CPARS+8*h->idx).transpose() *   adHostF[h->idx+nFrames*t->idx]
@@ -639,6 +639,15 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 	HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 	bMScaled = SVec.asDiagonal() * bMScaled;
 
+	if (HMScaled.hasNaN())
+	{
+		std::cout << "Frame Marg: HMScaled NaN" << std::endl;
+	}
+	if (bMScaled.hasNaN())
+	{
+		std::cout << "Frame Marg: bMScaled NaN" << std::endl;
+	}
+
 	// set.
 	HM = 0.5*(HMScaled.topLeftCorner(ndim,ndim) + HMScaled.topLeftCorner(ndim,ndim).transpose());
 	bM = bMScaled.head(ndim);
@@ -717,6 +726,23 @@ void EnergyFunctional::marginalizePointsF()
 
 	resInM+= accSSE_top_A->nres[0];
 
+	if (M.hasNaN())
+	{
+		std::cout << "Point Marg: M NaN" << std::endl;
+	}
+	if (Msc.hasNaN())
+	{
+		std::cout << "Point Marg: Msc NaN" << std::endl;
+	}
+	if (Mb.hasNaN())
+	{
+		std::cout << "Point Marg: Mb NaN" << std::endl;
+	}
+	if (Mbsc.hasNaN())
+	{
+		std::cout << "Point Marg: Mbsc NaN" << std::endl;
+	}
+
 	MatXX H =  M-Msc;
     VecX b =  Mb-Mbsc;
 
@@ -727,16 +753,18 @@ void EnergyFunctional::marginalizePointsF()
 		for(EFFrame* f : frames) if(f->frameID==0) haveFirstFrame=true;
 
 		if(!haveFirstFrame)
-			orthogonalize(&b, &H);
-
+		{
+//			orthogonalize(&b, &H);
+		}
 	}
 
 	HM += setting_margWeightFac*H;
 	bM += setting_margWeightFac*b;
 
 	if(setting_solverMode & SOLVER_ORTHOGONALIZE_FULL)
-		orthogonalize(&bM, &HM);
-
+	{
+//		orthogonalize(&bM, &HM);
+	}
 	EFIndicesValid = false;
 	makeIDX();
 }
@@ -864,11 +892,6 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	bM_top = (bM+ HM * getStitchedDeltaF());
 
 
-
-
-
-
-
 	MatXX HFinal_top;
 	VecX bFinal_top;
 
@@ -887,8 +910,10 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 		if(!haveFirstFrame)
-			orthogonalize(&bT_act, &HT_act);
-		HFinal_top = HT_act + HM;
+        {
+//            orthogonalize(&bT_act, &HT_act);
+        }
+        HFinal_top = HT_act + HM;
 		bFinal_top = bT_act + bM_top;
 
 
@@ -968,7 +993,6 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 	lastX = x;
-
 
 	//resubstituteF(x, HCalib);
 	currentLambda= lambda;

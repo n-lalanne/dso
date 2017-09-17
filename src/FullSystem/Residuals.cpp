@@ -144,14 +144,14 @@ double PointFrameResidual::linearizeright(CalibHessian* HCalib)
 				precalc->PRE_tTll_0.cast<double>()
 		);
 
-		SE3 Trb = T_new_ref.inverse() * SE3(dso_vi::Tcb);
+		SE3 Trb( dso_vi::IMUData::convertRelativeCamFrame2RelativeIMUFrame( T_new_ref.inverse().matrix() ) );
 		Matrix26 d_xi_xy;
 		Mat33 Rcb = dso_vi::Tcb.rotationMatrix();
-		Vec3 Pr = Vec3(
+		Vec3 Pr = SE3(dso_vi::Tbc) * (Vec3(
 				(point->u - HCalib->cxl()) * HCalib->fxli(),
 				(point->v - HCalib->cyl())*HCalib->fyli(),
 				1
-		) / point->idepth_zero_scaled;
+		) / point->idepth_zero_scaled);
 
 		Matrix23 Maux;
 		Maux.setZero();

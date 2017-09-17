@@ -1877,6 +1877,8 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 
 	coarseTracker->makeCoarseDepthL0(frameHessians);
 	coarseTracker_forNewKF->makeCoarseDepthL0(frameHessians);
+    ef->HM *= 0;
+    ef->bM *= 0;
 
 	// keep a log of rescaled points (TODO: find if we can just read the points without any duplicates)
 //    std::map<PointHessian*, bool> rescaled_points;
@@ -1979,7 +1981,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 
 	if	(
 			!IMUinitialized &&
-			allKeyFramesHistory.size() >= WINDOW_SIZE &&
+			false && allKeyFramesHistory.size() >= WINDOW_SIZE &&
 			// we want the last KF to come from the previous frame
 			// TODO: this may not be a good idea, maybe this never happens !!!
 			allKeyFramesHistory.back()->id == allFrameHistory.back()->id
@@ -2162,7 +2164,7 @@ void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
 {
 
 	isLocalBADone = true;
-	linearizeOperation = false;
+	linearizeOperation = true;
 	if(linearizeOperation)
 	{
 		if(goStepByStep && lastRefStopID != coarseTracker->refFrameID)

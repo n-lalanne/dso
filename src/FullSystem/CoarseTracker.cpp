@@ -647,21 +647,21 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 //    std::cout << "J_imu: \n " << J_imu_travb << std::endl;
     //std::cout<<" res_imu:\n"<<res_imu.transpose()<<std::endl;
     //std::cout<<" information_imu: \n"<<information_imu.diagonal().transpose()<<std::endl;
-	std::cout<<"J_imu\n"<<J_imu_travb.transpose()<<std::endl;
-	std::cout<<"information:\n"<<information_imu.diagonal().transpose()<<std::endl;
-	std::cout << "H_imu: \n" << H_imu_travb.topLeftCorner<11,11>() << std::endl;
-	std::cout << "b_imu: \n" << b_imu_travb.segment<11>(0).transpose() << std::endl;
-
-    std::cout << "before adding: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
-    std::cout << "before adding: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+//	std::cout<<"J_imu\n"<<J_imu_travb.transpose()<<std::endl;
+//	std::cout<<"information:\n"<<information_imu.diagonal().transpose()<<std::endl;
+//	std::cout << "H_imu: \n" << H_imu_travb.topLeftCorner<11,11>() << std::endl;
+//	std::cout << "b_imu: \n" << b_imu_travb.segment<11>(0).transpose() << std::endl;
+//
+//    std::cout << "before adding: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+//    std::cout << "before adding: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
 
 	if(fullSystem->addimu)
 	{
 		H_out += H_imu_travb;
 		b_out += b_imu_travb;
 	}
-	std::cout << "before rescale: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
-	std::cout << "before rescale: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+//	std::cout << "before rescale: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+//	std::cout << "before rescale: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
 
     H_unscaled.topLeftCorner<17, 17>() = H_out;
     b_unscaled.head(17) = b_out;
@@ -683,8 +683,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	b_out.segment<1>(7) *= SCALE_B;
 	b_out.segment<3>(8) *= SCALE_IMU_V;
 
-	std::cout << "H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
-	std::cout << "b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+//	std::cout << "H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+//	std::cout << "b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
 
 
 //	H_out += H_imu_travb;
@@ -1545,7 +1545,6 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	if(priorEnergy<0.0)std::cout<<"priorEnergy is negative!!!"<<std::endl;
 	// TODO: make threshold a setting
 	float prior_huberTH = 50;
-	std::cout<<"priorEnergy(uncut): "<<priorEnergy<<std::endl;
 
 	if (priorEnergy > prior_huberTH)
 	{
@@ -1590,8 +1589,8 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	));
 	Vec3 velocity_error_previous = previous_navstate.velocity() - fullSystem->T_dsoworld_eurocworld.topLeftCorner(3, 3) * newFrame->shell->last_frame->groundtruth.velocity;
 
-	std::cout << "error_j: " << pose_error_current.transpose() << " " << velocity_error_current.transpose() << std::endl;
-	std::cout << "error_i: " << pose_error_previous.transpose() << " " << velocity_error_previous.transpose() << std::endl;
+//	std::cout << "error_j: " << pose_error_current.transpose() << " " << velocity_error_current.transpose() << std::endl;
+//	std::cout << "error_i: " << pose_error_previous.transpose() << " " << velocity_error_previous.transpose() << std::endl;
 
 
     std::cout<<"----------------------------------------------------------------"<<std::endl;
@@ -1967,8 +1966,6 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			for(int i=0;i<H.rows() ;i++) Hl(i,i) *= (1+lambda);
 			Vec32 inc = Vec32::Zero();
 
-			std::cout << "lambda: " << lambda << std::endl;
-
 			if (!fullSystem->addimu)
 			{
 				// remove the bias blocks
@@ -2001,8 +1998,6 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 				inc.head(11) = inc_temp.head(11);
 				inc.segment<9>(17) = inc_temp.tail(9);
-
-				std::cout << "Initial increment: " << inc_temp.transpose() << std::endl;
 
 //                inc = Hl.ldlt().solve(-b);
             }

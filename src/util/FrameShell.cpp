@@ -127,9 +127,6 @@ Vec15 FrameShell::evaluateIMUerrors(
 //    std::cout<<"J_imu_v_j:\n"<<J_imu_v_j<<std::endl;
 //
 //
-    std::cout<<"Navstate_i:\n"<<previous_navstate<<std::endl;
-    std::cout<<"Navstate_j:\n"<<current_navstate<<std::endl;
-
     return resreturn;
 }
 

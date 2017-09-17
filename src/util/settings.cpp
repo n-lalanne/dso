@@ -70,7 +70,7 @@ namespace dso_vi
 	void setTbc(dso::Mat44 _Tbc)
 	{
 		Tbc = SE3(_Tbc);
-        Tcb = Tbc.inverse();
+		Tcb = Tbc.inverse();
 	}
 
 } //namespace dso_vi
@@ -238,7 +238,7 @@ float freeDebugParam5 = 1;
 
 bool disableReconfigure=false;
 bool debugSaveImages = true;
-bool multiThreading = false; // true;
+bool multiThreading = true;
 bool disableAllDisplay = false;
 bool setting_onlyLogKFPoses = true;
 bool setting_logStuff = true;

@@ -41,6 +41,7 @@
 #include <cmath>
 
 #include <algorithm>
+#include <GroundTruthIterator/GroundTruthIterator.h>
 
 namespace dso
 {
@@ -55,13 +56,7 @@ void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointF
 	inliercount = 0;
 	outliercount = 0;
 	oobcount = 0;
-	if (frameHessians.size() > 1)
-	{
-		std::cout << "host_state: " << frameHessians[0]->get_state().transpose() << std::endl;
-		std::cout << "host_state0: " << frameHessians[0]->get_state_zero().transpose() << std::endl;
-		std::cout << "target_state: " << frameHessians[1]->get_state().transpose() << std::endl;
-		std::cout << "target_state0: " << frameHessians[1]->get_state_zero().transpose() << std::endl;
-	}
+
 	for(int k=min;k<max;k++)
 	{
 		PointFrameResidual* r = activeResiduals[k];
@@ -279,9 +274,9 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 		Hcalib.setValue(Hcalib.value_backup + stepfacC*Hcalib.step);
 		for(FrameHessian* fh : frameHessians)
 		{
-			std::cout<<"the state of frame "<<fh->idx<<" is \n"<<fh->state<<std::endl;
+//			std::cout<<"host_state frame "<<fh->idx<<" is \n"<<fh->state.transpose()<<std::endl;
 			fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
-			std::cout<<"the updated state of frame "<<fh->idx<<" is \n"<<fh->state<<std::endl;
+//			std::cout<<"the updated state of frame "<<fh->idx<<" is \n"<<fh->state.transpose()<<std::endl;
 			sumA += fh->step[6]*fh->step[6];
 			sumB += fh->step[7]*fh->step[7];
 			sumT += fh->step.segment<3>(0).squaredNorm();
@@ -306,7 +301,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	sumID /= numID;
 	sumNID /= numID;
 
-	std::cout<<"actual inc norms:\n sumA:"<<sumA<<"\n sumB:"<<sumB<<"\nsumR:"<<sumR<<"\nsumT"<<sumT<<std::endl;
+//	std::cout<<"actual inc norms:\n sumA:"<<sumA<<"\n sumB:"<<sumB<<"\nsumR:"<<sumR<<"\nsumT"<<sumT<<std::endl;
 
 
 
@@ -428,6 +423,22 @@ void FullSystem::printOptRes(const Vec3 &res, double resL, double resM, double r
 
 }
 
+void FullSystem::printLocalWindowErrors()
+{
+	// the reference pose for the errors is the first frame in local window
+	SE3 reference_pose_est = frameHessians[0]->PRE_ImuToworld;
+	SE3 reference_pose_gt(frameHessians[0]->shell->groundtruth.pose.matrix());
+
+	for (FrameHessian *fh : frameHessians)
+	{
+		SE3 current_pose_est = fh->PRE_ImuToworld;
+		SE3 current_pose_gt(fh->shell->groundtruth.pose.matrix());
+
+		SE3 relative_pose_est = reference_pose_est.inverse() * current_pose_est;
+		SE3 relative_pose_gt = reference_pose_gt.inverse() * current_pose_gt;
+		std::cout << (relative_pose_gt.inverse() * relative_pose_est).log().transpose() << std::endl;
+	}
+}
 
 float FullSystem::optimize(int mnumOptIts)
 {
@@ -465,14 +476,9 @@ float FullSystem::optimize(int mnumOptIts)
     if(!setting_debugout_runquiet)
         printf("OPTIMIZE %d pts, %d active res, %d lin res!\n",ef->nPoints,(int)activeResiduals.size(), numLRes);
 
-
 	Vec3 lastEnergy = linearizeAll(false);
 	double lastEnergyL = calcLEnergy();
 	double lastEnergyM = calcMEnergy();
-
-
-
-
 
 	if(multiThreading)
 		treadReduce.reduce(boost::bind(&FullSystem::applyRes_Reductor, this, true, _1, _2, _3, _4), 0, activeResiduals.size(), 50);
@@ -485,6 +491,14 @@ float FullSystem::optimize(int mnumOptIts)
         printf("Initial Error       \t");
         printOptRes(lastEnergy, lastEnergyL, lastEnergyM, 0, 0, frameHessians.back()->aff_g2l().a, frameHessians.back()->aff_g2l().b);
     }
+
+    if (!setting_debugout_runquietVI)
+    {
+        std::cout << "Errors before optimization: " << std::endl;
+        printLocalWindowErrors();
+    }
+    std::cout << std::endl;
+    std::cout << "Optimizing..." << std::endl;
 
 	debugPlotTracking();
 
@@ -516,7 +530,11 @@ float FullSystem::optimize(int mnumOptIts)
 		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize);
 
         std::cout << "the error after one iteration: " << sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA))) << std::endl;
-
+		if (!setting_debugout_runquietVI)
+		{
+			printLocalWindowErrors();
+		}
+		std::cout << std::endl;
 
 
 
