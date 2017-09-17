@@ -152,9 +152,11 @@ target_link_libraries(dso gtsam boost_system boost_thread cxsparse ${LIBZIP_LIBR
 #endif()
 
 # tests
-add_executable(matrix_assignments_test ${PROJECT_SOURCE_DIR}/src/tests/matrix_assignments.cpp)
-target_link_libraries(matrix_assignments_test dso)
+#add_executable(matrix_assignments_test ${PROJECT_SOURCE_DIR}/src/tests/matrix_assignments.cpp)
+#target_link_libraries(matrix_assignments_test dso)
+#
+#add_executable(imu_errors_test ${PROJECT_SOURCE_DIR}/src/tests/imu_errors.cpp)
+#target_link_libraries(imu_errors_test dso gtsam)
 
-add_executable(imu_errors_test ${PROJECT_SOURCE_DIR}/src/tests/imu_errors.cpp)
-target_link_libraries(imu_errors_test dso gtsam)
-
+add_executable(two_pose_vision_optimize ${PROJECT_SOURCE_DIR}/src/tests/two_pose_vision_optimize.cpp)
+target_link_libraries(two_pose_vision_optimize dso)
