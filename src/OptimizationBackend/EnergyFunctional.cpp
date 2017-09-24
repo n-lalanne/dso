@@ -632,9 +632,10 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 	// schur-complement!
 	MatXX bli = HMScaled.bottomLeftCorner(8,ndim).transpose() * hpi;
-	HMScaled.topLeftCorner(ndim,ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8,ndim);
-	bMScaled.head(ndim).noalias() -= bli*bMScaled.tail<8>();
-
+    if(fh->data->shell->id!=0) {
+        HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8, ndim);
+        bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<8>();
+    }
 	//unscale!
 	HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 	bMScaled = SVec.asDiagonal() * bMScaled;
@@ -985,11 +986,11 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 
-//	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
-//	{
-//		VecX xOld = x;
-//		orthogonalize(&x, 0);
-//	}
+	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
+	{
+		VecX xOld = x;
+		orthogonalize(&x, 0);
+	}
 
 
 	lastX = x;

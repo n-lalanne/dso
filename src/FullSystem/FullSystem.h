@@ -166,6 +166,7 @@ public:
 	bool linearizeOperation;
 	bool addprior = true;
 	bool addimu =true;
+    int fortest = 0;
 
 	void setGammaFunction(float* BInv);
 	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);

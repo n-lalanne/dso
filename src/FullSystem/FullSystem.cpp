@@ -1877,8 +1877,8 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 
 	coarseTracker->makeCoarseDepthL0(frameHessians);
 	coarseTracker_forNewKF->makeCoarseDepthL0(frameHessians);
-    ef->HM *= 0;
-    ef->bM *= 0;
+//    ef->HM *= 0;
+//    ef->bM *= 0;
 
 	// keep a log of rescaled points (TODO: find if we can just read the points without any duplicates)
 //    std::map<PointHessian*, bool> rescaled_points;
@@ -1980,8 +1980,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 	boost::unique_lock<boost::mutex> lock(trackMutex);
 
 	if	(
-			!IMUinitialized &&
-			false && allKeyFramesHistory.size() >= WINDOW_SIZE &&
+			!IMUinitialized  && allKeyFramesHistory.size() >= WINDOW_SIZE &&
 			// we want the last KF to come from the previous frame
 			// TODO: this may not be a good idea, maybe this never happens !!!
 			allKeyFramesHistory.back()->id == allFrameHistory.back()->id
@@ -2316,6 +2315,12 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 	// =========================== Flag Frames to be Marginalized. =========================
 	flagFramesForMarginalization(fh);
+
+
+	//============================For debug===============================================
+	if(fh->shell->trackingRef->id != frameHessians.back()->shell->id)fortest++;
+
+	std::cout<<fortest <<" frames' previous keyframe is not ref"<<std::endl;
 
 
 	// =========================== add New Frame to Hessian Struct. =========================
