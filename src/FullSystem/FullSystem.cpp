@@ -1978,8 +1978,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 	boost::unique_lock<boost::mutex> lock(trackMutex);
 
 	if	(
-			!IMUinitialized &&
-			false && allKeyFramesHistory.size() >= WINDOW_SIZE &&
+			!IMUinitialized && allKeyFramesHistory.size() >= WINDOW_SIZE &&
 			// we want the last KF to come from the previous frame
 			// TODO: this may not be a good idea, maybe this never happens !!!
 			allKeyFramesHistory.back()->id == allFrameHistory.back()->id
