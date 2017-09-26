@@ -1,6 +1,12 @@
 #include <GroundTruthIterator/GroundTruthIterator.h>
 #include "FrameShell.h"
 
+Mat1515 FrameShell::getIMUcovarianceBA()
+{
+    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_kf_);
+    return preint_imu->preintMeasCov();
+}
+
 Mat1515 FrameShell::getIMUcovariance()
 {
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
@@ -21,6 +27,46 @@ FrameShell::~FrameShell()
     {
         delete imu_factor_last_frame_;
     }
+}
+
+void FrameShell::linearizeImuFactorLastKeyFrame(
+        gtsam::NavState previouskf_navstate,
+        gtsam::NavState current_navstate,
+        gtsam::imuBias::ConstantBias previouskf_bias,
+        gtsam::imuBias::ConstantBias current_bias
+)
+{
+    if(!needrelinear) return;
+    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_kf_);
+
+    if (!imu_factor_last_kf_)
+    {
+        imu_factor_last_kf_ = new CombinedImuFactor(
+                X(0), V(0),
+                X(1), V(1),
+                B(0), B(1),
+                *preint_imu
+        );
+    }
+    else
+    {
+        *imu_factor_last_kf_ = CombinedImuFactor(
+                X(0), V(0),
+                X(1), V(1),
+                B(0), B(1),
+                *preint_imu
+        );
+    }
+
+    Values initial_values;
+    initial_values.insert(X(0), previouskf_navstate.pose());
+    initial_values.insert(X(1), current_navstate.pose());
+    initial_values.insert(V(0), previouskf_navstate.velocity());
+    initial_values.insert(V(1), current_navstate.velocity());
+    initial_values.insert(B(0), previouskf_bias);
+    initial_values.insert(B(1), current_bias);
+
+    imu_factor_last_kf_->linearize(initial_values);
 }
 
 void FrameShell::linearizeImuFactorLastFrame(

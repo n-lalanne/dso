@@ -450,8 +450,6 @@ float FullSystem::optimize(int mnumOptIts)
 
 
 
-
-
 	// get statistics and active residuals.
 
 	activeResiduals.clear();
@@ -475,6 +473,27 @@ float FullSystem::optimize(int mnumOptIts)
 
     if(!setting_debugout_runquiet)
         printf("OPTIMIZE %d pts, %d active res, %d lin res!\n",ef->nPoints,(int)activeResiduals.size(), numLRes);
+
+
+
+    //============================ linearize the imu factors for each keyframe(only for consecutive keyframes)=======
+    double lastIMUEnergy = 0.0;
+	int imufactorcount = 0;
+    if(isIMUinitialized())
+    {
+        for(int i=1;i<frameHessians.size(); i++)		// go through all active frames
+        {
+            if(frameHessians[i]->shell->trackingRef->id != frameHessians[i-1]->shell->id) //compute imufactor only if two frames are consecutive temporally
+            {
+                frameHessians[i]->hasimufactor = false;
+                continue;
+            }
+            lastIMUEnergy += getkfimufactor(frameHessians[i]);
+			imufactorcount++;
+        }
+		lastIMUEnergy /= imufactorcount;
+    }
+
 
 	Vec3 lastEnergy = linearizeAll(false);
 	double lastEnergyL = calcLEnergy();

@@ -75,6 +75,7 @@ public:
 	PreintegrationType *imu_preintegrated_last_kf_;
 
     CombinedImuFactor *imu_factor_last_frame_;
+    CombinedImuFactor *imu_factor_last_kf_;
 
 	// Predicted pose/biases ;
 	gtsam::NavState navstate;
@@ -98,6 +99,7 @@ public:
 	FrameHessian * fh;
 
 	FullSystem* fullSystem;
+    bool needrelinear = true;
 
 
 
@@ -135,11 +137,24 @@ public:
 	 */
     gtsam::NavState PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp);
 
+    Mat1515 getIMUcovarianceBA()
 	Mat1515 getIMUcovariance();
 
     /**
      *
-     * @brief linearizes the imu_factor at the given linearization point
+     * @brief linearizes the imu_factor at the given linearization point (for local BA)
+     */
+
+    void linearizeImuFactorLastKeyFrame(
+            gtsam::NavState previouskf_navstate,
+            gtsam::NavState current_navstate,
+            gtsam::imuBias::ConstantBias previouskf_bias,
+            gtsam::imuBias::ConstantBias current_bias
+    );
+
+    /**
+     *
+     * @brief linearizes the imu_factor at the given linearization point (for tracking)
      */
     void linearizeImuFactorLastFrame(
             gtsam::NavState previous_navstate,

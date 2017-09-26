@@ -2285,6 +2285,22 @@ void FullSystem::blockUntilMappingIsFinished()
 
 }
 
+double FullSystem::getkfimufactor(FrameHessian *fh)
+{
+	gtsam::NavState navstate_i_first_estimate;
+	gtsam::NavState navstate_j_current;
+	imuBias::ConstantBias pkbias_first_estimate;
+	imuBias::ConstantBias currentbias;
+	double imuresidual = 0;
+	////TODO: 1 set these navstates for first estimate jacobian. 2 compute the imu residual and save the jacobian
+
+	fh->shell->linearizeImuFactorLastKeyFrame( navstate_i_first_estimate,
+											   navstate_j_current,
+											   pkbias_first_estimate,
+											   currentbias);
+	return imuresidual;
+}
+
 void FullSystem::makeNonKeyFrame( FrameHessian* fh)
 {
 	// needs to be set by mapping thread. no lock required since we are in mapping thread.
@@ -2301,6 +2317,8 @@ void FullSystem::makeNonKeyFrame( FrameHessian* fh)
 
 void FullSystem::makeKeyFrame( FrameHessian* fh)
 {
+
+
 	// needs to be set by mapping thread
 	{
 		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
@@ -2331,6 +2349,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	ef->insertFrame(fh, &Hcalib);
 
 	setPrecalcValues();
+
 
 	// =========================== add new residuals for old points =========================
 	int numFwdResAdde=0;

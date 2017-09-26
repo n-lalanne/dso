@@ -72,9 +72,9 @@ class EFPoint;
 #define SCALE_W 1.0f
 #define SCALE_A 10.0f
 #define SCALE_B 1000.0f
-#define SCALE_IMU_R 1.0f
-#define SCALE_IMU_T 1.0f
 #define SCALE_IMU_V 20.0f
+#define SCALE_IMU_GYRO 1.0f
+#define SCALE_IMU_ACCE 1.0f
 
 #define SCALE_IDEPTH_INVERSE (1.0f / SCALE_IDEPTH)
 #define SCALE_XI_ROT_INVERSE (1.0f / SCALE_XI_ROT)
@@ -84,6 +84,10 @@ class EFPoint;
 #define SCALE_W_INVERSE (1.0f / SCALE_W)
 #define SCALE_A_INVERSE (1.0f / SCALE_A)
 #define SCALE_B_INVERSE (1.0f / SCALE_B)
+#define SCALE_IMU_V_INVERSE (1.0f/SCALE_IMU_V)
+#define SCALE_IMU_GYRO_INVERSE (1.0f/SCALE_IMU_GYRO)
+#define SCALE_IMU_ACCE_INVERSE (1.0f/SCALE_IMU_ACCE)
+
 
 
 struct FrameFramePrecalc
@@ -145,6 +149,7 @@ struct FrameHessian
 	float ab_exposure;
 
 	bool flaggedForMarginalization;
+	bool hasimufactor = true;
 
 	std::vector<PointHessian*> pointHessians;				// contains all ACTIVE points.
 	std::vector<PointHessian*> pointHessiansMarginalized;	// contains all MARGINALIZED points (= fully marginalized, usually because point went OOB.)
@@ -165,8 +170,28 @@ struct FrameHessian
 	Vec10 step_backup;
 	Vec10 state_backup;
 
+    // velocity info
+    Vec3 velocity_evalPT;
+    Vec3 vstate_zero;
+    Vec3 vstate_scaled;
+    Vec3 vstate;
+    Vec3 vstep;
+    Vec3 vstep_backup;
+    Vec3 vstate_backup;
+
+    Vec6 bias_evalPT;
+    Vec6 biasstate_zero;
+    Vec6 biasstate_scaled;
+    Vec6 biasstate;	// [0-2 gyro, 3-5 acce]
+    Vec6 biasstep;
+    Vec6 biasstep_backup;
+    Vec6 biasstate_backup;
+
+
 
     EIGEN_STRONG_INLINE const SE3 &get_worldToCam_evalPT() const {return worldToCam_evalPT;}
+    EIGEN_STRONG_INLINE const Vec3 &get_velocity_evalPT() const{return velocity_evalPT;}
+    EIGEN_STRONG_INLINE const Vec6 &get_bias_evalPT() const{return bias_evalPT;}
 	EIGEN_STRONG_INLINE const SE3 get_worldToImu_evalPT() const {return dso_vi::Tbc * worldToCam_evalPT;}
 	EIGEN_STRONG_INLINE const SE3 get_imuToWorld_evalPT() const {return get_worldToImu_evalPT().inverse();}
     EIGEN_STRONG_INLINE const Vec10 &get_state_zero() const {return state_zero;}
@@ -180,6 +205,9 @@ struct FrameHessian
 	SE3 PRE_camToWorld;
 	SE3 PRE_worldToImu;
 	SE3 PRE_ImuToworld;
+    Vec3 PRE_velocity;
+    Vec6 PRE_bias;
+
 	std::vector<FrameFramePrecalc,Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc;
 	MinimalImageB3* debugImage;
 
@@ -213,6 +241,34 @@ struct FrameHessian
 //		PRE_ImuToworld = PRE_worldToImu.inverse();
 //		//setCurrentNullspace();
 //	};
+
+    inline void setnavState(const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate)
+    {
+
+        this->state = state;
+        this->vstate = vstate;
+        this->biasstate = biasstate;
+
+        state_scaled.segment<3>(0) = SCALE_XI_TRANS * state.segment<3>(0);
+        state_scaled.segment<3>(3) = SCALE_XI_ROT * state.segment<3>(3);
+        state_scaled[6] = SCALE_A * state[6];
+        state_scaled[7] = SCALE_B * state[7];
+        state_scaled[8] = SCALE_A * state[8];
+        state_scaled[9] = SCALE_B * state[9];
+        vstate_scaled = SCALE_IMU_V * vstate;
+        biasstate_scaled.segment<3>(0) = SCALE_IMU_GYRO * biasstate.segment<3>(0);
+        biasstate_scaled.segment<3>(3) = SCALE_IMU_ACCE * biasstate.segment<3>(3);
+
+        PRE_ImuToworld = get_imuToWorld_evalPT() * SE3::exp(b2w_rightEps());
+        PRE_worldToImu = PRE_ImuToworld.inverse();
+        PRE_worldToCam = dso_vi::Tcb * PRE_worldToImu;
+        PRE_camToWorld = PRE_worldToCam.inverse();
+        PRE_velocity = get_velocity_evalPT() + vstate_scaled; // vstate or vstate_scaled
+        PRE_bias = get_bias_evalPT() + biasstate_scaled;
+
+
+        //setCurrentNullspace();
+    };
 
 	inline void setState(const Vec10 &state)
 	{
@@ -251,6 +307,33 @@ struct FrameHessian
 //		//setCurrentNullspace();
 //	};
 
+
+    inline void setnavStateScaled(const Vec10 &state_scaled, const Vec3 &vstate_scaled, const Vec6 &biasstate_scaled)
+    {
+
+        this->state_scaled = state_scaled;
+        this->vstate_scaled = vstate_scaled;
+        this->biasstate_scaled = biasstate_scaled;
+        state.segment<3>(0) = SCALE_XI_TRANS_INVERSE * state_scaled.segment<3>(0);
+        state.segment<3>(3) = SCALE_XI_ROT_INVERSE * state_scaled.segment<3>(3);
+        state[6] = SCALE_A_INVERSE * state_scaled[6];
+        state[7] = SCALE_B_INVERSE * state_scaled[7];
+        state[8] = SCALE_A_INVERSE * state_scaled[8];
+        state[9] = SCALE_B_INVERSE * state_scaled[9];
+        vstate = SCALE_IMU_V_INVERSE * vstate_scaled;
+        biasstate.segment<3>(0) = SCALE_IMU_GYRO_INVERSE * biasstate_scaled.segment<3>(0);
+        biasstate.segment<3>(3) = SCALE_IMU_ACCE_INVERSE * biasstate_scaled.segment<3>(3);
+
+        PRE_ImuToworld = get_imuToWorld_evalPT() * SE3::exp(b2w_rightEps());
+        PRE_worldToImu = PRE_ImuToworld.inverse();
+        PRE_worldToCam = dso_vi::Tcb * PRE_worldToImu;
+        PRE_camToWorld = PRE_worldToCam.inverse();
+        PRE_velocity = get_velocity_evalPT() + vstate_scaled; // vstate or vstate_scaled
+        PRE_bias = get_bias_evalPT() + biasstate_scaled;
+
+        //setCurrentNullspace();
+    };
+
 	inline void setStateScaled(const Vec10 &state_scaled)
 	{
 
@@ -268,6 +351,32 @@ struct FrameHessian
         PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
 	};
+
+    inline void setnavEvalPT(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate )
+    {
+
+        this->worldToCam_evalPT = worldToCam_evalPT;
+        this->velocity_evalPT = Velocity;
+        this->bias_evalPT = bias;
+        setnavState(state, vstate, biasstate);
+        setStateZero(state);
+    };
+
+    inline void setnavEvalPT_scaled(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const AffLight &aff_g2l)
+    {
+        Vec10 initial_state = Vec10::Zero();
+		Vec3 initial_vstate = Vec3::Zero();
+		Vec6 initial_biasstate = Vec6::Zero();
+        initial_state[6] = aff_g2l.a;
+        initial_state[7] = aff_g2l.b;
+        this->worldToCam_evalPT = worldToCam_evalPT;
+		this->velocity_evalPT = Velocity;
+		this->bias_evalPT = bias;
+        setnavStateScaled(initial_state,initial_vstate,initial_biasstate);
+        setStateZero(this->get_state());
+    };
+
+
 
 	inline void setEvalPT(const SE3 &worldToCam_evalPT, const Vec10 &state)
 	{

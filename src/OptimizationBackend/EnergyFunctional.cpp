@@ -255,6 +255,17 @@ void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 	EFDeltaValid = true;
 }
 
+void EnergyFunctional::accumulateIMUF_ST(MatXX &H, VecX &b)
+{
+	for(int i=1;i<frames.size(); i++)
+	{
+		if(frames[i]->data->shell->trackingRef->id != frames[i-1]->data->shell->id) continue;
+		//addIMU(H,b,frames[i]);
+	}
+
+    return;
+}
+
 // accumulates & shifts L.
 void EnergyFunctional::accumulateAF_MT(MatXX &H, VecX &b, bool MT)
 {
@@ -866,6 +877,144 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 
 }
 
+void EnergyFunctional::solveSystemF9DOF(int iteration, double lambda, CalibHessian* HCalib)
+{
+    if(setting_solverMode & SOLVER_USE_GN) lambda=0;
+    if(setting_solverMode & SOLVER_FIX_LAMBDA) lambda = 1e-5;
+
+    assert(EFDeltaValid);
+    assert(EFAdjointsValid);
+    assert(EFIndicesValid);
+
+    MatXX HL_top, HA_top, H_sc , H_imu;
+    VecX  bL_top, bA_top, bM_top, b_sc, b_imu;
+
+    accumulateIMUF_ST(H_imu,b_imu);
+
+    accumulateAF_MT(HA_top, bA_top,multiThreading);
+
+
+    accumulateLF_MT(HL_top, bL_top,multiThreading);
+
+
+
+    accumulateSCF_MT(H_sc, b_sc,multiThreading);
+
+
+
+    bM_top = (bM+ HM * getStitchedDeltaF());
+
+
+    MatXX HFinal_top;
+    VecX bFinal_top;
+
+    if(setting_solverMode & SOLVER_ORTHOGONALIZE_SYSTEM)
+    {
+        // have a look if prior is there.
+        bool haveFirstFrame = false;
+        for(EFFrame* f : frames)
+            if(f->frameID==0) haveFirstFrame=true;
+
+
+
+
+        MatXX HT_act =  HL_top + HA_top - H_sc;
+        VecX bT_act =   bL_top + bA_top - b_sc;
+
+
+        if(!haveFirstFrame)
+        {
+//            orthogonalize(&bT_act, &HT_act);
+        }
+        HFinal_top = HT_act + HM;
+        bFinal_top = bT_act + bM_top;
+
+
+
+
+
+        lastHS = HFinal_top;
+        lastbS = bFinal_top;
+
+        for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
+
+    }
+    else
+    {
+
+
+        HFinal_top = HL_top + HM + HA_top + H_imu;
+        bFinal_top = bL_top + bM_top + bA_top - b_sc + b_imu;
+
+        lastHS = HFinal_top - H_sc;
+        lastbS = bFinal_top;
+
+        for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
+        HFinal_top -= H_sc * (1.0f/(1+lambda));
+    }
+
+
+
+
+
+
+    VecX x;
+    if(setting_solverMode & SOLVER_SVD)
+    {
+        VecX SVecI = HFinal_top.diagonal().cwiseSqrt().cwiseInverse();
+        MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
+        VecX bFinalScaled  = SVecI.asDiagonal() * bFinal_top;
+        Eigen::JacobiSVD<MatXX> svd(HFinalScaled, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+        VecX S = svd.singularValues();
+        double minSv = 1e10, maxSv = 0;
+        for(int i=0;i<S.size();i++)
+        {
+            if(S[i] < minSv) minSv = S[i];
+            if(S[i] > maxSv) maxSv = S[i];
+        }
+
+        VecX Ub = svd.matrixU().transpose()*bFinalScaled;
+        int setZero=0;
+        for(int i=0;i<Ub.size();i++)
+        {
+            if(S[i] < setting_solverModeDelta*maxSv)
+            { Ub[i] = 0; setZero++; }
+
+            if((setting_solverMode & SOLVER_SVD_CUT7) && (i >= Ub.size()-7))
+            { Ub[i] = 0; setZero++; }
+
+            else Ub[i] /= S[i];
+        }
+        x = SVecI.asDiagonal() * svd.matrixV() * Ub;
+
+    }
+    else
+    {
+        VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
+        MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
+        x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
+    }
+
+
+
+    if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
+    {
+        VecX xOld = x;
+        orthogonalize(&x, 0);
+    }
+
+
+    lastX = x;
+
+    //resubstituteF(x, HCalib);
+    currentLambda= lambda;
+    resubstituteF_MT(x, HCalib,multiThreading);
+    currentLambda=0;
+
+
+}
+
 
 void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* HCalib)
 {
@@ -876,8 +1025,10 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	assert(EFAdjointsValid);
 	assert(EFIndicesValid);
 
-	MatXX HL_top, HA_top, H_sc , H_imu;
-	VecX  bL_top, bA_top, bM_top, b_sc, b_imu;
+	MatXX HL_top, HA_top, H_sc ;
+	VecX  bL_top, bA_top, bM_top, b_sc;
+
+    //accumulateIMUF_ST(H_imu,b_imu);
 
 	accumulateAF_MT(HA_top, bA_top,multiThreading);
 

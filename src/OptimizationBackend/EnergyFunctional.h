@@ -127,6 +127,7 @@ private:
 	void resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT);
     void resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid);
 
+	void accumulateIMUF_ST(MatXX &H, VecX &b);
 	void accumulateAF_MT(MatXX &H, VecX &b, bool MT);
 	void accumulateLF_MT(MatXX &H, VecX &b, bool MT);
 	void accumulateSCF_MT(MatXX &H, VecX &b, bool MT);

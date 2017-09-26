@@ -321,6 +321,7 @@ private:
     bool SolveScale(Vec3 &g, Eigen::VectorXd &x);
     void RefineGravity(Vec3 &g, VecX &x);
     void UpdateState(Vec3 &g, VecX &x);
+    double getkfimufactor(FrameHessian *fh);
 
 	// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
 	boost::mutex trackMapSyncMutex;
