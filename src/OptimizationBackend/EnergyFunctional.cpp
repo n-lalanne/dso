@@ -632,9 +632,11 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 	// schur-complement!
 	MatXX bli = HMScaled.bottomLeftCorner(8,ndim).transpose() * hpi;
-	HMScaled.topLeftCorner(ndim,ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8,ndim);
-	bMScaled.head(ndim).noalias() -= bli*bMScaled.tail<8>();
-
+	if(fh->data->shell->id != 0)
+	{
+		HMScaled.topLeftCorner(ndim, ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8, ndim);
+		bMScaled.head(ndim).noalias() -= bli * bMScaled.tail<8>();
+	}
 	//unscale!
 	HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 	bMScaled = SVec.asDiagonal() * bMScaled;

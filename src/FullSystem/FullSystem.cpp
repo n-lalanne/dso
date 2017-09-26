@@ -1877,8 +1877,6 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 
 	coarseTracker->makeCoarseDepthL0(frameHessians);
 	coarseTracker_forNewKF->makeCoarseDepthL0(frameHessians);
-    ef->HM *= 0;
-    ef->bM *= 0;
 
 	// keep a log of rescaled points (TODO: find if we can just read the points without any duplicates)
 //    std::map<PointHessian*, bool> rescaled_points;
