@@ -75,6 +75,7 @@ public:
 	PreintegrationType *imu_preintegrated_last_kf_;
 
     CombinedImuFactor *imu_factor_last_frame_;
+	CombinedImuFactor *imu_factor_last_kf_;
 
 	// Predicted pose/biases ;
 	gtsam::NavState navstate;
@@ -98,6 +99,7 @@ public:
 	FrameHessian * fh;
 
 	FullSystem* fullSystem;
+	bool needrelinear;  // this flag is for local ba, it will true only if it is the incoming keyframe
 
 
 
@@ -105,6 +107,7 @@ public:
 	{
 		id=0;
 		poseValid=true;
+		needrelinear = true;
 		camToWorld = SE3();
 		timestamp=0;
 		marginalizedAt=-1;
@@ -135,7 +138,23 @@ public:
 	 */
     gtsam::NavState PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp);
 
+	Mat1515 getIMUcovarianceBA();
 	Mat1515 getIMUcovariance();
+
+
+
+	/**
+ *
+ * @brief linearizes the imu_factor at the given linearization point (for local BA)
+ */
+
+	void linearizeImuFactorLastKeyFrame(
+			gtsam::NavState previouskf_navstate,
+			gtsam::NavState current_navstate,
+			gtsam::imuBias::ConstantBias previouskf_bias,
+			gtsam::imuBias::ConstantBias current_bias
+	);
+
 
     /**
      *
@@ -147,6 +166,23 @@ public:
             gtsam::imuBias::ConstantBias previous_bias,
             gtsam::imuBias::ConstantBias current_bias
     );
+
+	/**
+	 *
+	 * @param J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias: output jacobians
+	 * @return IMU residuals (9x1 vector)
+	 */
+	Vec15 FrameShell::evaluateIMUerrorsBA(
+			gtsam::NavState previouskf_navstate,
+			gtsam::NavState currentkf_navstate,
+			gtsam::imuBias::ConstantBias initial_bias,
+			gtsam::Matrix &J_imu_Rt_i,
+			gtsam::Matrix &J_imu_v_i,
+			gtsam::Matrix &J_imu_Rt_j,
+			gtsam::Matrix &J_imu_v_j,
+			gtsam::Matrix &J_imu_bias_i,
+			gtsam::Matrix &J_imu_bias_j
+	);
 
 	/**
 	 *

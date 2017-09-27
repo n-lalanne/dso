@@ -371,6 +371,8 @@ void FullSystem::backupState(bool backupLastStep)
 		for(FrameHessian* fh : frameHessians)
 		{
 			fh->state_backup = fh->get_state();
+			fh->biasstate_backup = fh->get_biasstate();
+			fh->vstate_backup = fh->get_vstate();
 			for(PointHessian* ph : fh->pointHessians)
 				ph->idepth_backup = ph->idepth;
 		}
@@ -384,6 +386,9 @@ void FullSystem::loadSateBackup()
 	for(FrameHessian* fh : frameHessians)
 	{
 		fh->setState(fh->state_backup);
+
+		//// TODO: reload navstate
+		//fh->setnavState(fh->state_backup,fh->vstate_backup,fh->biasstate_backup);
 		for(PointHessian* ph : fh->pointHessians)
 		{
 			ph->setIdepth(ph->idepth_backup);
@@ -476,6 +481,25 @@ float FullSystem::optimize(int mnumOptIts)
     if(!setting_debugout_runquiet)
         printf("OPTIMIZE %d pts, %d active res, %d lin res!\n",ef->nPoints,(int)activeResiduals.size(), numLRes);
 
+	//============================ linearize the imu factors for each keyframe(only for consecutive keyframes)=======
+	double lastIMUEnergy = 0.0;
+	int imufactorcount = 0;
+	if(isIMUinitialized())
+	{
+		for(int i=1;i<frameHessians.size(); i++)		// go through all active frames
+		{
+			if(frameHessians[i]->shell->trackingRef->id != frameHessians[i-1]->shell->id) //compute imufactor only if two frames are consecutive temporally
+			{
+				frameHessians[i]->imufactorvalid = false;
+				continue;
+			}
+			//lastIMUEnergy += getkfimufactor(frameHessians[i]);
+			imufactorcount++;
+		}
+		lastIMUEnergy /= imufactorcount;
+	}
+
+
 	Vec3 lastEnergy = linearizeAll(false);
 	double lastEnergyL = calcLEnergy();
 	double lastEnergyM = calcMEnergy();
@@ -539,6 +563,21 @@ float FullSystem::optimize(int mnumOptIts)
 
 
 
+		double newIMUEnergy = 0.0;
+
+		if(isIMUinitialized())
+		{
+			for(int i=1;i<frameHessians.size(); i++)		// go through all active frames
+			{
+				if(frameHessians[i]->shell->trackingRef->id != frameHessians[i-1]->shell->id) //compute imufactor only if two frames are consecutive temporally
+				{
+					frameHessians[i]->imufactorvalid = false;
+					continue;
+				}
+				//newIMUEnergy += getkfimufactor(frameHessians[i]);
+			}
+			newIMUEnergy /= imufactorcount;
+		}
 
 		// eval new energy!
 		Vec3 newEnergy = linearizeAll(false);
@@ -551,8 +590,8 @@ float FullSystem::optimize(int mnumOptIts)
         if(!setting_debugout_runquiet)
         {
             printf("%s %d (L %.2f, dir %.2f, ss %.1f): \t",
-				(newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM <
-						lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM) ? "ACCEPT" : "REJECT",
+				(newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM + newIMUEnergy <
+						lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM + lastIMUEnergy) ? "ACCEPT" : "REJECT",
 				iteration,
 				log10(lambda),
 				incDirChange,
@@ -560,8 +599,8 @@ float FullSystem::optimize(int mnumOptIts)
             printOptRes(newEnergy, newEnergyL, newEnergyM , 0, 0, frameHessians.back()->aff_g2l().a, frameHessians.back()->aff_g2l().b);
         }
 
-		if(setting_forceAceptStep || (newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM <
-				lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM))
+		if(setting_forceAceptStep || (newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM + newIMUEnergy <
+				lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM + lastIMUEnergy))
 		{
 
 			if(multiThreading)
@@ -572,6 +611,7 @@ float FullSystem::optimize(int mnumOptIts)
 			lastEnergy = newEnergy;
 			lastEnergyL = newEnergyL;
 			lastEnergyM = newEnergyM;
+			lastIMUEnergy = newIMUEnergy;
 
 			lambda *= 0.25;
 		}
