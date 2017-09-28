@@ -191,13 +191,14 @@ struct FrameHessian
 
 
 	// Only for local BA
-
-	gtsam::Matrix &J_imu_Rt_i;
-	gtsam::Matrix &J_imu_v_i;
-	gtsam::Matrix &J_imu_Rt_j;
-	gtsam::Matrix &J_imu_v_j;
-	gtsam::Matrix &J_imu_bias_i;
-	gtsam::Matrix &J_imu_bias_j;
+	Vec15 kfimures; //this residual is only respect to pervious keyframe
+	Mat1515 kfimuinfo;
+	gtsam::Matrix J_imu_Rt_i;
+	gtsam::Matrix J_imu_v_i;
+	gtsam::Matrix J_imu_Rt_j;
+	gtsam::Matrix J_imu_v_j;
+	gtsam::Matrix J_imu_bias_i;
+	gtsam::Matrix J_imu_bias_j;
 
 
 
@@ -245,7 +246,8 @@ struct FrameHessian
 
 
 	void setStateZero(const Vec10 &state_zero);
-
+	//for VI BA
+	double getkfimufactor(bool fixlinerazation);
 
 	inline void setnavState(const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate)
 	{

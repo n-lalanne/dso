@@ -2304,7 +2304,12 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 		assert(fh->shell->trackingRef != 0);
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
-		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
+		if(isIMUinitialized()){
+			//// The order of gyro and acce might be wrong!!!!!
+			fh->setnavEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->navstate.velocity(), fh->shell->bias.vector(), fh->shell->aff_g2l);
+		}
+		else fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
+
 	}
 
 	traceNewCoarse(fh);

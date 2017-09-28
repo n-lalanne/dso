@@ -172,7 +172,7 @@ public:
 	 * @param J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias: output jacobians
 	 * @return IMU residuals (9x1 vector)
 	 */
-	Vec15 FrameShell::evaluateIMUerrorsBA(
+	Vec15 evaluateIMUerrorsBA(
 			gtsam::NavState previouskf_navstate,
 			gtsam::NavState currentkf_navstate,
 			gtsam::imuBias::ConstantBias initial_bias,

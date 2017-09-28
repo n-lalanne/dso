@@ -481,6 +481,17 @@ float FullSystem::optimize(int mnumOptIts)
     if(!setting_debugout_runquiet)
         printf("OPTIMIZE %d pts, %d active res, %d lin res!\n",ef->nPoints,(int)activeResiduals.size(), numLRes);
 
+
+
+	Vec3 lastEnergy = linearizeAll(false);
+	double lastEnergyL = calcLEnergy();
+	double lastEnergyM = calcMEnergy();
+
+	if(multiThreading)
+		treadReduce.reduce(boost::bind(&FullSystem::applyRes_Reductor, this, true, _1, _2, _3, _4), 0, activeResiduals.size(), 50);
+	else
+		applyRes_Reductor(true,0,activeResiduals.size(),0,0);
+
 	//============================ linearize the imu factors for each keyframe(only for consecutive keyframes)=======
 	double lastIMUEnergy = 0.0;
 	int imufactorcount = 0;
@@ -493,21 +504,12 @@ float FullSystem::optimize(int mnumOptIts)
 				frameHessians[i]->imufactorvalid = false;
 				continue;
 			}
-			//lastIMUEnergy += getkfimufactor(frameHessians[i]);
+			lastIMUEnergy += frameHessians[i]->getkfimufactor((i==frameHessians.size()-1));
 			imufactorcount++;
 		}
 		lastIMUEnergy /= imufactorcount;
 	}
 
-
-	Vec3 lastEnergy = linearizeAll(false);
-	double lastEnergyL = calcLEnergy();
-	double lastEnergyM = calcMEnergy();
-
-	if(multiThreading)
-		treadReduce.reduce(boost::bind(&FullSystem::applyRes_Reductor, this, true, _1, _2, _3, _4), 0, activeResiduals.size(), 50);
-	else
-		applyRes_Reductor(true,0,activeResiduals.size(),0,0);
 
 
     if(!setting_debugout_runquiet)
@@ -553,7 +555,7 @@ float FullSystem::optimize(int mnumOptIts)
 
 		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize);
 
-        std::cout << "the error after one iteration: " << sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA))) << std::endl;
+        //std::cout << "the error after one iteration: " << sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA))) << std::endl;
 		if (!setting_debugout_runquietVI)
 		{
 			printLocalWindowErrors();
@@ -574,7 +576,7 @@ float FullSystem::optimize(int mnumOptIts)
 					frameHessians[i]->imufactorvalid = false;
 					continue;
 				}
-				//newIMUEnergy += getkfimufactor(frameHessians[i]);
+				newIMUEnergy += frameHessians[i]->getkfimufactor((i==frameHessians.size()-1));
 			}
 			newIMUEnergy /= imufactorcount;
 		}
@@ -611,14 +613,27 @@ float FullSystem::optimize(int mnumOptIts)
 			lastEnergy = newEnergy;
 			lastEnergyL = newEnergyL;
 			lastEnergyM = newEnergyM;
-			lastIMUEnergy = newIMUEnergy;
-
+			if(isIMUinitialized())lastIMUEnergy = newIMUEnergy;
 			lambda *= 0.25;
 		}
 		else
 		{
 			loadSateBackup();
 			lastEnergy = linearizeAll(false);
+			if(isIMUinitialized())
+			{
+				lastIMUEnergy = 0;
+				for(int i=1;i<frameHessians.size(); i++)		// go through all active frames
+				{
+					if(frameHessians[i]->shell->trackingRef->id != frameHessians[i-1]->shell->id) //compute imufactor only if two frames are consecutive temporally
+					{
+						frameHessians[i]->imufactorvalid = false;
+						continue;
+					}
+					lastIMUEnergy += frameHessians[i]->getkfimufactor((i==frameHessians.size()-1));
+				}
+				lastIMUEnergy /= imufactorcount;
+			}
 			lastEnergyL = calcLEnergy();
 			lastEnergyM = calcMEnergy();
 			lambda *= 1e2;
@@ -631,10 +646,19 @@ float FullSystem::optimize(int mnumOptIts)
 
 
 	Vec10 newStateZero = Vec10::Zero();
+	Vec3 newvStateZero = Vec3::Zero();
+	Vec6 newbiasStateZero = Vec6::Zero();
 	newStateZero.segment<2>(6) = frameHessians.back()->get_state().segment<2>(6);
+	//// The order of bias might be wrong!!!!
+	if(isIMUinitialized()){
+		frameHessians.back()->setnavEvalPT(frameHessians.back()->PRE_worldToCam,frameHessians.back()->PRE_velocity,frameHessians.back()->PRE_bias,
+										   newStateZero, newvStateZero, newbiasStateZero);
+	}
+	else frameHessians.back()->setEvalPT(frameHessians.back()->PRE_worldToCam, newStateZero);
 
-	frameHessians.back()->setEvalPT(frameHessians.back()->PRE_worldToCam,
-			newStateZero);
+
+
+
 	EFDeltaValid=false;
 	EFAdjointsValid=false;
 	ef->setAdjointsF(&Hcalib);

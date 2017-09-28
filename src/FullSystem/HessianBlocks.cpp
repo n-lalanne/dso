@@ -156,6 +156,31 @@ void FrameHessian::release()
 	pointHessiansOut.clear();
 	immaturePoints.clear();
 }
+//	Vec15 FrameShell::evaluateIMUerrorsBA(
+//			gtsam::NavState previous_navstate,
+//			gtsam::NavState current_navstate,
+//			gtsam::imuBias::ConstantBias initial_bias,
+//			gtsam::Matrix &J_imu_Rt_i,
+//			gtsam::Matrix &J_imu_v_i,
+//			gtsam::Matrix &J_imu_Rt_j,
+//			gtsam::Matrix &J_imu_v_j,
+//			gtsam::Matrix &J_imu_bias_i,
+//			gtsam::Matrix &J_imu_bias_j
+//	)
+
+double FrameHessian::getkfimufactor(bool fixlinerazation){
+	double imuenergy;
+
+	gtsam::NavState previous_navstate;
+	gtsam::NavState current_navstate;
+	gtsam::imuBias::ConstantBias initial_bias = gtsam::imuBias::ConstantBias(shell->trackingRef->fh->PRE_bias);
+	previous_navstate = shell->trackingRef->fh->PRE_navstate;
+	current_navstate = PRE_navstate;
+	kfimures = shell->evaluateIMUerrorsBA(previous_navstate, current_navstate, initial_bias, J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j);
+	kfimuinfo = shell->getIMUcovarianceBA();
+	imuenergy = kfimures.transpose() * kfimuinfo * kfimures;
+	return imuenergy;
+}
 
 
 void FrameHessian::makeImages(float* color, CalibHessian* HCalib, std::vector<dso_vi::IMUData>& vimuData)
