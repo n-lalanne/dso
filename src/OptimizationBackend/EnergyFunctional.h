@@ -85,6 +85,7 @@ public:
 	void marginalizePointsF();
 	void dropPointsF();
 	void solveSystemF(int iteration, double lambda, CalibHessian* HCalib);
+	void solveVISystemF(int iteration, double lambda, CalibHessian* HCalib);
 	double calcMEnergyF();
 	double calcLEnergyF_MT();
 
@@ -130,6 +131,7 @@ private:
 	void accumulateAF_MT(MatXX &H, VecX &b, bool MT);
 	void accumulateLF_MT(MatXX &H, VecX &b, bool MT);
 	void accumulateSCF_MT(MatXX &H, VecX &b, bool MT);
+	void accumulateIMU_ST(MatXX &H, VecX &b);
 
 	void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
 

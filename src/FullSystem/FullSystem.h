@@ -333,6 +333,7 @@ private:
 
 	int lastRefStopID;
     bool IMUinitialized = false;
+	bool Firstafterinitial = true;
 
 
 	//gravity respect to inertial frame

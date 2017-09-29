@@ -176,6 +176,15 @@ double FrameHessian::getkfimufactor(bool fixlinerazation){
 	gtsam::imuBias::ConstantBias initial_bias = gtsam::imuBias::ConstantBias(shell->trackingRef->fh->PRE_bias);
 	previous_navstate = shell->trackingRef->fh->PRE_navstate;
 	current_navstate = PRE_navstate;
+
+	if(fixlinerazation)
+	{
+		gtsam::NavState previous_navstate_EvalPT = shell->trackingRef->fh->navstate_evalPT;
+		gtsam::imuBias::ConstantBias previous_initial_bias = gtsam::imuBias::ConstantBias(shell->trackingRef->fh->bias_evalPT);
+		shell->linearizeImuFactorLastKeyFrame(previous_navstate_EvalPT,current_navstate,previous_initial_bias,initial_bias);
+	}
+
+
 	kfimures = shell->evaluateIMUerrorsBA(previous_navstate, current_navstate, initial_bias, J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j);
 	kfimuinfo = shell->getIMUcovarianceBA();
 	imuenergy = kfimures.transpose() * kfimuinfo * kfimures;

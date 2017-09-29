@@ -2306,7 +2306,15 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
 		if(isIMUinitialized()){
 			//// The order of gyro and acce might be wrong!!!!!
-			fh->setnavEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->navstate.velocity(), fh->shell->bias.vector(), fh->shell->aff_g2l);
+			if(Firstafterinitial)
+			{
+				for(FrameHessian* kf : frameHessians)
+				{
+					kf->setvbEvalPT();
+				}
+			}
+			fh->setnavEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->navstate.velocity(),
+									fh->shell->bias.vector(), fh->shell->aff_g2l);
 		}
 		else fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 

@@ -123,7 +123,7 @@ Vec15 FrameShell::evaluateIMUerrorsBA(
         gtsam::Matrix &J_imu_bias_j
 )
 {
-    Vec15 resreturn = imu_factor_last_frame_->evaluateError(
+    Vec15 resreturn = imu_factor_last_kf_->evaluateError(
             previous_navstate.pose(), previous_navstate.velocity(), current_navstate.pose(), current_navstate.velocity(),
             initial_bias, this->bias,
             J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j

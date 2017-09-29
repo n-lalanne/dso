@@ -249,6 +249,7 @@ struct FrameHessian
 	//for VI BA
 	double getkfimufactor(bool fixlinerazation);
 
+
 	inline void setnavState(const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate)
 	{
 
@@ -338,6 +339,14 @@ struct FrameHessian
         PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
 	};
+
+	inline void setvbEvalPT(){
+		Vec3 initial_vstate = Vec3::Zero();
+		Vec6 initial_biasstate = Vec6::Zero();
+		this->velocity_evalPT = this->shell->navstate.velocity();
+		this->bias_evalPT = this->shell->bias.vector();
+		setnavStateScaled(this->get_state_scaled(), initial_vstate, initial_biasstate);
+	}
 
 	inline void setEvalPT(const SE3 &worldToCam_evalPT, const Vec10 &state)
 	{

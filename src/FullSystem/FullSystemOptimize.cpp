@@ -504,6 +504,7 @@ float FullSystem::optimize(int mnumOptIts)
 				frameHessians[i]->imufactorvalid = false;
 				continue;
 			}
+			assert(frameHessians[i]->shell->trackingRef->id != frameHessians[i-1]->shell->id); // since we only drop the first kf in local window
 			lastIMUEnergy += frameHessians[i]->getkfimufactor((i==frameHessians.size()-1));
 			imufactorcount++;
 		}
@@ -532,7 +533,11 @@ float FullSystem::optimize(int mnumOptIts)
 
 	double lambda = 1e-1;
 	float stepsize=1;
-	VecX previousX = VecX::Constant(CPARS+ 8*frameHessians.size(), NAN);
+	VecX previousX;
+	// decide the length of the state by IsIMUinitialized()
+	if(!isIMUinitialized()) previousX = VecX::Constant(CPARS+ 8*frameHessians.size(), NAN);
+	else previousX = VecX::Constant(CPARS+ 11*frameHessians.size(), NAN);
+
 	for(int iteration=0;iteration<mnumOptIts;iteration++)
 	{
 		// solve!
