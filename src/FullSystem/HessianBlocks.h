@@ -44,7 +44,6 @@
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/inference/Symbol.h>
-#include <util/FrameShell.h>
 
 namespace dso
 {
@@ -210,7 +209,7 @@ struct FrameHessian
     EIGEN_STRONG_INLINE const Vec10 &get_state_zero() const {return state_zero;}
     EIGEN_STRONG_INLINE const Vec10 &get_state() const {return state;}
     EIGEN_STRONG_INLINE const Vec10 &get_state_scaled() const {return state_scaled;}
-	EIGEN_STRONG_INLINE const Vec10 &get_vstate_zero() const {return vstate_zero;}
+	EIGEN_STRONG_INLINE const Vec3 &get_vstate_zero() const {return vstate_zero;}
 	EIGEN_STRONG_INLINE const Vec3 &get_vstate() const {return vstate;}
 	EIGEN_STRONG_INLINE const Vec3 &get_vstate_scaled() const {return vstate_scaled;}
 	EIGEN_STRONG_INLINE const Vec6 &get_biasstate_zero() const {return biasstate_zero;}
@@ -340,13 +339,7 @@ struct FrameHessian
 		//setCurrentNullspace();
 	};
 
-	inline void setvbEvalPT(){
-		Vec3 initial_vstate = Vec3::Zero();
-		Vec6 initial_biasstate = Vec6::Zero();
-		this->velocity_evalPT = this->shell->navstate.velocity();
-		this->bias_evalPT = this->shell->bias.vector();
-		setnavStateScaled(this->get_state_scaled(), initial_vstate, initial_biasstate);
-	}
+	void setvbEvalPT();
 
 	inline void setEvalPT(const SE3 &worldToCam_evalPT, const Vec10 &state)
 	{

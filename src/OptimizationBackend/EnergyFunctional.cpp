@@ -322,6 +322,37 @@ void EnergyFunctional::accumulateSCF_MT(MatXX &H, VecX &b, bool MT)
 	}
 }
 
+void EnergyFunctional::VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
+{
+	assert(x.size() == CPARS+nFrames*11);
+	resubstituteF_MT(reducestate(x), HCalib, MT);
+
+	VecXf xF = x.cast<float>();
+	HCalib->step = - x.head<CPARS>();
+
+	Mat18f* xAd = new Mat18f[nFrames*nFrames];
+	VecCf cstep = xF.head<CPARS>();
+	for(EFFrame* h : frames)
+	{
+//		std::cout<<"the step of the frame "<<h->frameID<<" before:\n"<<h->data->step.head<8>().transpose()<<std::endl;
+		h->data->step.head<8>() = - x.segment<8>(CPARS+8*h->idx);
+		h->data->step.tail<2>().setZero();
+//		std::cout<<"the step of the frame"<<h->frameID<<" after:\n"<<h->data->step.head<8>().transpose()<<std::endl;
+
+		for(EFFrame* t : frames)
+			xAd[nFrames*h->idx + t->idx] = xF.segment<8>(CPARS+8*h->idx).transpose() *   adHostF[h->idx+nFrames*t->idx]
+										   + xF.segment<8>(CPARS+8*t->idx).transpose() * adTargetF[h->idx+nFrames*t->idx];
+	}
+
+	if(MT)
+		red->reduce(boost::bind(&EnergyFunctional::resubstituteFPt,
+								this, cstep, xAd,  _1, _2, _3, _4), 0, allPoints.size(), 50);
+	else
+		resubstituteFPt(cstep, xAd, 0, allPoints.size(), 0,0);
+
+	delete[] xAd;
+}
+
 void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 {
 	assert(x.size() == CPARS+nFrames*8);
@@ -879,17 +910,16 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 //// brief: add those Kinematics constarints
 void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b){
 	int nframes = frames.size();
-	H = MatXX::Zero(nframes*11+CPARS, nframes*11+CPARS);
-	b = VecX::Zero(nframes*11+CPARS);
+	H = MatXX::Zero(nframes*17+CPARS, nframes*17+CPARS);
+	b = VecX::Zero(nframes*17+CPARS);
 	H.setZero();
 	b.setZero();
 	for(int i=1;i<frames.size();i++)
 	{
 		int indexi = i;
-		int indexj = i+1;
 
-		Mat3232 H_temp;
-		Vec32 b_temp;
+		Mat3434 H_temp;
+		Vec34 b_temp;
 		Mat1515 information_imu;
 		Vec15 res_imu;
 
@@ -899,11 +929,11 @@ void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b){
 		information_imu = frames[i]->data->shell->getIMUcovarianceBA();
 		res_imu = frames[i]->data->kfimures;
 
-		Mat1515 J_imu_travb_previous;
+		Mat1517 J_imu_travb_previous;
 		J_imu_travb_previous.setZero();
 		J_imu_travb_previous.block<15, 3>(0, 0) = frames[i]->data->J_imu_Rt_j.block<15, 3>(0, 3);//J_imu_Rt_previous.block<15, 3>(0, 3);
 		J_imu_travb_previous.block<15, 3>(0, 3) = frames[i]->data->J_imu_Rt_j.block<15, 3>(0, 0);//J_imu_Rt_previous.block<15, 3>(0, 0);
-		J_imu_travb_previous.block<15, 3>(0, 6) = frames[i]->data->J_imu_v_j.block<15, 3>(0, 0);//J_imu_v_previous.block<15, 3>(0, 0);
+		J_imu_travb_previous.block<15, 3>(0, 8) = frames[i]->data->J_imu_v_j.block<15, 3>(0, 0);//J_imu_v_previous.block<15, 3>(0, 0);
 
 		// ------------------ don't ignore the cross terms in hessian between i and jth poses ------------------
 		Mat1517 J_imu_travb_current;
@@ -912,16 +942,16 @@ void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b){
 		J_imu_travb_current.block<15, 3>(0, 3) = frames[i]->data->J_imu_Rt_i.block<15, 3>(0, 0);//J_imu_Rt.block<15, 3>(0, 0);
 		J_imu_travb_current.block<15, 3>(0, 8) = frames[i]->data->J_imu_v_i.block<15, 3>(0, 0);//J_imu_v.block<15, 3>(0, 0);
 
-		Mat1532 J_imu_complete;
-		J_imu_complete.leftCols(17) = J_imu_travb_current;
-		J_imu_complete.rightCols(15) = J_imu_travb_previous;
+		Mat1534 J_imu_complete;
+		J_imu_complete.leftCols(17) = J_imu_travb_previous;
+		J_imu_complete.rightCols(17) = J_imu_travb_current;
 
-		H_temp = J_imu_complete.transpose() * information_imu * J_imu_complete;
-		b_temp = J_imu_complete.transpose() * information_imu * res_imu;
+		H_temp.noalias() = J_imu_complete.transpose() * information_imu * J_imu_complete;
+		b_temp.noalias() = J_imu_complete.transpose() * information_imu * res_imu;
 
 		//// TODO: set the coressponding blocks in H_imu
-		H.block<6,6>(CPARS+(indexi-1)*11,CPARS+(indexj-1)*11) = H_temp<3,3>(0,0);
-
+		H.block<34,34>(CPARS+(indexi-1)*17,CPARS+(indexi-1)*17) += H_temp;
+		b.segment<34>(CPARS+(indexi-1)*17) += b_temp;
 
 	}
 	return;
@@ -944,7 +974,6 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	accumulateLF_MT(HL_top, bL_top,multiThreading);
 
 
-
 	accumulateSCF_MT(H_sc, b_sc,multiThreading);
 
 	accumulateIMU_ST(H_imu, b_imu);
@@ -952,12 +981,18 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	MatXX HFinal_top;
 	VecX bFinal_top;
 
+	extendHessian(HA_top, bA_top);
+	extendHessian(HL_top, bL_top);
+	extendHessian(H_sc, b_sc);
+
 
 	HFinal_top = HL_top + HM + HA_top + H_imu;
-	bFinal_top = bL_top + bM_top + bA_top + b_imu - b_sc;
+	bFinal_top = bL_top + bM_top + bA_top - b_sc + b_imu;
 
 	lastHS = HFinal_top - H_sc;
 	lastbS = bFinal_top;
+
+
 
 	for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
 	HFinal_top -= H_sc * (1.0f/(1+lambda));
@@ -996,6 +1031,7 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	}
 	else
 	{
+		reduceHessian(HFinal_top,bFinal_top);
 		VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
 		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
@@ -1003,23 +1039,77 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 
 
 	//// Todo: reduce the state to 8 for orthogonalization and after this operation, change it back
-	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
-	{
-		VecX xOld = x;
-		orthogonalize(&x, 0);
-	}
+//	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
+//	{
+//
+//		VecX xOld = x;
+//		orthogonalize(&x, 0);
+//	}
 
 
 	lastX = x;
 
 	//resubstituteF(x, HCalib);
 	currentLambda= lambda;
-	resubstituteF_MT(x, HCalib,multiThreading);
+	VIresubstituteF_MT(x, HCalib,multiThreading);
 	currentLambda=0;
 
 }
 
+VecX EnergyFunctional::reducestate(VecX x)
+{
+	VecX x_tmp = x;
+	x.conservativeResize(CPARS+nFrames*8);
+	x.setZero();
+	x.head(CPARS) = x_tmp.head(CPARS);
+	for(int i=0;i<nFrames;i++){
+		x.segment<8>(CPARS+i*8) = x_tmp.segment<8>(CPARS+i*11);
+	}
+	return x;
+}
 
+void EnergyFunctional::extendHessian(MatXX &H, VecX &b)
+{
+	MatXX H_tmp = H;
+	VecX b_tmp = b;
+	H.conservativeResize(CPARS+nFrames*17,CPARS+nFrames*17);
+	b.conservativeResize(CPARS+nFrames*17);
+	H.setZero();
+	b.setZero();
+
+	b.head(CPARS) = b_tmp.head(CPARS);
+	H.topLeftCorner(CPARS,CPARS)=H_tmp.topLeftCorner(CPARS,CPARS);
+	for(int i=0;i<nFrames;i++)
+	{
+		b.segment<8>(CPARS+i*17) = b_tmp.segment<8>(CPARS+i*8);
+		H.block<CPARS,8>(0,CPARS+i*17) = H_tmp.block<CPARS,8>(0,CPARS+i*8);
+		for(int j=0;j<nFrames;j++)
+			H.block<8,8>(CPARS+i*17,CPARS+j*17)=H_tmp.block<8,8>(CPARS+i*8,CPARS+j*8);
+	}
+	H.block<nFrames*17,CPARS>(CPARS,0) = H.block<CPARS,nFrames*17>(0,CPARS).tranpose();
+}
+
+
+void EnergyFunctional::reduceHessian(MatXX &H, VecX &b)
+{
+	MatXX H_tmp = H;
+	VecX b_tmp = b;
+	H.conservativeResize(CPARS+nFrames*11,CPARS+nFrames*11);
+	b.conservativeResize(CPARS+nFrames*11);
+	H.setZero();
+	b.setZero();
+
+	b.head(CPARS) = b_tmp.head(CPARS);
+	H.topLeftCorner(CPARS,CPARS)=H_tmp.topLeftCorner(CPARS,CPARS);
+	for(int i=0;i<nFrames;i++)
+	{
+		b.segment<11>(CPARS+i*11) = b_tmp.segment<11>(CPARS+i*17);
+		H.block<CPARS,11>(0,CPARS+i*11) = H_tmp.block<CPARS,11>(0,CPARS+i*17);
+		for(int j=0;j<nFrames;j++)
+			H.block<11,11>(CPARS+i*11,CPARS+j*11)=H_tmp.block<11,11>(CPARS+i*17,CPARS+j*17);
+	}
+	H.block<nFrames*11,CPARS>(CPARS,0) = H.block<CPARS,nFrames*11>(0,CPARS).tranpose();
+}
 
 void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* HCalib)
 {
@@ -1037,7 +1127,6 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 	accumulateLF_MT(HL_top, bL_top,multiThreading);
-
 
 
 	accumulateSCF_MT(H_sc, b_sc,multiThreading);
@@ -1090,6 +1179,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 		lastHS = HFinal_top - H_sc;
 		lastbS = bFinal_top;
+
+		reduceHessian(HFinal_top,bFinal_top);
 
 		for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
 		HFinal_top -= H_sc * (1.0f/(1+lambda));

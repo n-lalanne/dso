@@ -44,6 +44,7 @@ using namespace gtsam;
 namespace dso
 {
 class FullSystem;
+
 class FrameShell
 {
 public:

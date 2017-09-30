@@ -168,6 +168,15 @@ void FrameHessian::release()
 //			gtsam::Matrix &J_imu_bias_j
 //	)
 
+void FrameHessian::setvbEvalPT()
+{
+	Vec3 initial_vstate = Vec3::Zero();
+	Vec6 initial_biasstate = Vec6::Zero();
+	velocity_evalPT = shell->navstate.velocity();
+	bias_evalPT = shell->bias.vector();
+	setnavStateScaled(get_state_scaled(), initial_vstate, initial_biasstate);
+}
+
 double FrameHessian::getkfimufactor(bool fixlinerazation){
 	double imuenergy;
 

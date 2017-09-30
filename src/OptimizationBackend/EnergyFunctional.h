@@ -88,6 +88,9 @@ public:
 	void solveVISystemF(int iteration, double lambda, CalibHessian* HCalib);
 	double calcMEnergyF();
 	double calcLEnergyF_MT();
+	void extendHessian(MatXX &H, VecX &b);
+	void reduceHessian(MatXX &H, VecX &b);
+	VecX reducestate(VecX x);
 
 
 	void makeIDX();
@@ -125,6 +128,7 @@ private:
 
 	VecX getStitchedDeltaF() const;
 
+	void VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	void resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT);
     void resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid);
 
