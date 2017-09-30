@@ -878,7 +878,52 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 
 //// brief: add those Kinematics constarints
 void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b){
-	for(int i=1;i<)
+	int nframes = frames.size();
+	H = MatXX::Zero(nframes*11+CPARS, nframes*11+CPARS);
+	b = VecX::Zero(nframes*11+CPARS);
+	H.setZero();
+	b.setZero();
+	for(int i=1;i<frames.size();i++)
+	{
+		int indexi = i;
+		int indexj = i+1;
+
+		Mat3232 H_temp;
+		Vec32 b_temp;
+		Mat1515 information_imu;
+		Vec15 res_imu;
+
+		H_temp.setZero();
+		b_temp.setZero();
+
+		information_imu = frames[i]->data->shell->getIMUcovarianceBA();
+		res_imu = frames[i]->data->kfimures;
+
+		Mat1515 J_imu_travb_previous;
+		J_imu_travb_previous.setZero();
+		J_imu_travb_previous.block<15, 3>(0, 0) = frames[i]->data->J_imu_Rt_j.block<15, 3>(0, 3);//J_imu_Rt_previous.block<15, 3>(0, 3);
+		J_imu_travb_previous.block<15, 3>(0, 3) = frames[i]->data->J_imu_Rt_j.block<15, 3>(0, 0);//J_imu_Rt_previous.block<15, 3>(0, 0);
+		J_imu_travb_previous.block<15, 3>(0, 6) = frames[i]->data->J_imu_v_j.block<15, 3>(0, 0);//J_imu_v_previous.block<15, 3>(0, 0);
+
+		// ------------------ don't ignore the cross terms in hessian between i and jth poses ------------------
+		Mat1517 J_imu_travb_current;
+		J_imu_travb_current.setZero();
+		J_imu_travb_current.block<15, 3>(0, 0) = frames[i]->data->J_imu_Rt_i.block<15, 3>(0, 3);//J_imu_Rt.block<15, 3>(0, 3);
+		J_imu_travb_current.block<15, 3>(0, 3) = frames[i]->data->J_imu_Rt_i.block<15, 3>(0, 0);//J_imu_Rt.block<15, 3>(0, 0);
+		J_imu_travb_current.block<15, 3>(0, 8) = frames[i]->data->J_imu_v_i.block<15, 3>(0, 0);//J_imu_v.block<15, 3>(0, 0);
+
+		Mat1532 J_imu_complete;
+		J_imu_complete.leftCols(17) = J_imu_travb_current;
+		J_imu_complete.rightCols(15) = J_imu_travb_previous;
+
+		H_temp = J_imu_complete.transpose() * information_imu * J_imu_complete;
+		b_temp = J_imu_complete.transpose() * information_imu * res_imu;
+
+		//// TODO: set the coressponding blocks in H_imu
+		H.block<6,6>(CPARS+(indexi-1)*11,CPARS+(indexj-1)*11) = H_temp<3,3>(0,0);
+
+
+	}
 	return;
 }
 
