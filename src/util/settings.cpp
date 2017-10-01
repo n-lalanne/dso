@@ -245,7 +245,7 @@ bool setting_logStuff = true;
 
 
 
-bool goStepByStep = false;
+bool goStepByStep = true;
 
 
 bool setting_render_displayCoarseTrackingFull=true;

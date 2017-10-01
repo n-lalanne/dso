@@ -324,33 +324,21 @@ void EnergyFunctional::accumulateSCF_MT(MatXX &H, VecX &b, bool MT)
 
 void EnergyFunctional::VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 {
-	assert(x.size() == CPARS+nFrames*11);
+	assert(x.size() == CPARS+nFrames*17);
+	// calculate pose, a, b steps
 	resubstituteF_MT(reducestate(x), HCalib, MT);
 
-	VecXf xF = x.cast<float>();
-	HCalib->step = - x.head<CPARS>();
-
-	Mat18f* xAd = new Mat18f[nFrames*nFrames];
-	VecCf cstep = xF.head<CPARS>();
+	// calculate velocity step
 	for(EFFrame* h : frames)
 	{
 //		std::cout<<"the step of the frame "<<h->frameID<<" before:\n"<<h->data->step.head<8>().transpose()<<std::endl;
-		h->data->step.head<8>() = - x.segment<8>(CPARS+8*h->idx);
-		h->data->step.tail<2>().setZero();
-//		std::cout<<"the step of the frame"<<h->frameID<<" after:\n"<<h->data->step.head<8>().transpose()<<std::endl;
-
-		for(EFFrame* t : frames)
-			xAd[nFrames*h->idx + t->idx] = xF.segment<8>(CPARS+8*h->idx).transpose() *   adHostF[h->idx+nFrames*t->idx]
-										   + xF.segment<8>(CPARS+8*t->idx).transpose() * adTargetF[h->idx+nFrames*t->idx];
+		h->data->vstep = - x.segment<3>(CPARS+17*h->idx+8);
+		// TODO: update this to optimize the bias
+		h->data->biasstep.setZero();
+		std::cout<<"the velocity step of the frame"<<h->frameID<<" after:\n"<<h->data->vstep<<std::endl;
 	}
 
-	if(MT)
-		red->reduce(boost::bind(&EnergyFunctional::resubstituteFPt,
-								this, cstep, xAd,  _1, _2, _3, _4), 0, allPoints.size(), 50);
-	else
-		resubstituteFPt(cstep, xAd, 0, allPoints.size(), 0,0);
-
-	delete[] xAd;
+	// calculate bias step
 }
 
 void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
@@ -1063,7 +1051,7 @@ VecX EnergyFunctional::reducestate(VecX x)
 	x.setZero();
 	x.head(CPARS) = x_tmp.head(CPARS);
 	for(int i=0;i<nFrames;i++){
-		x.segment<8>(CPARS+i*8) = x_tmp.segment<8>(CPARS+i*11);
+		x.segment<8>(CPARS+i*8) = x_tmp.segment<8>(CPARS+i*17);
 	}
 	return x;
 }
@@ -1086,7 +1074,8 @@ void EnergyFunctional::extendHessian(MatXX &H, VecX &b)
 		for(int j=0;j<nFrames;j++)
 			H.block<8,8>(CPARS+i*17,CPARS+j*17)=H_tmp.block<8,8>(CPARS+i*8,CPARS+j*8);
 	}
-	H.block<nFrames*17,CPARS>(CPARS,0) = H.block<CPARS,nFrames*17>(0,CPARS).tranpose();
+	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+	//H.block<nFrames*17,CPARS>(CPARS,0) = H.block<CPARS,nFrames*17>(0,CPARS).transpose();
 }
 
 
@@ -1108,7 +1097,8 @@ void EnergyFunctional::reduceHessian(MatXX &H, VecX &b)
 		for(int j=0;j<nFrames;j++)
 			H.block<11,11>(CPARS+i*11,CPARS+j*11)=H_tmp.block<11,11>(CPARS+i*17,CPARS+j*17);
 	}
-	H.block<nFrames*11,CPARS>(CPARS,0) = H.block<CPARS,nFrames*11>(0,CPARS).tranpose();
+	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+	//H.block<nFrames*11,CPARS>(CPARS,0) = H.block<CPARS,nFrames*11>(0,CPARS).tranpose();
 }
 
 void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* HCalib)
@@ -1120,8 +1110,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	assert(EFAdjointsValid);
 	assert(EFIndicesValid);
 
-	MatXX HL_top, HA_top, H_sc , H_imu;
-	VecX  bL_top, bA_top, bM_top, b_sc, b_imu;
+	MatXX HL_top, HA_top, H_sc;
+	VecX  bL_top, bA_top, bM_top, b_sc;
 
 	accumulateAF_MT(HA_top, bA_top,multiThreading);
 
@@ -1180,7 +1170,6 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		lastHS = HFinal_top - H_sc;
 		lastbS = bFinal_top;
 
-		reduceHessian(HFinal_top,bFinal_top);
 
 		for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
 		HFinal_top -= H_sc * (1.0f/(1+lambda));
@@ -1229,6 +1218,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
 	}
 
+	//std::cout<<"#step:"<<x.transpose()<<std::endl;
 
 
 	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))

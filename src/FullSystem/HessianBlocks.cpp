@@ -177,24 +177,26 @@ void FrameHessian::setvbEvalPT()
 	setnavStateScaled(get_state_scaled(), initial_vstate, initial_biasstate);
 }
 
-double FrameHessian::getkfimufactor(bool fixlinerazation){
+double FrameHessian::getkfimufactor(){
 	double imuenergy;
 
-	gtsam::NavState previous_navstate;
-	gtsam::NavState current_navstate;
-	gtsam::imuBias::ConstantBias initial_bias = gtsam::imuBias::ConstantBias(shell->trackingRef->fh->PRE_bias);
-	previous_navstate = shell->trackingRef->fh->PRE_navstate;
-	current_navstate = PRE_navstate;
 
-	if(fixlinerazation)
+	if(needrelin)
 	{
-		gtsam::NavState previous_navstate_EvalPT = shell->trackingRef->fh->navstate_evalPT;
-		gtsam::imuBias::ConstantBias previous_initial_bias = gtsam::imuBias::ConstantBias(shell->trackingRef->fh->bias_evalPT);
-		shell->linearizeImuFactorLastKeyFrame(previous_navstate_EvalPT,current_navstate,previous_initial_bias,initial_bias);
+		gtsam::NavState previous_navstate_evalPT;
+		gtsam::NavState current_navstate_evalPT;
+		gtsam::imuBias::ConstantBias previous_bias_evalPT = gtsam::imuBias::ConstantBias(shell->trackingRef->fh->bias_evalPT);
+		gtsam::imuBias::ConstantBias current_bias_evalPT = gtsam::imuBias::ConstantBias(bias_evalPT);
+		previous_navstate_evalPT = shell->trackingRef->fh->navstate_evalPT;
+		current_navstate_evalPT = navstate_evalPT;
+		shell->linearizeImuFactorLastKeyFrame(previous_navstate_evalPT,current_navstate_evalPT,previous_bias_evalPT,current_bias_evalPT);
+		needrelin = false;
 	}
-
-
-	kfimures = shell->evaluateIMUerrorsBA(previous_navstate, current_navstate, initial_bias, J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j);
+	gtsam::NavState PRE_previous_navstate = shell->trackingRef->fh->PRE_navstate;
+	gtsam::NavState PRE_current_navstate = PRE_navstate;
+	gtsam::imuBias::ConstantBias PRE_previous_bias = gtsam::imuBias::ConstantBias(shell->trackingRef->fh->PRE_bias);
+	gtsam::imuBias::ConstantBias PRE_current_bias = gtsam::imuBias::ConstantBias(PRE_bias);
+	kfimures  = shell->evaluateIMUerrorsBA(PRE_previous_navstate, PRE_current_navstate, PRE_previous_bias, PRE_current_bias, J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j);
 	kfimuinfo = shell->getIMUcovarianceBA();
 	imuenergy = kfimures.transpose() * kfimuinfo * kfimures;
 	return imuenergy;

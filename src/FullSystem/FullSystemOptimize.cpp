@@ -239,7 +239,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	pstepfac.segment<4>(6).setConstant(stepfacA);
 
 
-	float sumA=0, sumB=0, sumT=0, sumR=0, sumID=0, numID=0;
+	float sumA=0, sumB=0, sumT=0, sumR=0, sumV=0,sumAcce=0,sumGyro=0, sumID=0, numID=0;
 
 	float sumNID=0;
 
@@ -275,12 +275,21 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 		for(FrameHessian* fh : frameHessians)
 		{
 //			std::cout<<"host_state frame "<<fh->idx<<" is \n"<<fh->state.transpose()<<std::endl;
-			fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
+			if(isIMUinitialized())fh->setnavState(
+						fh->state_backup + pstepfac.cwiseProduct(fh->step),
+						fh->vstate_backup + fh->vstep,
+						fh->biasstate_backup + fh->biasstep
+				);
+			else fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
+
 //			std::cout<<"the updated state of frame "<<fh->idx<<" is \n"<<fh->state.transpose()<<std::endl;
 			sumA += fh->step[6]*fh->step[6];
 			sumB += fh->step[7]*fh->step[7];
 			sumT += fh->step.segment<3>(0).squaredNorm();
 			sumR += fh->step.segment<3>(3).squaredNorm();
+			sumV += fh->vstep.squaredNorm();
+			sumAcce += fh->biasstep.segment<3>(0).squaredNorm();
+			sumGyro += fh->biasstep.segment<3>(3).squaredNorm();
 
 			for(PointHessian* ph : fh->pointHessians)
 			{
@@ -298,6 +307,9 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	sumB /= frameHessians.size();
 	sumR /= frameHessians.size();
 	sumT /= frameHessians.size();
+	sumV /= frameHessians.size();
+	sumAcce /= frameHessians.size();
+	sumGyro /= frameHessians.size();
 	sumID /= numID;
 	sumNID /= numID;
 
@@ -306,11 +318,12 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 
 
     if(!setting_debugout_runquiet)
-        printf("STEPS: A %.1f; B %.1f; R %.1f; T %.1f. \t",
+        printf("STEPS: A %.1f; B %.1f; R %.1f; T %.1f; V %.1f. \t",
                 sqrtf(sumA) / (0.0005*setting_thOptIterations),
                 sqrtf(sumB) / (0.00005*setting_thOptIterations),
                 sqrtf(sumR) / (0.00005*setting_thOptIterations),
-                sqrtf(sumT)*sumNID / (0.00005*setting_thOptIterations));
+                sqrtf(sumT)*sumNID / (0.00005*setting_thOptIterations),
+				sqrtf(sumV)*sumNID / (0.00005*setting_thOptIterations));
 
 
 	EFDeltaValid=false;
@@ -499,13 +512,8 @@ float FullSystem::optimize(int mnumOptIts)
 	{
 		for(int i=1;i<frameHessians.size(); i++)		// go through all active frames
 		{
-			if(frameHessians[i]->shell->trackingRef->id != frameHessians[i-1]->shell->id) //compute imufactor only if two frames are consecutive temporally
-			{
-				frameHessians[i]->imufactorvalid = false;
-				continue;
-			}
 			assert(frameHessians[i]->shell->trackingRef->id != frameHessians[i-1]->shell->id); // since we only drop the first kf in local window
-			lastIMUEnergy += frameHessians[i]->getkfimufactor((i==frameHessians.size()-1));
+			lastIMUEnergy += frameHessians[i]->getkfimufactor();
 			imufactorcount++;
 		}
 		lastIMUEnergy /= imufactorcount;
@@ -576,12 +584,7 @@ float FullSystem::optimize(int mnumOptIts)
 		{
 			for(int i=1;i<frameHessians.size(); i++)		// go through all active frames
 			{
-				if(frameHessians[i]->shell->trackingRef->id != frameHessians[i-1]->shell->id) //compute imufactor only if two frames are consecutive temporally
-				{
-					frameHessians[i]->imufactorvalid = false;
-					continue;
-				}
-				newIMUEnergy += frameHessians[i]->getkfimufactor((i==frameHessians.size()-1));
+				newIMUEnergy += frameHessians[i]->getkfimufactor();
 			}
 			newIMUEnergy /= imufactorcount;
 		}
@@ -630,12 +633,7 @@ float FullSystem::optimize(int mnumOptIts)
 				lastIMUEnergy = 0;
 				for(int i=1;i<frameHessians.size(); i++)		// go through all active frames
 				{
-					if(frameHessians[i]->shell->trackingRef->id != frameHessians[i-1]->shell->id) //compute imufactor only if two frames are consecutive temporally
-					{
-						frameHessians[i]->imufactorvalid = false;
-						continue;
-					}
-					lastIMUEnergy += frameHessians[i]->getkfimufactor((i==frameHessians.size()-1));
+					lastIMUEnergy += frameHessians[i]->getkfimufactor();
 				}
 				lastIMUEnergy /= imufactorcount;
 			}
@@ -726,8 +724,9 @@ void FullSystem::solveSystem(int iteration, double lambda)
 			ef->lastNullspaces_scale,
 			ef->lastNullspaces_affA,
 			ef->lastNullspaces_affB);
-
-	ef->solveSystemF(iteration, lambda,&Hcalib);
+	if(isIMUinitialized())
+		ef->solveVISystemF(iteration,lambda,&Hcalib);
+	else ef->solveSystemF(iteration, lambda,&Hcalib);
 }
 
 

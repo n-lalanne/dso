@@ -176,7 +176,8 @@ public:
 	Vec15 evaluateIMUerrorsBA(
 			gtsam::NavState previouskf_navstate,
 			gtsam::NavState currentkf_navstate,
-			gtsam::imuBias::ConstantBias initial_bias,
+			gtsam::imuBias::ConstantBias previous_bias,
+			gtsam::imuBias::ConstantBias current_bias,
 			gtsam::Matrix &J_imu_Rt_i,
 			gtsam::Matrix &J_imu_v_i,
 			gtsam::Matrix &J_imu_Rt_j,

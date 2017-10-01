@@ -2164,7 +2164,7 @@ void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
 	linearizeOperation = true;
 	if(linearizeOperation)
 	{
-		if(goStepByStep && lastRefStopID != coarseTracker->refFrameID)
+		if(isIMUinitialized() && goStepByStep && lastRefStopID != coarseTracker->refFrameID)
 		{
 			MinimalImageF3 img(wG[0], hG[0], fh->dI);
 			IOWrap::displayImage("frameToTrack", &img);
@@ -2312,6 +2312,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 				{
 					kf->setvbEvalPT();
 				}
+				Firstafterinitial = false;
 			}
 			fh->setnavEvalPT_scaled(fh->shell->camToWorld.inverse(), fh->shell->navstate.velocity(),
 									fh->shell->bias.vector(), fh->shell->aff_g2l);

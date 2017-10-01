@@ -147,7 +147,7 @@ struct FrameHessian
 	float ab_exposure;
 
 	bool flaggedForMarginalization;
-	bool imufactorvalid = true;  // if previous keyframe exsits in localwindow
+	bool needrelin = true;  // if imu factor needs to be linerazed
 
 	std::vector<PointHessian*> pointHessians;				// contains all ACTIVE points.
 	std::vector<PointHessian*> pointHessiansMarginalized;	// contains all MARGINALIZED points (= fully marginalized, usually because point went OOB.)
@@ -246,7 +246,7 @@ struct FrameHessian
 
 	void setStateZero(const Vec10 &state_zero);
 	//for VI BA
-	double getkfimufactor(bool fixlinerazation);
+	double getkfimufactor();
 
 
 	inline void setnavState(const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate)
@@ -263,8 +263,8 @@ struct FrameHessian
 		state_scaled[8] = SCALE_A * state[8];
 		state_scaled[9] = SCALE_B * state[9];
 		vstate_scaled = SCALE_IMU_V * vstate;
-		biasstate_scaled.segment<3>(0) = SCALE_IMU_GYRO * biasstate.segment<3>(0);
-		biasstate_scaled.segment<3>(3) = SCALE_IMU_ACCE * biasstate.segment<3>(3);
+		biasstate_scaled.segment<3>(0) = SCALE_IMU_ACCE * biasstate.segment<3>(0);
+		biasstate_scaled.segment<3>(3) = SCALE_IMU_GYRO * biasstate.segment<3>(3);
 
 		PRE_ImuToworld = get_imuToWorld_evalPT() * SE3::exp(b2w_rightEps());
 		PRE_worldToImu = PRE_ImuToworld.inverse();
@@ -308,8 +308,8 @@ struct FrameHessian
 		state[8] = SCALE_A_INVERSE * state_scaled[8];
 		state[9] = SCALE_B_INVERSE * state_scaled[9];
 		vstate = SCALE_IMU_V_INVERSE * vstate_scaled;
-		biasstate.segment<3>(0) = SCALE_IMU_GYRO_INVERSE * biasstate_scaled.segment<3>(0);
-		biasstate.segment<3>(3) = SCALE_IMU_ACCE_INVERSE * biasstate_scaled.segment<3>(3);
+		biasstate.segment<3>(0) = SCALE_IMU_ACCE_INVERSE * biasstate_scaled.segment<3>(0);
+		biasstate.segment<3>(3) = SCALE_IMU_GYRO_INVERSE * biasstate_scaled.segment<3>(3);
 
 		PRE_ImuToworld = get_imuToWorld_evalPT() * SE3::exp(b2w_rightEps());
 		PRE_worldToImu = PRE_ImuToworld.inverse();
