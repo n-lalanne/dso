@@ -8,6 +8,9 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 set(BUILD_TYPE Release)
 #set(BUILD_TYPE RelWithDebInfo)
 
+set(INSTALL_PREFIX install)
+set(DEVEL_PREFIX devel)
+
 set(EXECUTABLE_OUTPUT_PATH bin)
 set(LIBRARY_OUTPUT_PATH lib)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
@@ -33,6 +36,16 @@ include(GtsamTesting)
 find_package(LibZip QUIET)
 find_package(Pangolin 0.2 QUIET)
 find_package(OpenCV 2.4 QUIET)
+
+# ROS
+find_package(sensor_msgs)
+find_package(rosbag)
+find_package(cv_bridge)
+
+set(ROS_INCLUDES ${sensor_msgs_INCLUDE_DIRS} ${rosbag_INCLUDE_DIRS} ${cv_bridge_INCLUDE_DIRS})
+set(ROS_LIBS ${sensor_msgs_LIBRARIES} ${rosbag_LIBRARIES} ${cv_bridge_LIBRARIES})
+message("--ROS_INCLUDES ${ROS_INCLUDES}")
+message("--ROS_LIBS ${ROS_LIBS}")
 
 # flags
 add_definitions("-DENABLE_SSE")
@@ -70,6 +83,7 @@ set(dso_SOURCE_FILES
   # VI
   ${PROJECT_SOURCE_DIR}/src/IMU/imudata.cpp
   ${PROJECT_SOURCE_DIR}/src/IMU/configparam.cpp
+  ${PROJECT_SOURCE_DIR}/src/IMU/MsgSync/MsgSynchronizer.cpp
 
   # Groundtruth 
   ${PROJECT_SOURCE_DIR}/src/GroundTruthIterator/GroundTruthIterator.cpp
@@ -85,6 +99,8 @@ include_directories(
 
   # VI
   ${PROJECT_SOURCE_DIR}/src/IMU
+  ${PROJECT_SOURCE_DIR}/src/IMU/MsgSync
+  ${ROS_INCLUDES}
 
   # Groundtruth 
   ${PROJECT_SOURCE_DIR}/src/GroundTruthIterator
@@ -119,7 +135,7 @@ else ()
 	message("    this means there will be no image display, and image read / load functionality.")
 	set(dso_opencv_SOURCE_FILES 
 	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/ImageDisplay_dummy.cpp
-	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/ImageRW_dummy.cpp)
+	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/ImageRW_dummy.cpp src/main_dso_bag.cpp)
 	set(HAS_OPENCV 0)
 endif ()
 
@@ -143,13 +159,16 @@ target_link_libraries(dso gtsam boost_system boost_thread cxsparse ${LIBZIP_LIBR
 
 
 # build main executable (only if we have both OpenCV and Pangolin)
-#if (OpenCV_FOUND AND Pangolin_FOUND)
+if (OpenCV_FOUND AND Pangolin_FOUND)
 #	message("--- compiling dso_dataset.")
 #	add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp )
 #    target_link_libraries(dso_dataset dso boost_system boost_thread cxsparse ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
-#else()
-#	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
-#endif()
+	message("--- compiling dso_bag.")
+	add_executable(dso_bag ${PROJECT_SOURCE_DIR}/src/main_dso_bag.cpp )
+	target_link_libraries(dso_bag dso boost_system boost_thread cxsparse ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS} ${ROS_LIBS})
+else()
+	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
+endif()
 
 # tests
 #add_executable(matrix_assignments_test ${PROJECT_SOURCE_DIR}/src/tests/matrix_assignments.cpp)
@@ -158,5 +177,5 @@ target_link_libraries(dso gtsam boost_system boost_thread cxsparse ${LIBZIP_LIBR
 #add_executable(imu_errors_test ${PROJECT_SOURCE_DIR}/src/tests/imu_errors.cpp)
 #target_link_libraries(imu_errors_test dso gtsam)
 
-add_executable(two_pose_vision_optimize ${PROJECT_SOURCE_DIR}/src/tests/two_pose_vision_optimize.cpp)
-target_link_libraries(two_pose_vision_optimize dso)
+#add_executable(two_pose_vision_optimize ${PROJECT_SOURCE_DIR}/src/tests/two_pose_vision_optimize.cpp)
+#target_link_libraries(two_pose_vision_optimize dso)
