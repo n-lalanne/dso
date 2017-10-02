@@ -2336,7 +2336,10 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	allKeyFramesHistory.push_back(fh->shell);
 	ef->insertFrame(fh, &Hcalib);
 
+
+
 	setPrecalcValues();
+
 
 	// =========================== add new residuals for old points =========================
 	int numFwdResAdde=0;
@@ -2357,7 +2360,6 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 
-
 	// =========================== Activate Points (& flag for marginalization). =========================
 	activatePointsMT();
 	ef->makeIDX();
@@ -2370,7 +2372,6 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
 	float rmse = optimize(setting_maxOptIterations);
     std::cout<<"rmse:"<< rmse<< "benchmark_initializerSlackFactor: "<<benchmark_initializerSlackFactor<<std::endl;
-
 
 
 

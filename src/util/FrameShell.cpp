@@ -40,7 +40,6 @@ void FrameShell::linearizeImuFactorLastKeyFrame(
 {
     if(!fh->needrelin) return;
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_kf_);
-
     if (!imu_factor_last_kf_)
     {
         imu_factor_last_kf_ = new CombinedImuFactor(
@@ -59,7 +58,6 @@ void FrameShell::linearizeImuFactorLastKeyFrame(
                 *preint_imu
         );
     }
-
     Values initial_values;
     initial_values.insert(X(0), previouskf_navstate.pose());
     initial_values.insert(X(1), current_navstate.pose());
@@ -67,7 +65,6 @@ void FrameShell::linearizeImuFactorLastKeyFrame(
     initial_values.insert(V(1), current_navstate.velocity());
     initial_values.insert(B(0), previouskf_bias);
     initial_values.insert(B(1), current_bias);
-
     imu_factor_last_kf_->linearize(initial_values);
 }
 

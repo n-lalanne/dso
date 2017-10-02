@@ -384,8 +384,11 @@ void FullSystem::backupState(bool backupLastStep)
 		for(FrameHessian* fh : frameHessians)
 		{
 			fh->state_backup = fh->get_state();
-			fh->biasstate_backup = fh->get_biasstate();
-			fh->vstate_backup = fh->get_vstate();
+            if(isIMUinitialized())
+            {
+                fh->biasstate_backup = fh->get_biasstate();
+                fh->vstate_backup = fh->get_vstate();
+            }
 			for(PointHessian* ph : fh->pointHessians)
 				ph->idepth_backup = ph->idepth;
 		}
@@ -508,6 +511,9 @@ float FullSystem::optimize(int mnumOptIts)
 	//============================ linearize the imu factors for each keyframe(only for consecutive keyframes)=======
 	double lastIMUEnergy = 0.0;
 	int imufactorcount = 0;
+	if(isIMUinitialized()) {
+		std::cout << "get here before imu factor" << std::endl;
+	}
 	if(isIMUinitialized())
 	{
 		for(int i=1;i<frameHessians.size(); i++)		// go through all active frames
@@ -519,7 +525,9 @@ float FullSystem::optimize(int mnumOptIts)
 		lastIMUEnergy /= imufactorcount;
 	}
 
-
+	if(isIMUinitialized()) {
+		std::cout << "get here after imu factor" << std::endl;
+	}
 
     if(!setting_debugout_runquiet)
     {
@@ -653,9 +661,19 @@ float FullSystem::optimize(int mnumOptIts)
 	Vec6 newbiasStateZero = Vec6::Zero();
 	newStateZero.segment<2>(6) = frameHessians.back()->get_state().segment<2>(6);
 	//// The order of bias might be wrong!!!!
-	if(isIMUinitialized()){
+
+    std::cout<<frameHessians.size()<< " frames in local window"<<std::endl;
+    for(int i=0;i<frameHessians.size(); i++){
+        std::cout<<"The state of the frame "<< i<<std::endl;
+        std::cout<<frameHessians[i]->state<<std::endl;
+        std::cout<<frameHessians[i]->vstate<<std::endl;
+        std::cout<<frameHessians[i]->biasstate<<std::endl;
+    }
+
+    if(isIMUinitialized()){
 		frameHessians.back()->setnavEvalPT(frameHessians.back()->PRE_worldToCam,frameHessians.back()->PRE_velocity,frameHessians.back()->PRE_bias,
 										   newStateZero, newvStateZero, newbiasStateZero);
+        exit(0);
 	}
 	else frameHessians.back()->setEvalPT(frameHessians.back()->PRE_worldToCam, newStateZero);
 

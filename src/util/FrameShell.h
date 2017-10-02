@@ -100,7 +100,6 @@ public:
 	FrameHessian * fh;
 
 	FullSystem* fullSystem;
-	bool needrelinear;  // this flag is for local ba, it will true only if it is the incoming keyframe
 
 
 
@@ -108,7 +107,6 @@ public:
 	{
 		id=0;
 		poseValid=true;
-		needrelinear = true;
 		camToWorld = SE3();
 		timestamp=0;
 		marginalizedAt=-1;
@@ -127,6 +125,7 @@ public:
         imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
 		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
         imu_factor_last_frame_ = NULL;
+        imu_factor_last_kf_ = NULL;
 
 	}
 

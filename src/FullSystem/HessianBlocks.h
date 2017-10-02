@@ -44,6 +44,7 @@
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/inference/Symbol.h>
+#include <util/FrameShell.h>
 
 namespace dso
 {
@@ -349,15 +350,8 @@ struct FrameHessian
 		setStateZero(state);
 	};
 
-	inline void setnavEvalPT(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate )
-	{
-
-		this->worldToCam_evalPT = worldToCam_evalPT;
-		this->velocity_evalPT = Velocity;
-		this->bias_evalPT = bias;
-		setnavState(state, vstate, biasstate);
-		setStateZero(state);
-	};
+	void setnavEvalPT(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate );
+    void setnavEvalPT_scaled(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const AffLight &aff_g2l);
 
 
 	inline void setEvalPT_scaled(const SE3 &worldToCam_evalPT, const AffLight &aff_g2l)
@@ -370,19 +364,6 @@ struct FrameHessian
 		setStateZero(this->get_state());
 	};
 
-	inline void setnavEvalPT_scaled(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const AffLight &aff_g2l)
-	{
-		Vec10 initial_state = Vec10::Zero();
-		Vec3 initial_vstate = Vec3::Zero();
-		Vec6 initial_biasstate = Vec6::Zero();
-		initial_state[6] = aff_g2l.a;
-		initial_state[7] = aff_g2l.b;
-		this->worldToCam_evalPT = worldToCam_evalPT;
-		this->velocity_evalPT = Velocity;
-		this->bias_evalPT = bias;
-		setnavStateScaled(initial_state,initial_vstate,initial_biasstate);
-		setStateZero(this->get_state());
-	};
 
 	void release();
 

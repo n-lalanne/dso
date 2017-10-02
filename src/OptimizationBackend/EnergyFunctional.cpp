@@ -331,7 +331,6 @@ void EnergyFunctional::VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	// calculate velocity step
 	for(EFFrame* h : frames)
 	{
-//		std::cout<<"the step of the frame "<<h->frameID<<" before:\n"<<h->data->step.head<8>().transpose()<<std::endl;
 		h->data->vstep = - x.segment<3>(CPARS+17*h->idx+8);
 		// TODO: update this to optimize the bias
 		h->data->biasstep.setZero();
@@ -355,7 +354,7 @@ void EnergyFunctional::resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 //		std::cout<<"the step of the frame "<<h->frameID<<" before:\n"<<h->data->step.head<8>().transpose()<<std::endl;
 		h->data->step.head<8>() = - x.segment<8>(CPARS+8*h->idx);
 		h->data->step.tail<2>().setZero();
-//		std::cout<<"the step of the frame"<<h->frameID<<" after:\n"<<h->data->step.head<8>().transpose()<<std::endl;
+		std::cout<<"the step of the frame"<<h->frameID<<" after:\n"<<h->data->step.head<8>().transpose()<<std::endl;
 
 		for(EFFrame* t : frames)
 			xAd[nFrames*h->idx + t->idx] = xF.segment<8>(CPARS+8*h->idx).transpose() *   adHostF[h->idx+nFrames*t->idx]
@@ -949,6 +948,8 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	if(setting_solverMode & SOLVER_USE_GN) lambda=0;
 	if(setting_solverMode & SOLVER_FIX_LAMBDA) lambda = 1e-5;
 
+	std::cout<<"sloving VI ba"<<std::endl;
+
 	assert(EFDeltaValid);
 	assert(EFAdjointsValid);
 	assert(EFIndicesValid);
@@ -964,6 +965,8 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 
 	accumulateSCF_MT(H_sc, b_sc,multiThreading);
 
+	bM_top = (bM+ HM * getStitchedDeltaF());
+
 	accumulateIMU_ST(H_imu, b_imu);
 
 	MatXX HFinal_top;
@@ -974,8 +977,9 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	extendHessian(H_sc, b_sc);
 
 
-	HFinal_top = HL_top + HM + HA_top + H_imu;
-	bFinal_top = bL_top + bM_top + bA_top - b_sc + b_imu;
+	HFinal_top = HL_top  + HA_top + H_imu;
+	//std::cout<<bL_top.rows()<<" "<<bM_top.rows()<<" "<<bA_top.rows()<<" "<<b_sc.rows() <<std::endl;
+	bFinal_top = bL_top  + bA_top - b_sc + b_imu;
 
 	lastHS = HFinal_top - H_sc;
 	lastbS = bFinal_top;
