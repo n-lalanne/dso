@@ -1109,7 +1109,7 @@ void FullSystem::flagPointsForRemoval()
 					for(PointFrameResidual* r : ph->residuals)
 					{
 						r->resetOOB();
-						r->linearize(&Hcalib);
+						r->linearizeright(&Hcalib);
 						r->efResidual->isLinearized = false;
 						r->applyRes(true);
 						if(r->efResidual->isActive())
@@ -1502,7 +1502,7 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		}
 
         gyroBiasEstimate = allKeyFramesHistory.back()->bias.gyroscope();
-		accBiasEstimate << -0.015406, 0.083464, 0.036466; //-0.013337, 0.103464, 0.093086;
+		accBiasEstimate << -0.012492, 0.547666, 0.069073; //-0.013337, 0.103464, 0.093086;
 
 //		std::cout << "\"gyroscope bias initial calibration::::::; " << delta_bg.transpose() << std::endl;
 		std::cout << "\"gyroscope bias initial calibration::::::; " << gyroBiasEstimate.transpose() << std::endl;
@@ -1861,7 +1861,7 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 		{
 			for(PointFrameResidual* r : ph->residuals)
 			{
-				r->linearize(&Hcalib);
+				r->linearizeright(&Hcalib);
 			}
 
 			for (size_t resIdx = 0; resIdx < 2; resIdx++)
@@ -1869,7 +1869,7 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 				if (ph->lastResiduals[resIdx].first != 0 && ph->lastResiduals[resIdx].second == ResState::IN)
 				{
 					PointFrameResidual *r = ph->lastResiduals[resIdx].first;
-					r->linearize(&Hcalib);
+					r->linearizeright(&Hcalib);
 				}
 			}
 		}
@@ -1979,7 +1979,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 
 	if	(
 			!IMUinitialized &&
-			allKeyFramesHistory.size() >= WINDOW_SIZE &&
+             allKeyFramesHistory.size() >= WINDOW_SIZE &&
 			// we want the last KF to come from the previous frame
 			// TODO: this may not be a good idea, maybe this never happens !!!
 			allKeyFramesHistory.back()->id == allFrameHistory.back()->id
@@ -2161,7 +2161,8 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
 {
 
-	isLocalBADone = false;
+	isLocalBADone = true;
+	linearizeOperation = true;
 	if(linearizeOperation)
 	{
 		if(goStepByStep && lastRefStopID != coarseTracker->refFrameID)
@@ -2352,10 +2353,10 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 	// =========================== OPTIMIZE ALL =========================
-
+    std::cout<<frameHessians.size()<<" frames in local window"<<std::endl;
 	fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
 	float rmse = optimize(setting_maxOptIterations);
-
+    std::cout<<"rmse:"<< rmse<< "benchmark_initializerSlackFactor: "<<benchmark_initializerSlackFactor<<std::endl;
 
 
 
@@ -2377,6 +2378,10 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 		{
 			printf("I THINK INITIALIZATINO FAILED! Resetting.\n");
 			initFailed=true;
+		}
+		if (initFailed)
+		{
+			exit(0);
 		}
 	}
 

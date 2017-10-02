@@ -196,6 +196,7 @@ extern bool setting_render_displayDepth;
 extern bool setting_fullResetRequested;
 
 extern bool setting_debugout_runquiet;
+extern bool setting_debugout_runquietVI;
 
 extern bool disableAllDisplay;
 extern bool disableReconfigure;

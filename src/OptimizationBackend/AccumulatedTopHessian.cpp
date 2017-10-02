@@ -87,6 +87,8 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 			resApprox = r->res_toZeroF;
 		if(mode==1)
 		{
+			// actually, mode1 never been called
+			exit(0);
 			// compute Jp*delta
 			__m128 Jp_delta_x = _mm_set1_ps(rJ->Jpdxi[0].dot(dp.head<6>())+rJ->Jpdc[0].dot(dc)+rJ->Jpdd[0]*dd);
 			__m128 Jp_delta_y = _mm_set1_ps(rJ->Jpdxi[1].dot(dp.head<6>())+rJ->Jpdc[1].dot(dc)+rJ->Jpdd[1]*dd);

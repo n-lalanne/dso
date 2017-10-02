@@ -175,6 +175,8 @@ public:
 	Mat44 getTbc() { return dso_vi::Tbc.matrix(); }
 	void setTbc(Mat44 _Tbc) { dso_vi::setTbc(_Tbc); }
     std::vector<dso_vi::IMUData> getIMUSinceLastKF() { return mvIMUSinceLastKF; }
+
+    void printLocalWindowErrors();
 private:
 
 	CalibHessian Hcalib;

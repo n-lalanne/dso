@@ -70,7 +70,7 @@ namespace dso_vi
 	void setTbc(dso::Mat44 _Tbc)
 	{
 		Tbc = SE3(_Tbc);
-        Tcb = Tbc.inverse();
+		Tcb = Tbc.inverse();
 	}
 
 } //namespace dso_vi
@@ -150,7 +150,7 @@ float setting_margWeightFac = 0.5*0.5;          // factor on hessian when margin
 
 /* when to re-track a frame */
 float setting_reTrackThreshold = 1.5; // (larger = re-track more often)
-float setting_reTrackThresholdVI = 3;
+float setting_reTrackThresholdVI = 1.5;
 
 
 /* require some minimum number of residuals for a point to become valid */
@@ -259,6 +259,7 @@ bool setting_render_displayDepth = true;
 bool setting_fullResetRequested = false;
 
 bool setting_debugout_runquiet = false;
+bool setting_debugout_runquietVI = false;
 
 int sparsityFactor = 5;	// not actually a setting, only some legacy stuff for coarse initializer.
 

@@ -127,9 +127,6 @@ Vec15 FrameShell::evaluateIMUerrors(
 //    std::cout<<"J_imu_v_j:\n"<<J_imu_v_j<<std::endl;
 //
 //
-    std::cout<<"Navstate_i:\n"<<previous_navstate<<std::endl;
-    std::cout<<"Navstate_j:\n"<<current_navstate<<std::endl;
-
     return resreturn;
 }
 
@@ -216,7 +213,6 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
         rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
                 imudata._g(0), imudata._g(1), imudata._g(2);
 
-        if(imudata._t < last_kf->viTimestamp)continue;
         double dt = 0;
         // interpolate readings
         if (i == mvIMUSinceLastKF.size() - 1)

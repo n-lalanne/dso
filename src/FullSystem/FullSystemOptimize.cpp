@@ -41,6 +41,7 @@
 #include <cmath>
 
 #include <algorithm>
+#include <GroundTruthIterator/GroundTruthIterator.h>
 
 namespace dso
 {
@@ -51,10 +52,24 @@ namespace dso
 
 void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointFrameResidual*>* toRemove, int min, int max, Vec10* stats, int tid)
 {
+	int inliercount, outliercount, oobcount;
+	inliercount = 0;
+	outliercount = 0;
+	oobcount = 0;
+
 	for(int k=min;k<max;k++)
 	{
 		PointFrameResidual* r = activeResiduals[k];
-		(*stats)[0] += r->linearize(&Hcalib);
+		(*stats)[0] += r->linearizeright(&Hcalib);
+		if(r->state_NewState == ResState::IN){
+			inliercount++;
+		}
+		else if(r->state_NewState == ResState::OUTLIER){
+			outliercount++;
+		}
+		else{
+			oobcount++;
+		}
 
 		if(fixLinearization)
 		{
@@ -82,6 +97,7 @@ void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointF
 			}
 		}
 	}
+	std::cout<<inliercount<<" inliers "<< outliercount<< " outliers "<<oobcount<<" oobs"<<std::endl;
 }
 
 
@@ -160,7 +176,6 @@ Vec3 FullSystem::linearizeAll(bool fixLinearization)
 		linearizeAll_Reductor(fixLinearization, toRemove, 0,activeResiduals.size(),&stats,0);
 		lastEnergyP = stats[0];
 	}
-
 
 	setNewFrameEnergyTH();
 
@@ -259,7 +274,9 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 		Hcalib.setValue(Hcalib.value_backup + stepfacC*Hcalib.step);
 		for(FrameHessian* fh : frameHessians)
 		{
+//			std::cout<<"host_state frame "<<fh->idx<<" is \n"<<fh->state.transpose()<<std::endl;
 			fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
+//			std::cout<<"the updated state of frame "<<fh->idx<<" is \n"<<fh->state.transpose()<<std::endl;
 			sumA += fh->step[6]*fh->step[6];
 			sumB += fh->step[7]*fh->step[7];
 			sumT += fh->step.segment<3>(0).squaredNorm();
@@ -283,6 +300,8 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	sumT /= frameHessians.size();
 	sumID /= numID;
 	sumNID /= numID;
+
+//	std::cout<<"actual inc norms:\n sumA:"<<sumA<<"\n sumB:"<<sumB<<"\nsumR:"<<sumR<<"\nsumT"<<sumT<<std::endl;
 
 
 
@@ -404,6 +423,22 @@ void FullSystem::printOptRes(const Vec3 &res, double resL, double resM, double r
 
 }
 
+void FullSystem::printLocalWindowErrors()
+{
+	// the reference pose for the errors is the first frame in local window
+	SE3 reference_pose_est = frameHessians[0]->PRE_ImuToworld;
+	SE3 reference_pose_gt(frameHessians[0]->shell->groundtruth.pose.matrix());
+
+	for (FrameHessian *fh : frameHessians)
+	{
+		SE3 current_pose_est = fh->PRE_ImuToworld;
+		SE3 current_pose_gt(fh->shell->groundtruth.pose.matrix());
+
+		SE3 relative_pose_est = reference_pose_est.inverse() * current_pose_est;
+		SE3 relative_pose_gt = reference_pose_gt.inverse() * current_pose_gt;
+		std::cout << (relative_pose_gt.inverse() * relative_pose_est).log().transpose() << std::endl;
+	}
+}
 
 float FullSystem::optimize(int mnumOptIts)
 {
@@ -441,14 +476,9 @@ float FullSystem::optimize(int mnumOptIts)
     if(!setting_debugout_runquiet)
         printf("OPTIMIZE %d pts, %d active res, %d lin res!\n",ef->nPoints,(int)activeResiduals.size(), numLRes);
 
-
 	Vec3 lastEnergy = linearizeAll(false);
 	double lastEnergyL = calcLEnergy();
 	double lastEnergyM = calcMEnergy();
-
-
-
-
 
 	if(multiThreading)
 		treadReduce.reduce(boost::bind(&FullSystem::applyRes_Reductor, this, true, _1, _2, _3, _4), 0, activeResiduals.size(), 50);
@@ -461,6 +491,14 @@ float FullSystem::optimize(int mnumOptIts)
         printf("Initial Error       \t");
         printOptRes(lastEnergy, lastEnergyL, lastEnergyM, 0, 0, frameHessians.back()->aff_g2l().a, frameHessians.back()->aff_g2l().b);
     }
+
+    if (!setting_debugout_runquietVI)
+    {
+        std::cout << "Errors before optimization: " << std::endl;
+        printLocalWindowErrors();
+    }
+    std::cout << std::endl;
+    std::cout << "Optimizing..." << std::endl;
 
 	debugPlotTracking();
 
@@ -491,7 +529,12 @@ float FullSystem::optimize(int mnumOptIts)
 
 		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize);
 
-
+        std::cout << "the error after one iteration: " << sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA))) << std::endl;
+		if (!setting_debugout_runquietVI)
+		{
+			printLocalWindowErrors();
+		}
+		std::cout << std::endl;
 
 
 
@@ -590,13 +633,16 @@ float FullSystem::optimize(int mnumOptIts)
 			fh->shell->camToWorld = fh->PRE_camToWorld;
 			fh->shell->aff_g2l = fh->aff_g2l();
 			SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
-            SE3 newC2W = fh->shell->camToWorld;
-            SE3 oldB2W = SE3(fh->shell->navstate.pose().matrix());
-            Vec3 oldV = fh->shell->navstate.v();
-            SE3 newB2W = newC2W * SE3(getTbc()).inverse();
-            Mat33 old2new = newB2W.rotationMatrix().inverse() * oldB2W.rotationMatrix();
-            Vec3 newV = old2new * oldV;
-			fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), newV);
+    		if(isIMUinitialized()) {
+				SE3 newC2W = fh->shell->camToWorld;
+				SE3 oldB2W = SE3(fh->shell->navstate.pose().matrix());
+				Vec3 oldV = fh->shell->navstate.v();
+				SE3 newB2W = newC2W * SE3(getTbc()).inverse();
+				Mat33 old2new = newB2W.rotationMatrix().inverse() * oldB2W.rotationMatrix();
+				Vec3 newV = old2new * oldV;
+
+				fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), newV);
+			}
 		}
 	}
 
