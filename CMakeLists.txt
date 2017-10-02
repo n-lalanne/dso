@@ -44,8 +44,8 @@ find_package(cv_bridge)
 
 set(ROS_INCLUDES ${sensor_msgs_INCLUDE_DIRS} ${rosbag_INCLUDE_DIRS} ${cv_bridge_INCLUDE_DIRS})
 set(ROS_LIBS ${sensor_msgs_LIBRARIES} ${rosbag_LIBRARIES} ${cv_bridge_LIBRARIES})
-message("--ROS_INCLUDES ${ROS_INCLUDES}")
-message("--ROS_LIBS ${ROS_LIBS}")
+message("-- ROS_INCLUDES ${ROS_INCLUDES}")
+message("-- ROS_LIBS ${ROS_LIBS}")
 
 # flags
 add_definitions("-DENABLE_SSE")
@@ -53,6 +53,16 @@ set(CMAKE_CXX_FLAGS
    "${SSE_FLAGS} -O3 -g -std=c++0x -march=native"
 #   "${SSE_FLAGS} -O3 -g -std=c++0x -fno-omit-frame-pointer"
 )
+
+# remove optimization for debugging
+#string( TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE )
+#IF(CMAKE_BUILD_TYPE MATCHES "debug")
+#	IF(CMAKE_COMPILER_IS_GNUCC)
+#		set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
+#		set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
+#		message("-- disabling optimization for debug")
+#	ENDIF(CMAKE_COMPILER_IS_GNUCC)
+#ENDIF(CMAKE_BUILD_TYPE MATCHES "debug")
 
 if (MSVC)
      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")

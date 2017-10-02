@@ -288,6 +288,11 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
     {
         dso_vi::IMUData imudata = mvIMUSinceLastF[i];
 
+        if (imudata._t < last_frame->viTimestamp)
+        {
+            continue;
+        }
+
         Mat61 rawimudata;
         rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
                         imudata._g(0), imudata._g(1), imudata._g(2);
@@ -306,7 +311,15 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
         if (i == 0)
         {
             // assuming the missing imu reading between the previous frame and first IMU
-            dt += (imudata._t - last_frame->viTimestamp);
+            double interpolated_dt = (imudata._t - last_frame->viTimestamp);
+            if (interpolated_dt >= 0)
+            {
+                dt += interpolated_dt;
+            }
+            else
+            {
+                continue;
+            }
         }
 
         assert(dt >= 0);
@@ -323,6 +336,12 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
     for (size_t i = 0; i < mvIMUSinceLastKF.size(); i++)
     {
         dso_vi::IMUData imudata = mvIMUSinceLastKF[i];
+
+        // if imu data is older than the key frame
+        if (imudata._t < last_kf->viTimestamp)
+        {
+            continue;
+        }
 
         Mat61 rawimudata;
         rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
@@ -342,7 +361,15 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
         if (i == 0)
         {
             // assuming the missing imu reading between the previous frame and first IMU
-            dt += (imudata._t - last_kf->viTimestamp);
+            double interpolated_dt = (imudata._t - last_kf->viTimestamp);
+            if (interpolated_dt >= 0)
+            {
+                dt += interpolated_dt;
+            }
+            else
+            {
+                continue;
+            }
         }
 
         assert(dt >= 0);
