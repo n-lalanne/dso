@@ -212,6 +212,7 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
     {
         dso_vi::IMUData imudata = mvIMUSinceLastKF[i];
 
+        if(imudata._t < last_kf->viTimestamp)continue;
         Mat61 rawimudata;
         rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
                 imudata._g(0), imudata._g(1), imudata._g(2);
