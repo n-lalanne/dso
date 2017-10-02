@@ -216,6 +216,7 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
         rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
                 imudata._g(0), imudata._g(1), imudata._g(2);
 
+        if(imudata._t < last_kf->viTimestamp)continue;
         double dt = 0;
         // interpolate readings
         if (i == mvIMUSinceLastKF.size() - 1)

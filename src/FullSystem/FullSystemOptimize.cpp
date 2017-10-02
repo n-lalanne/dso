@@ -590,7 +590,13 @@ float FullSystem::optimize(int mnumOptIts)
 			fh->shell->camToWorld = fh->PRE_camToWorld;
 			fh->shell->aff_g2l = fh->aff_g2l();
 			SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
-			fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), fh->shell->navstate.velocity());
+            SE3 newC2W = fh->shell->camToWorld;
+            SE3 oldB2W = SE3(fh->shell->navstate.pose().matrix());
+            Vec3 oldV = fh->shell->navstate.v();
+            SE3 newB2W = newC2W * SE3(getTbc()).inverse();
+            Mat33 old2new = newB2W.rotationMatrix().inverse() * oldB2W.rotationMatrix();
+            Vec3 newV = old2new * oldV;
+			fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), newV);
 		}
 	}
 
