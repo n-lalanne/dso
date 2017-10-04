@@ -310,6 +310,10 @@ void PangolinDSOViewer::join()
 void PangolinDSOViewer::reset()
 {
 	needReset = true;
+	for(KeyFrameDisplay* fh : keyframes)
+	{
+		fh->frameShell = NULL;
+	}
 }
 
 void PangolinDSOViewer::reset_internal()

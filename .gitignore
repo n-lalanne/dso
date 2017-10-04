@@ -8,4 +8,4 @@ build-*
 *.a
 *.so.*
 .idea*
-cmake-build-debug*
+cmake-build*

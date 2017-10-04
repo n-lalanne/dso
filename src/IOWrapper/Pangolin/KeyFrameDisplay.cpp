@@ -45,7 +45,7 @@ namespace IOWrap
 {
 
 
-KeyFrameDisplay::KeyFrameDisplay()
+KeyFrameDisplay::KeyFrameDisplay(): frameShell(NULL)
 {
 	originalInputSparse = 0;
 	numSparseBufferSize=0;
@@ -65,6 +65,7 @@ KeyFrameDisplay::KeyFrameDisplay()
 
 	numGLBufferPoints=0;
 	bufferValid = false;
+
 }
 void KeyFrameDisplay::setFromF(FrameShell* frame, CalibHessian* HCalib)
 {
