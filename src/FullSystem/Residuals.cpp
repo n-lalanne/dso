@@ -72,234 +72,224 @@ PointFrameResidual::PointFrameResidual(PointHessian* point_, FrameHessian* host_
 	isNew=true;
 }
 
-//double PointFrameResidual::linearizeright(CalibHessian* HCalib)
-//{
-//	state_NewEnergyWithOutlier=-1;
-//
-//	if(state_state == ResState::OOB)
-//	{ state_NewState = ResState::OOB; return state_energy; }
-//
-//	FrameFramePrecalc* precalc = &(host->targetPrecalc[target->idx]);
-//	float energyLeft=0;
-//	const Eigen::Vector3f* dIl = target->dI;
-//	//const float* const Il = target->I;
-//	const Mat33f &PRE_KRKiTll = precalc->PRE_KRKiTll;
-//	const Vec3f &PRE_KtTll = precalc->PRE_KtTll;
-//	const Mat33f &PRE_RTll_0 = precalc->PRE_RTll_0;
-//	const Vec3f &PRE_tTll_0 = precalc->PRE_tTll_0;
-//	const float * const color = point->color;
-//	const float * const weights = point->weights;
-//
-//	Vec2f affLL = precalc->PRE_aff_mode;
-//	float b0 = precalc->PRE_b0_mode;
-//
-//
-//	Vec6f d_xi_x, d_xi_y;
-//	Vec4f d_C_x, d_C_y;
-//	float d_d_x, d_d_y;
-//	{
-//		float drescale, u, v, new_idepth;
-//		float Ku, Kv;
-//		Vec3f KliP;
-//
-//		if(!projectPoint(point->u, point->v, point->idepth_zero_scaled, 0, 0,HCalib,
-//						 PRE_RTll_0,PRE_tTll_0, drescale, u, v, Ku, Kv, KliP, new_idepth))
-//		{ state_NewState = ResState::OOB; return state_energy; }
-//
-//		centerProjectedTo = Vec3f(Ku, Kv, new_idepth);
-//
-//
-//		// diff d_idepth
-//		d_d_x = drescale * (PRE_tTll_0[0]-PRE_tTll_0[2]*u)*SCALE_IDEPTH*HCalib->fxl();
-//		d_d_y = drescale * (PRE_tTll_0[1]-PRE_tTll_0[2]*v)*SCALE_IDEPTH*HCalib->fyl();
-//
-//
-//
-//
-//		// diff calib
-//		d_C_x[2] = drescale*(PRE_RTll_0(2,0)*u-PRE_RTll_0(0,0));
-//		d_C_x[3] = HCalib->fxl() * drescale*(PRE_RTll_0(2,1)*u-PRE_RTll_0(0,1)) * HCalib->fyli();
-//		d_C_x[0] = KliP[0]*d_C_x[2];
-//		d_C_x[1] = KliP[1]*d_C_x[3];
-//
-//		d_C_y[2] = HCalib->fyl() * drescale*(PRE_RTll_0(2,0)*v-PRE_RTll_0(1,0)) * HCalib->fxli();
-//		d_C_y[3] = drescale*(PRE_RTll_0(2,1)*v-PRE_RTll_0(1,1));
-//		d_C_y[0] = KliP[0]*d_C_y[2];
-//		d_C_y[1] = KliP[1]*d_C_y[3];
-//
-//		d_C_x[0] = (d_C_x[0]+u)*SCALE_F;
-//		d_C_x[1] *= SCALE_F;
-//		d_C_x[2] = (d_C_x[2]+1)*SCALE_C;
-//		d_C_x[3] *= SCALE_C;
-//
-//		d_C_y[0] *= SCALE_F;
-//		d_C_y[1] = (d_C_y[1]+v)*SCALE_F;
-//		d_C_y[2] *= SCALE_C;
-//		d_C_y[3] = (d_C_y[3]+1)*SCALE_C;
-//
-//		SE3 T_new_ref(
-//				precalc->PRE_RTll.cast<double>(),
-//				precalc->PRE_tTll.cast<double>()
-//		);
-//
-//		SE3 Trb = T_new_ref.inverse() * SE3(dso_vi::Tcb);
-//		Matrix26 d_xi_xy;
-//		Mat33 Rcb = dso_vi::Tcb.rotationMatrix();
-//		Vec3 Pr = Vec3(
-//				(point->u - HCalib->cxl()) * HCalib->fxli(),
-//				(point->v - HCalib->cyl())*HCalib->fyli(),
-//				1
-//		) / point->idepth_zero_scaled;
-//		Matrix23 Maux;
-//		Maux.setZero();
-//		Maux(0,0) = HCalib->fxl();
-//		Maux(0,1) = 0;
-//		Maux(0,2) = -u *HCalib->fxl();
-//		Maux(1,0) = 0;
-//		Maux(1,1) = HCalib->fyl();
-//		Maux(1,2) = -v * HCalib->fyl();
-//		Matrix23 Jpi = Maux * new_idepth;
-//		d_xi_xy.block<2,3>(0,0) = Jpi * (-Rcb);
-//		d_xi_xy.block<2,3>(0,3) = Jpi * Rcb * SO3::hat(Trb.inverse() * Pr); //Rrb.transpose()*(Pr-Prb));
-//
-//		d_xi_x = d_xi_xy.row(0);
-//		d_xi_y = d_xi_xy.row(1);
-//
-//
-////		d_xi_x[0] = new_idepth*HCalib->fxl();
-////		d_xi_x[1] = 0;
-////		d_xi_x[2] = -new_idepth*u*HCalib->fxl();
-////		d_xi_x[3] = -u*v*HCalib->fxl();
-////		d_xi_x[4] = (1+u*u)*HCalib->fxl();
-////		d_xi_x[5] = -v*HCalib->fxl();
-////
-////
-////
-////		d_xi_y[0] = 0;
-////		d_xi_y[1] = new_idepth*HCalib->fyl();
-////		d_xi_y[2] = -new_idepth*v*HCalib->fyl();
-////		d_xi_y[3] = -(1+v*v)*HCalib->fyl();
-////		d_xi_y[4] = u*v*HCalib->fyl();
-////		d_xi_y[5] = u*HCalib->fyl();
-//	}
-//
-//
-//	{
-//		J->Jpdxi[0] = d_xi_x;
-//		J->Jpdxi[1] = d_xi_y;
-//
-//		J->Jpdc[0] = d_C_x;
-//		J->Jpdc[1] = d_C_y;
-//
-//		J->Jpdd[0] = d_d_x;
-//		J->Jpdd[1] = d_d_y;
-//
-//	}
-//
-//
-//
-//
-//
-//
-//	float JIdxJIdx_00=0, JIdxJIdx_11=0, JIdxJIdx_10=0;
-//	float JabJIdx_00=0, JabJIdx_01=0, JabJIdx_10=0, JabJIdx_11=0;
-//	float JabJab_00=0, JabJab_01=0, JabJab_11=0;
-//
-//	float wJI2_sum = 0;
-//
-//	for(int idx=0;idx<patternNum;idx++)
-//	{
-//		float Ku, Kv;
-//		if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
-//		{ state_NewState = ResState::OOB; return state_energy; }
-//
-//		projectedTo[idx][0] = Ku;
-//		projectedTo[idx][1] = Kv;
-//
-//
-//		Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
-//		float residual = hitColor[0] - (float)(affLL[0] * color[idx] + affLL[1]);
-//
-//
-//
-//		float drdA = (color[idx]-b0);
-//		if(!std::isfinite((float)hitColor[0]))
-//		{ state_NewState = ResState::OOB; return state_energy; }
-//
-//
-//		float w = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + hitColor.tail<2>().squaredNorm()));
-//		// one for target one for host
-//		w = 0.5f*(w + weights[idx]);
-//
-//
-//
-//		float hw = fabsf(residual) < setting_huberTH ? 1 : setting_huberTH / fabsf(residual);
-//		energyLeft += w*w*hw *residual*residual*(2-hw);
-//
-//		{
-//			if(hw < 1) hw = sqrtf(hw);
-//			hw = hw*w;
-//
-//			hitColor[1]*=hw;
-//			hitColor[2]*=hw;
-//
-//			J->resF[idx] = residual*hw;
-//
-//			J->JIdx[0][idx] = hitColor[1];
-//			J->JIdx[1][idx] = hitColor[2];
-//			J->JabF[0][idx] = drdA*hw;
-//			J->JabF[1][idx] = hw;
-//
-//			JIdxJIdx_00+=hitColor[1]*hitColor[1];
-//			JIdxJIdx_11+=hitColor[2]*hitColor[2];
-//			JIdxJIdx_10+=hitColor[1]*hitColor[2];
-//
-//			JabJIdx_00+= drdA*hw * hitColor[1];
-//			JabJIdx_01+= drdA*hw * hitColor[2];
-//			JabJIdx_10+= hw * hitColor[1];
-//			JabJIdx_11+= hw * hitColor[2];
-//
-//			JabJab_00+= drdA*drdA*hw*hw;
-//			JabJab_01+= drdA*hw*hw;
-//			JabJab_11+= hw*hw;
-//
-//
-//			wJI2_sum += hw*hw*(hitColor[1]*hitColor[1]+hitColor[2]*hitColor[2]);
-//
-//			if(setting_affineOptModeA < 0) J->JabF[0][idx]=0;
-//			if(setting_affineOptModeB < 0) J->JabF[1][idx]=0;
-//
-//		}
-//	}
-//
-//	J->JIdx2(0,0) = JIdxJIdx_00;
-//	J->JIdx2(0,1) = JIdxJIdx_10;
-//	J->JIdx2(1,0) = JIdxJIdx_10;
-//	J->JIdx2(1,1) = JIdxJIdx_11;
-//	J->JabJIdx(0,0) = JabJIdx_00;
-//	J->JabJIdx(0,1) = JabJIdx_01;
-//	J->JabJIdx(1,0) = JabJIdx_10;
-//	J->JabJIdx(1,1) = JabJIdx_11;
-//	J->Jab2(0,0) = JabJab_00;
-//	J->Jab2(0,1) = JabJab_01;
-//	J->Jab2(1,0) = JabJab_01;
-//	J->Jab2(1,1) = JabJab_11;
-//
-//	state_NewEnergyWithOutlier = energyLeft;
-//
-//	if(energyLeft > std::max<float>(host->frameEnergyTH, target->frameEnergyTH) || wJI2_sum < 2)
-//	{
-//		energyLeft = std::max<float>(host->frameEnergyTH, target->frameEnergyTH);
-//		state_NewState = ResState::OUTLIER;
-//	}
-//	else
-//	{
-//		state_NewState = ResState::IN;
-//	}
-//
-//	state_NewEnergy = energyLeft;
-//	return energyLeft;
-//}
+double PointFrameResidual::linearizeright(CalibHessian* HCalib, SE3 Tbc)
+{
+	SE3 Tcb = Tbc.inverse();
+	state_NewEnergyWithOutlier=-1;
+
+	if(state_state == ResState::OOB)
+	{ state_NewState = ResState::OOB; return state_energy; }
+
+	FrameFramePrecalc* precalc = &(host->targetPrecalc[target->idx]);
+	float energyLeft=0;
+	const Eigen::Vector3f* dIl = target->dI;
+	//const float* const Il = target->I;
+	const Mat33f &PRE_KRKiTll = precalc->PRE_KRKiTll;
+	const Vec3f &PRE_KtTll = precalc->PRE_KtTll;
+	const Mat33f &PRE_RTll_0 = precalc->PRE_RTll_0;
+	const Vec3f &PRE_tTll_0 = precalc->PRE_tTll_0;
+	const float * const color = point->color;
+	const float * const weights = point->weights;
+
+	Vec2f affLL = precalc->PRE_aff_mode;
+	float b0 = precalc->PRE_b0_mode;
+
+	Vec6f d_xi_x, d_xi_y;
+	Vec4f d_C_x, d_C_y;
+	float d_d_x, d_d_y;
+	{
+		float drescale, u, v, new_idepth;
+		float Ku, Kv;
+		Vec3f KliP;
+
+		if(!projectPoint(point->u, point->v, point->idepth_zero_scaled, 0, 0,HCalib,
+						 PRE_RTll_0,PRE_tTll_0, drescale, u, v, Ku, Kv, KliP, new_idepth))
+		{
+			state_NewState = ResState::OOB; return state_energy;
+		}
+
+		centerProjectedTo = Vec3f(Ku, Kv, new_idepth);
+
+
+		// diff d_idepth
+		d_d_x = drescale * (PRE_tTll_0[0]-PRE_tTll_0[2]*u)*SCALE_IDEPTH*HCalib->fxl();
+		d_d_y = drescale * (PRE_tTll_0[1]-PRE_tTll_0[2]*v)*SCALE_IDEPTH*HCalib->fyl();
+
+
+
+
+		// diff calib
+		d_C_x[2] = drescale*(PRE_RTll_0(2,0)*u-PRE_RTll_0(0,0));
+		d_C_x[3] = HCalib->fxl() * drescale*(PRE_RTll_0(2,1)*u-PRE_RTll_0(0,1)) * HCalib->fyli();
+		d_C_x[0] = KliP[0]*d_C_x[2];
+		d_C_x[1] = KliP[1]*d_C_x[3];
+
+		d_C_y[2] = HCalib->fyl() * drescale*(PRE_RTll_0(2,0)*v-PRE_RTll_0(1,0)) * HCalib->fxli();
+		d_C_y[3] = drescale*(PRE_RTll_0(2,1)*v-PRE_RTll_0(1,1));
+		d_C_y[0] = KliP[0]*d_C_y[2];
+		d_C_y[1] = KliP[1]*d_C_y[3];
+
+		d_C_x[0] = (d_C_x[0]+u)*SCALE_F;
+		d_C_x[1] *= SCALE_F;
+		d_C_x[2] = (d_C_x[2]+1)*SCALE_C;
+		d_C_x[3] *= SCALE_C;
+
+		d_C_y[0] *= SCALE_F;
+		d_C_y[1] = (d_C_y[1]+v)*SCALE_F;
+		d_C_y[2] *= SCALE_C;
+		d_C_y[3] = (d_C_y[3]+1)*SCALE_C;
+
+		SE3 T_new_ref(
+				precalc->PRE_RTll_0.cast<double>(),
+				precalc->PRE_tTll_0.cast<double>()
+		);
+
+		SE3 Trb( Tbc.matrix() * T_new_ref.inverse().matrix() * Tcb.matrix() );
+		Mat26 d_xi_xy;
+		Mat33 Rcb = Tcb.rotationMatrix();
+		Vec3 Pr = SE3(Tbc) * (Vec3(
+				(point->u - HCalib->cxl()) * HCalib->fxli(),
+				(point->v - HCalib->cyl())*HCalib->fyli(),
+				1
+		) / point->idepth_zero_scaled);
+
+		Mat23 Maux;
+		Maux.setZero();
+		Maux(0,0) = HCalib->fxl();
+		Maux(0,1) = 0;
+		Maux(0,2) = -u *HCalib->fxl();
+		Maux(1,0) = 0;
+		Maux(1,1) = HCalib->fyl();
+		Maux(1,2) = -v * HCalib->fyl();
+		Mat23 Jpi = Maux * new_idepth;
+		d_xi_xy.block<2,3>(0,0) = Jpi * (-Rcb);
+		d_xi_xy.block<2,3>(0,3) = Jpi * Rcb * SO3::hat(Trb.inverse() * Pr); //Rrb.transpose()*(Pr-Prb));
+
+		d_xi_x = d_xi_xy.row(0).cast<float>();
+		d_xi_y = d_xi_xy.row(1).cast<float>();                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         ;
+
+	}
+
+
+	{
+		J->Jpdxi[0] = d_xi_x;
+		J->Jpdxi[1] = d_xi_y;
+
+		J->Jpdc[0] = d_C_x;
+		J->Jpdc[1] = d_C_y;
+
+		J->Jpdd[0] = d_d_x;
+		J->Jpdd[1] = d_d_y;
+
+	}
+
+
+
+
+
+
+	float JIdxJIdx_00=0, JIdxJIdx_11=0, JIdxJIdx_10=0;
+	float JabJIdx_00=0, JabJIdx_01=0, JabJIdx_10=0, JabJIdx_11=0;
+	float JabJab_00=0, JabJab_01=0, JabJab_11=0;
+
+	float wJI2_sum = 0;
+
+	for(int idx=0;idx<patternNum;idx++)
+	{
+		float Ku, Kv;
+		if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
+		{
+			state_NewState = ResState::OOB; return state_energy;
+		}
+
+		projectedTo[idx][0] = Ku;
+		projectedTo[idx][1] = Kv;
+
+		Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
+		float residual = hitColor[0] - (float)(affLL[0] * color[idx] + affLL[1]);
+
+
+
+		float drdA = (color[idx]-b0);
+		if(!std::isfinite((float)hitColor[0]))
+		{
+			state_NewState = ResState::OOB;
+			return state_energy;
+		}
+
+		float w = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + hitColor.tail<2>().squaredNorm()));
+		// one for target one for host
+		w = 0.5f*(w + weights[idx]);
+
+
+
+		float hw = fabsf(residual) < setting_huberTH ? 1 : setting_huberTH / fabsf(residual);
+		energyLeft += w*w*hw *residual*residual*(2-hw);
+
+		{
+			if(hw < 1) hw = sqrtf(hw);
+			hw = hw*w;
+
+			hitColor[1]*=hw;
+			hitColor[2]*=hw;
+
+			J->resF[idx] = residual*hw;
+
+			J->JIdx[0][idx] = hitColor[1];
+			J->JIdx[1][idx] = hitColor[2];
+			J->JabF[0][idx] = drdA*hw;
+			J->JabF[1][idx] = hw;
+
+			JIdxJIdx_00+=hitColor[1]*hitColor[1];
+			JIdxJIdx_11+=hitColor[2]*hitColor[2];
+			JIdxJIdx_10+=hitColor[1]*hitColor[2];
+
+			JabJIdx_00+= drdA*hw * hitColor[1];
+			JabJIdx_01+= drdA*hw * hitColor[2];
+			JabJIdx_10+= hw * hitColor[1];
+			JabJIdx_11+= hw * hitColor[2];
+
+			JabJab_00+= drdA*drdA*hw*hw;
+			JabJab_01+= drdA*hw*hw;
+			JabJab_11+= hw*hw;
+
+
+			wJI2_sum += hw*hw*(hitColor[1]*hitColor[1]+hitColor[2]*hitColor[2]);
+
+			if(setting_affineOptModeA < 0) J->JabF[0][idx]=0;
+			if(setting_affineOptModeB < 0) J->JabF[1][idx]=0;
+
+		}
+	}
+
+	J->JIdx2(0,0) = JIdxJIdx_00;
+	J->JIdx2(0,1) = JIdxJIdx_10;
+	J->JIdx2(1,0) = JIdxJIdx_10;
+	J->JIdx2(1,1) = JIdxJIdx_11;
+	J->JabJIdx(0,0) = JabJIdx_00;
+	J->JabJIdx(0,1) = JabJIdx_01;
+	J->JabJIdx(1,0) = JabJIdx_10;
+	J->JabJIdx(1,1) = JabJIdx_11;
+	J->Jab2(0,0) = JabJab_00;
+	J->Jab2(0,1) = JabJab_01;
+	J->Jab2(1,0) = JabJab_01;
+	J->Jab2(1,1) = JabJab_11;
+
+	state_NewEnergyWithOutlier = energyLeft;
+
+	if(energyLeft > std::max<float>(host->frameEnergyTH, target->frameEnergyTH) || wJI2_sum < 2)
+	{
+		energyLeft = std::max<float>(host->frameEnergyTH, target->frameEnergyTH);
+		state_NewState = ResState::OUTLIER;
+	}
+	else
+	{
+		state_NewState = ResState::IN;
+	}
+
+	state_NewEnergy = energyLeft;
+	return energyLeft;
+}
 
 
 double PointFrameResidual::linearize(CalibHessian* HCalib)

@@ -166,7 +166,8 @@ struct FrameHessian
 	Vec10 step_backup;
 	Vec10 state_backup;
 
-
+	EIGEN_STRONG_INLINE const SE3 get_worldToImu_evalPT() const {return Tbc * worldToCam_evalPT;}
+	EIGEN_STRONG_INLINE const SE3 get_imuToWorld_evalPT() const {return get_worldToImu_evalPT().inverse();}
     EIGEN_STRONG_INLINE const SE3 &get_worldToCam_evalPT() const {return worldToCam_evalPT;}
     EIGEN_STRONG_INLINE const Vec10 &get_state_zero() const {return state_zero;}
     EIGEN_STRONG_INLINE const Vec10 &get_state() const {return state;}
@@ -175,16 +176,20 @@ struct FrameHessian
 
 
 	// precalc values
+	Mat44 mTbc;
+	SE3 Tbc;
 	SE3 PRE_worldToCam;
 	SE3 PRE_camToWorld;
+	SE3 PRE_worldToImu;
+	SE3 PRE_ImuToworld;
 	std::vector<FrameFramePrecalc,Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc;
 	MinimalImageB3* debugImage;
 
 	// mutex for camToWorl's in shells (these are always in a good configuration).
-	boost::mutex shellPoseMutex;
+	//boost::mutex shellPoseMutex;
 
 	//photometric fucitons
-
+	inline Vec6 b2w_rightEps() const {return get_state_scaled().head<6>();}
     inline Vec6 w2c_leftEps() const {return get_state_scaled().head<6>();}
     inline AffLight aff_g2l() const {return AffLight(get_state_scaled()[6], get_state_scaled()[7]);}
     inline AffLight aff_g2l_0() const {return AffLight(get_state_zero()[6]*SCALE_A, get_state_zero()[7]*SCALE_B);}
@@ -203,7 +208,9 @@ struct FrameHessian
 		state_scaled[8] = SCALE_A * state[8];
 		state_scaled[9] = SCALE_B * state[9];
 
-		PRE_worldToCam = SE3::exp(w2c_leftEps()) * get_worldToCam_evalPT();
+		PRE_ImuToworld = get_imuToWorld_evalPT() * SE3::exp(b2w_rightEps());
+		PRE_worldToImu = PRE_ImuToworld.inverse();
+		PRE_worldToCam = Tbc.inverse() * PRE_worldToImu;
 		PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
 	};
@@ -218,7 +225,9 @@ struct FrameHessian
 		state[8] = SCALE_A_INVERSE * state_scaled[8];
 		state[9] = SCALE_B_INVERSE * state_scaled[9];
 
-		PRE_worldToCam = SE3::exp(w2c_leftEps()) * get_worldToCam_evalPT();
+		PRE_ImuToworld = get_imuToWorld_evalPT() * SE3::exp(b2w_rightEps());
+		PRE_worldToImu = PRE_ImuToworld.inverse();
+		PRE_worldToCam = Tbc.inverse() * PRE_worldToImu;
 		PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
 	};

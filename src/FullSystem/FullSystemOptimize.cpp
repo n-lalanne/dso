@@ -54,7 +54,7 @@ void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointF
 	for(int k=min;k<max;k++)
 	{
 		PointFrameResidual* r = activeResiduals[k];
-		(*stats)[0] += r->linearize(&Hcalib);
+		(*stats)[0] += r->linearizeright(&Hcalib,Tbc);
 
 		if(fixLinearization)
 		{
@@ -589,14 +589,16 @@ float FullSystem::optimize(int mnumOptIts)
 		{
 			fh->shell->camToWorld = fh->PRE_camToWorld;
 			fh->shell->aff_g2l = fh->aff_g2l();
-			SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
-            SE3 newC2W = fh->shell->camToWorld;
-            SE3 oldB2W = SE3(fh->shell->navstate.pose().matrix());
-            Vec3 oldV = fh->shell->navstate.v();
-            SE3 newB2W = newC2W * SE3(getTbc()).inverse();
-            Mat33 old2new = newB2W.rotationMatrix().inverse() * oldB2W.rotationMatrix();
-            Vec3 newV = old2new * oldV;
-			fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), newV);
+			if(isIMUinitialized()) {
+				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
+				SE3 newC2W = fh->shell->camToWorld;
+				SE3 oldB2W = SE3(fh->shell->navstate.pose().matrix());
+				Vec3 oldV = fh->shell->navstate.v();
+				SE3 newB2W = newC2W * SE3(getTbc()).inverse();
+				Mat33 old2new = newB2W.rotationMatrix().inverse() * oldB2W.rotationMatrix();
+				Vec3 newV = old2new * oldV;
+				fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), newV);
+			}
 		}
 	}
 

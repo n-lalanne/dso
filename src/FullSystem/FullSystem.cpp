@@ -230,6 +230,12 @@ FullSystem::FullSystem()
 	maxIdJetVisTracker = -1;
 
     isLocalBADone = true;
+
+	mTbc<< 0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+			0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
+			-0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+			0.0, 0.0, 0.0, 1.0;
+	Tbc = SE3(mTbc);
 }
 
 FullSystem::~FullSystem()
@@ -1109,7 +1115,7 @@ void FullSystem::flagPointsForRemoval()
 					for(PointFrameResidual* r : ph->residuals)
 					{
 						r->resetOOB();
-						r->linearize(&Hcalib);
+						r->linearizeright(&Hcalib,Tbc);
 						r->efResidual->isLinearized = false;
 						r->applyRes(true);
 						if(r->efResidual->isActive())
@@ -1861,7 +1867,7 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 		{
 			for(PointFrameResidual* r : ph->residuals)
 			{
-				r->linearize(&Hcalib);
+				r->linearizeright(&Hcalib,Tbc);
 			}
 
 			for (size_t resIdx = 0; resIdx < 2; resIdx++)
@@ -1869,7 +1875,7 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 				if (ph->lastResiduals[resIdx].first != 0 && ph->lastResiduals[resIdx].second == ResState::IN)
 				{
 					PointFrameResidual *r = ph->lastResiduals[resIdx].first;
-					r->linearize(&Hcalib);
+					r->linearizeright(&Hcalib,Tbc);
 				}
 			}
 		}
@@ -2017,8 +2023,11 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 	// TODO: remove this for realtime
 	while (!isLocalBADone.load());
 
+	std::cout<<"RIght version!!!!!!!!"<<std::endl;
+
 	// =========================== add into allFrameHistory =========================
-	FrameHessian* fh = new FrameHessian();
+    FrameHessian* fh = new FrameHessian();
+    fh->Tbc = Tbc;
 	FrameShell* shell = new FrameShell(accBiasEstimate, gyroBiasEstimate);
 	shell->camToWorld = SE3(); 		// no lock required, as fh is not used anywhere yet.
 	shell->aff_g2l = AffLight(0,0);
@@ -2071,7 +2080,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		if (shell->last_kf)
 		{ // this condition is false for the first tracked frame
 			std::cout << "Frame/Keyframe: " << shell->id << "/" << shell->last_kf->id << std::endl;
-			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+			//boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 			shell->updateIMUmeasurements(mvIMUSinceLastF, mvIMUSinceLastKF);
 		}
 	}

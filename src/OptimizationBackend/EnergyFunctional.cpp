@@ -46,63 +46,63 @@ bool EFDeltaValid = false;
 void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 {
 
-	if(adHost != 0) delete[] adHost;
-	if(adTarget != 0) delete[] adTarget;
-	adHost = new Mat88[nFrames*nFrames];
-	adTarget = new Mat88[nFrames*nFrames];
+    if(adHost != 0) delete[] adHost;
+    if(adTarget != 0) delete[] adTarget;
+    adHost = new Mat88[nFrames*nFrames];
+    adTarget = new Mat88[nFrames*nFrames];
 
-	for(int h=0;h<nFrames;h++)
-		for(int t=0;t<nFrames;t++)
-		{
-			FrameHessian* host = frames[h]->data;
-			FrameHessian* target = frames[t]->data;
+    for(int h=0;h<nFrames;h++)
+        for(int t=0;t<nFrames;t++)
+        {
+            FrameHessian* host = frames[h]->data;
+            FrameHessian* target = frames[t]->data;
 
-			SE3 hostToTarget = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
+            SE3 hostToTarget = target->get_worldToImu_evalPT() * host->get_worldToImu_evalPT().inverse();
 
-			Mat88 AH = Mat88::Identity();
-			Mat88 AT = Mat88::Identity();
+            Mat88 AH = Mat88::Identity();
+            Mat88 AT = Mat88::Identity();
 
-			AH.topLeftCorner<6,6>() = -hostToTarget.Adj().transpose();
-			AT.topLeftCorner<6,6>() = Mat66::Identity();
-
-
-			Vec2f affLL = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l_0(), target->aff_g2l_0()).cast<float>();
-			AT(6,6) = -affLL[0];
-			AH(6,6) = affLL[0];
-			AT(7,7) = -1;
-			AH(7,7) = affLL[0];
-
-			AH.block<3,8>(0,0) *= SCALE_XI_TRANS;
-			AH.block<3,8>(3,0) *= SCALE_XI_ROT;
-			AH.block<1,8>(6,0) *= SCALE_A;
-			AH.block<1,8>(7,0) *= SCALE_B;
-			AT.block<3,8>(0,0) *= SCALE_XI_TRANS;
-			AT.block<3,8>(3,0) *= SCALE_XI_ROT;
-			AT.block<1,8>(6,0) *= SCALE_A;
-			AT.block<1,8>(7,0) *= SCALE_B;
-
-			adHost[h+t*nFrames] = AH;
-			adTarget[h+t*nFrames] = AT;
-		}
-	cPrior = VecC::Constant(setting_initialCalibHessian);
+            AH.topLeftCorner<6,6>() = -hostToTarget.Adj().transpose();
+            AT.topLeftCorner<6,6>() = Mat66::Identity();
 
 
-	if(adHostF != 0) delete[] adHostF;
-	if(adTargetF != 0) delete[] adTargetF;
-	adHostF = new Mat88f[nFrames*nFrames];
-	adTargetF = new Mat88f[nFrames*nFrames];
+            Vec2f affLL = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l_0(), target->aff_g2l_0()).cast<float>();
+            AT(6,6) = -affLL[0];
+            AH(6,6) = affLL[0];
+            AT(7,7) = -1;
+            AH(7,7) = affLL[0];
 
-	for(int h=0;h<nFrames;h++)
-		for(int t=0;t<nFrames;t++)
-		{
-			adHostF[h+t*nFrames] = adHost[h+t*nFrames].cast<float>();
-			adTargetF[h+t*nFrames] = adTarget[h+t*nFrames].cast<float>();
-		}
+            AH.block<3,8>(0,0) *= SCALE_XI_TRANS;
+            AH.block<3,8>(3,0) *= SCALE_XI_ROT;
+            AH.block<1,8>(6,0) *= SCALE_A;
+            AH.block<1,8>(7,0) *= SCALE_B;
+            AT.block<3,8>(0,0) *= SCALE_XI_TRANS;
+            AT.block<3,8>(3,0) *= SCALE_XI_ROT;
+            AT.block<1,8>(6,0) *= SCALE_A;
+            AT.block<1,8>(7,0) *= SCALE_B;
 
-	cPriorF = cPrior.cast<float>();
+            adHost[h+t*nFrames] = AH;
+            adTarget[h+t*nFrames] = AT;
+        }
+    cPrior = VecC::Constant(setting_initialCalibHessian);
 
 
-	EFAdjointsValid = true;
+    if(adHostF != 0) delete[] adHostF;
+    if(adTargetF != 0) delete[] adTargetF;
+    adHostF = new Mat88f[nFrames*nFrames];
+    adTargetF = new Mat88f[nFrames*nFrames];
+
+    for(int h=0;h<nFrames;h++)
+        for(int t=0;t<nFrames;t++)
+        {
+            adHostF[h+t*nFrames] = adHost[h+t*nFrames].cast<float>();
+            adTargetF[h+t*nFrames] = adTarget[h+t*nFrames].cast<float>();
+        }
+
+    cPriorF = cPrior.cast<float>();
+
+
+    EFAdjointsValid = true;
 }
 
 

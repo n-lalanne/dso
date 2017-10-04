@@ -87,7 +87,7 @@ public:
 	PointFrameResidual();
 	PointFrameResidual(PointHessian* point_, FrameHessian* host_, FrameHessian* target_);
 	double linearize(CalibHessian* HCalib);
-
+	double linearizeright(CalibHessian* HCalib, SE3 Tbc);
 
 	void resetOOB()
 	{
