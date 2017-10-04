@@ -364,7 +364,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		FrameShell* slast = allFrameHistory[allFrameHistory.size()-2];
 		FrameShell* sprelast = allFrameHistory[allFrameHistory.size()-3];
 		// get last delta-movement.
-		if(!slast->poseValid || !sprelast->poseValid || !lastF->shell->poseValid)
+		if	(!slast->poseValid || !sprelast->poseValid || !lastF->shell->poseValid)
 		{
 			lastF_2_fh_tries.push_back(SE3());
 		}

@@ -2,6 +2,8 @@
 // Created by rakesh on 03/10/17.
 //
 
+#define IMU_INIT_WINDOW_SIZE 4000
+
 #include <thread>
 #include <locale.h>
 #include <signal.h>
@@ -446,6 +448,7 @@ int main( int argc, char** argv )
     FullSystem* fullSystem = new FullSystem();
     fullSystem->setGammaFunction(reader->getPhotometricGamma());
     fullSystem->linearizeOperation = (playbackSpeed==0);
+    fullSystem->WINDOW_SIZE = IMU_INIT_WINDOW_SIZE;
 
     IOWrap::PangolinDSOViewer* viewer = 0;
     if(!disableAllDisplay)
@@ -536,12 +539,23 @@ int main( int argc, char** argv )
 
 
             std::vector<dso_vi::IMUData> vimuData;
-            if (i > 0)
-            {
-                vimuData = imu_iterator.getImuBetween(image_timestamps[i-1], image_timestamps[i]);
-            }
             dso_vi::GroundTruthIterator::ground_truth_measurement_t previous_gt, current_gt;
-            groundtruth_iterator.getGroundTruthBetween(image_timestamps[i-1], image_timestamps[i], previous_gt, current_gt);
+
+            try
+            {
+                if (i > 0)
+                {
+                    vimuData = imu_iterator.getImuBetween(image_timestamps[i-1], image_timestamps[i]);
+                }
+                groundtruth_iterator.getGroundTruthBetween(image_timestamps[i-1], image_timestamps[i], previous_gt, current_gt);
+            }
+            catch(std::exception &e)
+            {
+                std::cerr << "exception what? " << e.what() << std::endl;
+                break;
+            }
+
+
             if(!skipFrame) fullSystem->addActiveFrame(img, i, vimuData, image_timestamps[i], configf, current_gt);
 
             delete img;

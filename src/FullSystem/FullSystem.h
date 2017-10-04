@@ -348,7 +348,7 @@ public:
 	double gyro_noise_sigma;
 	double accel_bias_rw_sigma;
 	double gyro_bias_rw_sigma;
-	int WINDOW_SIZE = 40;
+	int WINDOW_SIZE = 4000;
 
     void setBiasEstimate(Vec3 accBias, Vec3 gyroBias)
     {
