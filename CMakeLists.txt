@@ -39,21 +39,23 @@ find_package(Pangolin 0.2 QUIET)
 find_package(OpenCV 2.4 QUIET)
 
 # ROS
-find_package(sensor_msgs)
-find_package(rosbag)
-find_package(cv_bridge)
-
-set(ROS_INCLUDES ${sensor_msgs_INCLUDE_DIRS} ${rosbag_INCLUDE_DIRS} ${cv_bridge_INCLUDE_DIRS})
-set(ROS_LIBS ${sensor_msgs_LIBRARIES} ${rosbag_LIBRARIES} ${cv_bridge_LIBRARIES})
-message("-- ROS_INCLUDES ${ROS_INCLUDES}")
-message("-- ROS_LIBS ${ROS_LIBS}")
+#find_package(sensor_msgs)
+#find_package(rosbag)
+#find_package(cv_bridge)
+#
+#set(ROS_INCLUDES ${sensor_msgs_INCLUDE_DIRS} ${rosbag_INCLUDE_DIRS} ${cv_bridge_INCLUDE_DIRS})
+#set(ROS_LIBS ${sensor_msgs_LIBRARIES} ${rosbag_LIBRARIES} ${cv_bridge_LIBRARIES})
+#message("-- ROS_INCLUDES ${ROS_INCLUDES}")
+#message("-- ROS_LIBS ${ROS_LIBS}")
 
 # flags
 add_definitions("-DENABLE_SSE")
 set(CMAKE_CXX_FLAGS
-		"${SSE_FLAGS} -O3 -g -std=c++0x -march=native"
+		# "${SSE_FLAGS} -O3 -g -std=c++0x -march=native"
+		## no optimization + debugging
+		"${SSE_FLAGS} -std=c++0x -march=native -fopenmp -fPIC -O0 -g3 -ggdb"
 		#   "${SSE_FLAGS} -O3 -g -std=c++0x -fno-omit-frame-pointer"
-		)
+)
 
 # remove optimization for debugging
 #string( TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE )
@@ -94,13 +96,13 @@ set(dso_SOURCE_FILES
 		# VI
 		${PROJECT_SOURCE_DIR}/src/IMU/imudata.cpp
 		${PROJECT_SOURCE_DIR}/src/IMU/configparam.cpp
-		${PROJECT_SOURCE_DIR}/src/IMU/MsgSync/MsgSynchronizer.cpp
+#		${PROJECT_SOURCE_DIR}/src/IMU/MsgSync/MsgSynchronizer.cpp
 
-		# Groundtruth
-		${PROJECT_SOURCE_DIR}/src/GroundTruthIterator/GroundTruthIterator.cpp
-		)
-
-
+		# Dataset reading
+		${PROJECT_SOURCE_DIR}/src/DatasetIterator/DatasetIterator.cpp src/DatasetIterator/DatasetIterator.h
+		${PROJECT_SOURCE_DIR}/src/DatasetIterator/ImuIterator.cpp src/DatasetIterator/ImuIterator.h
+		${PROJECT_SOURCE_DIR}/src/GroundTruthIterator/GroundTruthIterator.cpp src/GroundTruthIterator/GroundTruthIterator.h
+)
 
 include_directories(
 		${PROJECT_SOURCE_DIR}/src
@@ -110,11 +112,12 @@ include_directories(
 
 		# VI
 		${PROJECT_SOURCE_DIR}/src/IMU
-		${PROJECT_SOURCE_DIR}/src/IMU/MsgSync
-		${ROS_INCLUDES}
+#		${PROJECT_SOURCE_DIR}/src/IMU/MsgSync
+#		${ROS_INCLUDES}
 
 		# Groundtruth
 		${PROJECT_SOURCE_DIR}/src/GroundTruthIterator
+		${PROJECT_SOURCE_DIR}/src/DatasetIterator
 )
 
 
@@ -174,9 +177,9 @@ if (OpenCV_FOUND AND Pangolin_FOUND)
 	#	message("--- compiling dso_dataset.")
 	#	add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp )
 	#    target_link_libraries(dso_dataset dso boost_system boost_thread cxsparse ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
-	message("--- compiling dso_bag.")
-	add_executable(dso_bag ${PROJECT_SOURCE_DIR}/src/main_dso_bag.cpp )
-	target_link_libraries(dso_bag dso boost_system boost_thread cxsparse ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS} ${ROS_LIBS})
+#	message("--- compiling dso_bag.")
+#	add_executable(dso_bag ${PROJECT_SOURCE_DIR}/src/main_dso_bag.cpp )
+#	target_link_libraries(dso_bag dso boost_system boost_thread cxsparse ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS} ${ROS_LIBS})
 else()
 	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
 endif()
@@ -190,3 +193,6 @@ endif()
 
 #add_executable(two_pose_vision_optimize ${PROJECT_SOURCE_DIR}/src/tests/two_pose_vision_optimize.cpp)
 #target_link_libraries(two_pose_vision_optimize dso)
+
+add_executable(dataset_iterator ${PROJECT_SOURCE_DIR}/src/tests/dataset_iterator.cpp)
+target_link_libraries(dataset_iterator dso)
