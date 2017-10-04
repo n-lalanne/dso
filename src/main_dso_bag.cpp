@@ -363,14 +363,14 @@ int main( int argc, char** argv )
         return 1;
     }
 
-    setting_desiredImmatureDensity = 1000;
-    setting_desiredPointDensity = 1200;
+    setting_desiredImmatureDensity = 1500;
+    setting_desiredPointDensity = 2000;
     setting_minFrames = 5;
     setting_maxFrames = 7;
-    setting_maxOptIterations=4;
+    setting_maxOptIterations=6;
     setting_minOptIterations=1;
     setting_logStuff = false;
-    setting_kfGlobalWeight = 1.3;
+    setting_kfGlobalWeight = 1;
 
 
     printf("MODE WITH CALIBRATION, but without exposure times!\n");
