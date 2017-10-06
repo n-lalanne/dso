@@ -201,3 +201,15 @@ endif()
 
 #add_executable(dataset_iterator ${PROJECT_SOURCE_DIR}/src/tests/dataset_iterator.cpp)
 #target_link_libraries(dataset_iterator dso)
+
+# MRPT: https://www.mrpt.org/download-mrpt/
+# mrpt for covariance transformation to new frame
+find_package(MRPT COMPONENTS base QUIET)
+if (MRPT_FOUND)
+	message("-- MRPT: ${MRPT_INCLUDE_DIRS}")
+	message("-- MRPT: ${MRPT_LIBRARIES}")
+	include_directories(${MRPT_INCLUDE_DIRS})
+
+	add_executable(coord_transformation ${PROJECT_SOURCE_DIR}/src/tests/coord_transformation.cpp)
+	target_link_libraries(coord_transformation dso ${MRPT_LIBRARIES})
+endif()
