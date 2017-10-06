@@ -57,6 +57,12 @@ namespace dso
 
 void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 {
+//	if ((int)frameHessians.size() >= setting_maxFrames)
+//	{
+//		frameHessians[0]->flaggedForMarginalization = true;
+//	}
+//	return;
+
 	if(setting_minFrameAge > setting_maxFrames)
 	{
 		for(int i=setting_maxFrames;i<(int)frameHessians.size();i++)
@@ -158,6 +164,10 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 
 	ef->marginalizeFrame(frame->efFrame);
 
+    //merge the preintegration measurement
+
+    updateimufactors(frame);
+
 	// drop all observations of existing points in that frame.
 
 	for(FrameHessian* fh : frameHessians)
@@ -202,6 +212,8 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 
 	frame->shell->marginalizedAt = frameHessians.back()->shell->id;
 	frame->shell->movedByOpt = frame->w2c_leftEps().norm();
+
+
 
 	deleteOutOrder<FrameHessian>(frameHessians, frame);
 	for(unsigned int i=0;i<frameHessians.size();i++)

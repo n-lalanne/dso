@@ -221,6 +221,8 @@ private:
 
 	void printOptRes(const Vec3 &res, double resL, double resM, double resPrior, double LExact, float a, float b);
 
+	void updateimufactors(FrameHessian* Frame);
+
 	void debugPlotTracking();
 
 	std::vector<VecX> getNullspaces(
