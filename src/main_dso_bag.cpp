@@ -371,6 +371,7 @@ int main( int argc, char** argv )
     setting_minOptIterations=1;
     setting_logStuff = false;
     setting_kfGlobalWeight = 1;
+    setting_keyframesPerSecond = 0.5;
 
 
     printf("MODE WITH CALIBRATION, but without exposure times!\n");

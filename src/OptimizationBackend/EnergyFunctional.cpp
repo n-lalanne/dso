@@ -564,17 +564,29 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 	hpi = 0.5f*(hpi+hpi);
 
 	// schur-complement!
-	MatXX bli = HMScaled.bottomLeftCorner(8,ndim).transpose() * hpi;
+    MatXX bli = HMScaled.bottomLeftCorner(8,ndim).transpose() * hpi;
 	HMScaled.topLeftCorner(ndim,ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8,ndim);
 	bMScaled.head(ndim).noalias() -= bli*bMScaled.tail<8>();
+
+    std::cout << "HMScaled: " << HMScaled.diagonal().transpose() << std::endl;
+    std::cout << "bMScaled: " << bMScaled.transpose() << std::endl;
 
 	//unscale!
 	HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 	bMScaled = SVec.asDiagonal() * bMScaled;
 
+    std::cout << "unscale HMScaled: " << HMScaled.diagonal().transpose() << std::endl;
+    std::cout << "unscale bMScaled: " << bMScaled.transpose() << std::endl;
+
+    std::cout << "before H: " << HM.diagonal().transpose() << std::endl;
+    std::cout << "before b: " << bM.transpose() << std::endl;
+
 	// set.
 	HM = 0.5*(HMScaled.topLeftCorner(ndim,ndim) + HMScaled.topLeftCorner(ndim,ndim).transpose());
 	bM = bMScaled.head(ndim);
+
+    std::cout << "after H: " << HM.diagonal().transpose() << std::endl;
+    std::cout << "after b: " << bM.transpose() << std::endl;
 
 	// remove from vector, without changing the order!
 	for(unsigned int i=fh->idx; i+1<frames.size();i++)
@@ -797,10 +809,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 	bM_top = (bM+ HM * getStitchedDeltaF());
 
-
-
-
-
+    std::cout << "HM: " << HM.diagonal().transpose() << std::endl;
+    std::cout << "bM_top" << bM_top.transpose() << std::endl;
 
 
 	MatXX HFinal_top;
@@ -892,7 +902,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
 	}
 
-
+    std::cout << "x before: " << x.transpose() << std::endl;
 
 	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
 	{
@@ -900,6 +910,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		orthogonalize(&x, 0);
 	}
 
+    std::cout << "x after: " << x.transpose() << std::endl;
 
 	lastX = x;
 
