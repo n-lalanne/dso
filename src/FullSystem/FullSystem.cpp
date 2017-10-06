@@ -1895,6 +1895,10 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	coarseTracker->makeCoarseDepthL0(frameHessians);
 	coarseTracker_forNewKF->makeCoarseDepthL0(frameHessians);
 
+	for(FrameHessian* kf : frameHessians){
+		kf->setvbEvalPT();
+	}
+
 	return;
 }
 

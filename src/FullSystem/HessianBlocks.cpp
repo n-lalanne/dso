@@ -125,6 +125,17 @@ void FrameHessian::setStateZero(const Vec10 &state_zero)
 };
 
 
+void FrameHessian::setvbEvalPT()
+{
+	Vec3 initial_vstate = Vec3::Zero();
+	Vec6 initial_biasstate = Vec6::Zero();
+	velocity_evalPT = shell->navstate.velocity();
+	navstate_evalPT = shell->navstate;
+	bias_evalPT = shell->bias.vector();
+	Vec10 initial_state = Vec10::Zero();
+	//setnavStateScaled(get_state_scaled(), initial_vstate, initial_biasstate);
+	setnavStateScaled(initial_state, initial_vstate, initial_biasstate);
+}
 
 void FrameHessian::release()
 {

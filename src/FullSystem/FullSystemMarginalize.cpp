@@ -211,7 +211,7 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 
 
 	frame->shell->marginalizedAt = frameHessians.back()->shell->id;
-	frame->shell->movedByOpt = frame->w2c_leftEps().norm();
+	frame->shell->movedByOpt = frame->b2w_rightEps().norm();
 
 
 
