@@ -1,9 +1,9 @@
 #define MAX_TRANSLATION 0.05
 #define MAX_ROTATION 0.05
 
-#define MAX_COORDINATE_TRANSLATION 0.05 // 100
+#define MAX_COORDINATE_TRANSLATION 100
 // (+/-)pi (allow full rotation)
-#define MAX_COORDINATE_ROTATION 0.05 // 3.141592653589793
+#define MAX_COORDINATE_ROTATION 3.141592653589793
 
 #define MIN_DEPTH 4.0
 #define MAX_DEPTH 8.0
@@ -395,8 +395,9 @@ int main(int argc, char **argv)
     J_1_calc.leftCols(6) = J_0.leftCols(6) * adj;
     J_1_calc.rightCols(6) = J_0.rightCols(6) * adj;
 
-    std::cout << "actual: \n" << J_1 << std::endl;
-    std::cout << "calculated: \n" << J_1_calc << std::endl;
+    std::cout << "actual J_0: \n" << J_0 << std::endl;
+    std::cout << "actual J_1: \n" << J_1 << std::endl;
+    std::cout << "calculated J_1: \n" << J_1_calc << std::endl;
     std::cout << "err: \n" << J_1_calc - J_1 << std::endl;
 
 
