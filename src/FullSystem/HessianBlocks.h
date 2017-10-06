@@ -146,6 +146,7 @@ struct FrameHessian
 	float ab_exposure;
 
 	bool flaggedForMarginalization;
+	bool imufactorvalid = true; // set to true at first
 
 	std::vector<PointHessian*> pointHessians;				// contains all ACTIVE points.
 	std::vector<PointHessian*> pointHessiansMarginalized;	// contains all MARGINALIZED points (= fully marginalized, usually because point went OOB.)
@@ -184,6 +185,7 @@ struct FrameHessian
 	SE3 PRE_ImuToworld;
 	std::vector<FrameFramePrecalc,Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc;
 	MinimalImageB3* debugImage;
+	std::vector<dso_vi::IMUData> imu_kf_buff;
 
 	// mutex for camToWorl's in shells (these are always in a good configuration).
 	//boost::mutex shellPoseMutex;

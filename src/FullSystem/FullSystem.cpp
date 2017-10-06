@@ -1728,15 +1728,16 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 					 << std::endl;
 	}
 
-
 	std::cout<<"scale is : "<<scale<<std::endl;
-	// Rescale the depth
+
+
+	// ------------------------------ Rescale the depth ------------------------------
 
 	// keep a log of rescaled points (TODO: find if we can just read the points without any duplicates)
 	std::map<PointHessian*, bool> rescaled_points;
 	std::map<ImmaturePoint*, bool> rescaled_immature_points;
 
-	for (int fh_idx = frameHessians.size()-1; fh_idx > 0  ; fh_idx--)
+	for (size_t fh_idx = frameHessians.size()-1; fh_idx > 0  ; fh_idx--)
 	{
 		//if(allKeyFramesHistory[i]->fh == NULL) continue;
 //		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
@@ -1881,98 +1882,18 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 		}
 	}
 
+	// clear the local window (all but the last KF), use marginalization just to make sure all the map points and other stuffs are consistent
+//	while (frameHessians.size() > 1)
+//	{
+//		marginalizeFrame(frameHessians.front());
+//	}
+//
+//	// clear all the prior factor since we're relinearizing
+//	ef->HM.setZero();
+//	ef->bM.setZero();
+
 	coarseTracker->makeCoarseDepthL0(frameHessians);
 	coarseTracker_forNewKF->makeCoarseDepthL0(frameHessians);
-
-	// keep a log of rescaled points (TODO: find if we can just read the points without any duplicates)
-//    std::map<PointHessian*, bool> rescaled_points;
-//    for (int i = 0; i < 10  ; i++)
-//    {
-//        //if(allKeyFramesHistory[i]->fh == NULL) continue;
-//        //boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
-//        //std::cout<<"i: "<< i <<std::endl;
-//        //assert( frameHessians[i] == allKeyFramesHistory[i]->fh );
-//
-//        FrameHessian *fh = allKeyFramesHistory[i]->fh;
-//
-//        SE3 imuToWorld = SE3(Rs[i], Ps[i]);
-//        SE3 camToWorld = imuToWorld * TBC;
-//
-////        fh->shell->camToWorld = camToWorld;
-////        fh->shell->velocity = Vs[i];
-//        fh->PRE_camToWorld = camToWorld;
-//        fh->PRE_worldToCam = camToWorld.inverse();
-//
-////        for(IOWrap::Output3DWrapper* ow : outputWrapper)
-////            ow->resetKeyframes(fh->frameID,fh,&Hcalib,scale);
-//		std::cout<<"update "<<i<<" frame!!"<<std::endl;
-////        for(PointHessian* ph : fh->pointHessians)
-////        {
-////            if ( rescaled_points.find(ph) != rescaled_points.end() )
-////            {
-////                // the point has already been rescaled before
-////                continue;
-////            }
-////
-////            // the point hasn't been rescaled before
-////            // the depth is in the co-ordinate of the host frame. But the scaling is required in global frame
-////
-////            float new_depth = ph->idepth * scale;
-////            ph->setIdepth(new_depth);
-////            ph->setIdepthZero(new_depth);
-////
-////            rescaled_points.insert(std::make_pair(ph, true));
-////        }
-//    }
-
-
-//	std::map<PointHessian*, bool> rescaled_points;
-//	for (int i = frameHessians.size()-1; i > 0  ; i--)
-//	{
-//        //if(allKeyFramesHistory[i]->fh == NULL) continue;
-//		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
-//        //std::cout<<"i: "<< i <<std::endl;
-//		FrameHessian *fh = frameHessians[i];
-//
-//		SE3 imuToWorld = SE3(Rs[i], Ps[i]);
-//		SE3 camToWorld = imuToWorld * TBC;
-//
-//		fh->shell->camToWorld = camToWorld;
-//        fh->shell->velocity = Vs[i];
-//		fh->PRE_camToWorld = camToWorld;
-//		fh->PRE_worldToCam = camToWorld.inverse();
-//		for(PointHessian* ph : fh->pointHessians)
-//		{
-//			if ( rescaled_points.find(ph) != rescaled_points.end() )
-//			{
-//				// the point has already been rescaled before
-//				continue;
-//			}
-//
-//			// the point hasn't been rescaled before
-//			// the depth is in the co-ordinate of the host frame. But the scaling is required in global frame
-//
-//			float new_depth = ph->idepth * scale;
-//			ph->setIdepth(new_depth);
-//			ph->setIdepthZero(new_depth);
-//
-//			rescaled_points.insert(std::make_pair(ph, true));
-//		}
-//	}
-
-//	for (int i = 0; i <= frame_count; i++)
-//	{
-//		Mat33 Ri = allFrameHistory[i]->RCW();
-//		Vec3 Pi = allFrameHistory[i]->TCW();
-//		Ps[i] = Pi;
-//		Rs[i] = Ri;
-//		all_image_frame[Headers[i].stamp.toSec()].is_key_frame = true;
-//
-//		Matrix3d R0 = Utility::g2R(g);
-//		double yaw = Utility::R2ypr(R0 * Rs[0]).x();
-//		R0 = Utility::ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
-//		g = R0 * g;
-//	}
 
 	return;
 }
@@ -2137,7 +2058,9 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 			needToMakeKF = allFrameHistory.size()== 1 ||
 					(fh->shell->timestamp - allKeyFramesHistory.back()->timestamp) > 0.95f/setting_keyframesPerSecond;
 		}
-		else
+//		else
+		// if we need to add keyframe before the set time
+		if (!needToMakeKF)
 		{
 			Vec2 refToFh=AffLight::fromToVecExposure(coarseTracker->lastRef->ab_exposure, fh->ab_exposure,
 					coarseTracker->lastRef_aff_g2l, fh->shell->aff_g2l);
@@ -2316,6 +2239,8 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 	}
 
+	fh->imu_kf_buff.insert(fh->imu_kf_buff.end(),mvIMUSinceLastKF.begin(),mvIMUSinceLastKF.end());
+
 	traceNewCoarse(fh);
 
 	boost::unique_lock<boost::mutex> lock(mapMutex);
@@ -2455,7 +2380,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 			{marginalizeFrame(frameHessians[i]); i=0;}
 
 
-
+    // =========================== Update the imu factors=======================
 	printLogLine();
     //printEigenValLine();
 
@@ -2481,6 +2406,65 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	mvIMUSinceLastKF.clear();
 }
 
+void FullSystem::updateimufactors(FrameHessian* Frame){
+    if(Frame->idx == 0) return;         // if we marginalize the first frame, we do not need to update anything
+    int idxj = Frame->idx - 1;          // the frame before marginalized one
+    int idxi = Frame->idx + 1;          // the frame next to the marginalized one
+    FrameHessian * Frameprev = frameHessians[idxj];
+    FrameHessian * Framenext = frameHessians[idxi];
+
+	double sviTimestamp = Frameprev->shell->viTimestamp;
+	double eviTimestamp = Framenext->shell->viTimestamp;
+
+    if(Framenext->shell->viTimestamp - Frameprev->shell->viTimestamp > 0.5){
+        Framenext->imufactorvalid = false;
+        return;
+    }
+    std::vector<dso_vi::IMUData> IMUdataSinceLastKFbak;
+    IMUdataSinceLastKFbak.clear();
+
+    IMUdataSinceLastKFbak.insert(IMUdataSinceLastKFbak.end(),Frame->imu_kf_buff.begin(),Frame->imu_kf_buff.end());
+    IMUdataSinceLastKFbak.insert(IMUdataSinceLastKFbak.end(),Framenext->imu_kf_buff.begin(),Framenext->imu_kf_buff.end());
+    Frame->imu_kf_buff.clear();
+    Framenext->imu_kf_buff.clear();
+    Framenext->imu_kf_buff.insert(Framenext->imu_kf_buff.end(),IMUdataSinceLastKFbak.begin(),IMUdataSinceLastKFbak.end());
+
+	Framenext->shell->imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), Framenext->shell->bias);
+
+	for (size_t i = 0; i < Framenext->imu_kf_buff.size(); i++)
+	{
+		dso_vi::IMUData imudata = Framenext->imu_kf_buff[i];
+
+		Mat61 rawimudata;
+		rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
+				imudata._g(0), imudata._g(1), imudata._g(2);
+		if(imudata._t < Frameprev->shell->viTimestamp)continue;
+		double dt = 0;
+		// interpolate readings
+		if (i == Framenext->imu_kf_buff.size() - 1)
+		{
+			dt = eviTimestamp - imudata._t;
+		}
+		else
+		{
+			dt = Framenext->imu_kf_buff[i+1]._t - imudata._t;
+		}
+
+		if (i == 0)
+		{
+			// assuming the missing imu reading between the previous frame and first IMU
+			dt += (imudata._t - sviTimestamp);
+		}
+
+		assert(dt >= 0);
+
+		Framenext->shell->imu_preintegrated_last_kf_->integrateMeasurement(
+				rawimudata.block<3,1>(0,0),
+				rawimudata.block<3,1>(3,0),
+				dt
+		);
+	}
+}
 
 void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 {
