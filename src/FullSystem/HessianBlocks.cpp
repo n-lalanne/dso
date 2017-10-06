@@ -128,7 +128,9 @@ void FrameHessian::setvbEvalPT()
 	velocity_evalPT = shell->navstate.velocity();
 	navstate_evalPT = shell->navstate;
 	bias_evalPT = shell->bias.vector();
-	setnavStateScaled(get_state_scaled(), initial_vstate, initial_biasstate);
+	Vec10 initial_state = Vec10::Zero();
+	//setnavStateScaled(get_state_scaled(), initial_vstate, initial_biasstate);
+	setnavStateScaled(initial_state, initial_vstate, initial_biasstate);
 }
 
 void PointHessian::release()

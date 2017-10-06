@@ -158,6 +158,7 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 
 	ef->marginalizeFrame(frame->efFrame);
 
+	updateimufactors(frame);
 	// drop all observations of existing points in that frame.
 
 	for(FrameHessian* fh : frameHessians)

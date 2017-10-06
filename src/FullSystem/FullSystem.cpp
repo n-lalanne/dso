@@ -2241,7 +2241,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	}
     if(allKeyFramesHistory.size()!=0){
         fh->imu_kf_buff.clear();
-        fh->
+        fh->imu_kf_buff.insert(fh->imu_kf_buff.end(),mvIMUSinceLastKF.begin(),mvIMUSinceLastKF.end());
     }
 	traceNewCoarse(fh);
 

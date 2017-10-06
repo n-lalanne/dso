@@ -198,7 +198,7 @@ private:
 	void makeNewTraces(FrameHessian* newFrame, float* gtDepth);
 	void initializeFromInitializer(FrameHessian* newFrame);
 	void flagFramesForMarginalization(FrameHessian* newFH);
-
+	void updateimufactors(FrameHessian* Frame);
 
 	void removeOutliers();
 
