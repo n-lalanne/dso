@@ -63,6 +63,73 @@ PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hc
 
 }
 
+double FrameHessian::getkfimufactor(){
+	double imuenergy;
+
+
+	if(needrelin)
+	{
+		gtsam::NavState previous_navstate_evalPT;
+		gtsam::NavState current_navstate_evalPT;
+		gtsam::imuBias::ConstantBias previous_bias_evalPT = gtsam::imuBias::ConstantBias(shell->trackingRef->fh->bias_evalPT);
+		gtsam::imuBias::ConstantBias current_bias_evalPT = gtsam::imuBias::ConstantBias(bias_evalPT);
+		previous_navstate_evalPT = shell->trackingRef->fh->navstate_evalPT;
+		current_navstate_evalPT = navstate_evalPT;
+//		std::cout<<"previous_navstate_evalPT:"<<previous_navstate_evalPT<<std::endl;
+//		std::cout<<"current_navstate_evalPT:"<<current_navstate_evalPT<<std::endl;
+//		std::cout<<"previous_bias_evalPT"<<previous_bias_evalPT<<std::endl;
+//		std::cout<<"current_bias_evalPT"<<current_bias_evalPT<<std::endl;
+		shell->linearizeImuFactorLastKeyFrame(previous_navstate_evalPT,current_navstate_evalPT,previous_bias_evalPT,current_bias_evalPT);
+		needrelin = false;
+	}
+	gtsam::NavState PRE_previous_navstate = shell->trackingRef->fh->PRE_navstate;
+	gtsam::NavState PRE_current_navstate = PRE_navstate;
+	gtsam::imuBias::ConstantBias PRE_previous_bias = gtsam::imuBias::ConstantBias(shell->trackingRef->fh->PRE_bias);
+	gtsam::imuBias::ConstantBias PRE_current_bias = gtsam::imuBias::ConstantBias(PRE_bias);
+	kfimures  = shell->evaluateIMUerrorsBA(PRE_previous_navstate, PRE_current_navstate, PRE_previous_bias, PRE_current_bias, J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j);
+	kfimuinfo = shell->getIMUcovarianceBA();
+	imuenergy = kfimures.transpose() * kfimuinfo * kfimures;
+	return imuenergy;
+}
+
+void FrameHessian::setnavEvalPT(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate )
+{
+
+	this->worldToCam_evalPT = worldToCam_evalPT;
+	this->velocity_evalPT = Velocity;
+	this->bias_evalPT = bias;
+
+	SE3 ImuToworld_evalPT = worldToCam_evalPT.inverse() * dso_vi::Tcb;
+	this->navstate_evalPT = gtsam::NavState(gtsam::Pose3(ImuToworld_evalPT.matrix()), velocity_evalPT);
+	setnavState(state, vstate, biasstate);
+	setStateZero(state);
+};
+
+void FrameHessian::setnavEvalPT_scaled(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const AffLight &aff_g2l)
+{
+	Vec10 initial_state = Vec10::Zero();
+	Vec3 initial_vstate = Vec3::Zero();
+	Vec6 initial_biasstate = Vec6::Zero();
+	initial_state[6] = aff_g2l.a;
+	initial_state[7] = aff_g2l.b;
+	this->worldToCam_evalPT = worldToCam_evalPT;
+	this->velocity_evalPT = Velocity;
+	this->bias_evalPT = bias;
+	SE3 ImuToworld_evalPT = worldToCam_evalPT.inverse() * dso_vi::Tcb;
+	this->navstate_evalPT = gtsam::NavState(gtsam::Pose3(ImuToworld_evalPT.matrix()), velocity_evalPT);
+	setnavStateScaled(initial_state,initial_vstate,initial_biasstate);
+	setStateZero(this->get_state());
+};
+
+void FrameHessian::setvbEvalPT()
+{
+	Vec3 initial_vstate = Vec3::Zero();
+	Vec6 initial_biasstate = Vec6::Zero();
+	velocity_evalPT = shell->navstate.velocity();
+	navstate_evalPT = shell->navstate;
+	bias_evalPT = shell->bias.vector();
+	setnavStateScaled(get_state_scaled(), initial_vstate, initial_biasstate);
+}
 
 void PointHessian::release()
 {

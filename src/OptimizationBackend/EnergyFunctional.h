@@ -88,6 +88,9 @@ public:
 	double calcMEnergyF();
 	double calcLEnergyF_MT();
 
+	void extendHessian(MatXX &H, VecX &b);
+	void reduceHessian17to8(MatXX &H, VecX &b);
+
 
 	void makeIDX();
 

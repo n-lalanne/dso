@@ -771,6 +771,158 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 
 }
 
+//from 8 to 17
+void EnergyFunctional::extendHessian(MatXX &H, VecX &b)
+{
+	MatXX H_tmp = H;
+	VecX b_tmp = b;
+	H.conservativeResize(CPARS+nFrames*17,CPARS+nFrames*17);
+	b.conservativeResize(CPARS+nFrames*17);
+	H.setZero();
+	b.setZero();
+
+	b.head(CPARS) = b_tmp.head(CPARS);
+	H.topLeftCorner(CPARS,CPARS)=H_tmp.topLeftCorner(CPARS,CPARS);
+	for(int i=0;i<nFrames;i++)
+	{
+		b.segment<8>(CPARS+i*17) = b_tmp.segment<8>(CPARS+i*8);
+		H.block<CPARS,8>(0,CPARS+i*17) = H_tmp.block<CPARS,8>(0,CPARS+i*8);
+		for(int j=0;j<nFrames;j++)
+			H.block<8,8>(CPARS+i*17,CPARS+j*17)=H_tmp.block<8,8>(CPARS+i*8,CPARS+j*8);
+	}
+	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+	//H.block<nFrames*17,CPARS>(CPARS,0) = H.block<CPARS,nFrames*17>(0,CPARS).transpose();
+}
+
+
+void EnergyFunctional::reduceHessian17to8(MatXX &H, VecX &b)
+{
+	MatXX H_tmp = H;
+	VecX b_tmp = b;
+	H.conservativeResize(CPARS+nFrames*8,CPARS+nFrames*8);
+	b.conservativeResize(CPARS+nFrames*8);
+	H.setZero();
+	b.setZero();
+
+	b.head(CPARS) = b_tmp.head(CPARS);
+	H.topLeftCorner(CPARS,CPARS)=H_tmp.topLeftCorner(CPARS,CPARS);
+	for(int i=0;i<nFrames;i++)
+	{
+		b.segment<8>(CPARS+i*8) = b_tmp.segment<8>(CPARS+i*17);
+		H.block<CPARS,8>(0,CPARS+i*8) = H_tmp.block<CPARS,8>(0,CPARS+i*17);
+		for(int j=0;j<nFrames;j++)
+			H.block<8,8>(CPARS+i*8,CPARS+j*8)=H_tmp.block<8,8>(CPARS+i*17,CPARS+j*17);
+	}
+	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+	//H.block<nFrames*11,CPARS>(CPARS,0) = H.block<CPARS,nFrames*11>(0,CPARS).tranpose();
+}
+
+//void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian* HCalib){
+//	if(setting_solverMode & SOLVER_USE_GN) lambda=0;
+//	if(setting_solverMode & SOLVER_FIX_LAMBDA) lambda = 1e-5;
+//
+//	std::cout<<"sloving VI ba"<<std::endl;
+//
+//	assert(EFDeltaValid);
+//	assert(EFAdjointsValid);
+//	assert(EFIndicesValid);
+//
+//	MatXX HL_top, HA_top, H_sc , H_imu;
+//	VecX  bL_top, bA_top, bM_top, b_sc, b_imu;
+//
+//	accumulateAF_MT(HA_top, bA_top,multiThreading);
+//
+//
+//	accumulateLF_MT(HL_top, bL_top,multiThreading);
+//
+//
+//	accumulateSCF_MT(H_sc, b_sc,multiThreading);
+//
+//	bM_top = (bM+ HM * getStitchedDeltaF());
+//
+//	accumulateIMU_ST(H_imu, b_imu);
+//
+//	MatXX HFinal_top;
+//	VecX bFinal_top;
+//
+//	extendHessian(HA_top, bA_top);
+//	extendHessian(HL_top, bL_top);
+//	extendHessian(H_sc, b_sc);
+//	extendHessian(HM, bM_top);
+//
+//
+//	HFinal_top = HL_top + HM + HA_top + H_imu;
+//	bFinal_top = bL_top + bM_top + bA_top - b_sc + b_imu;
+//
+////	HFinal_top = HL_top  + HA_top + H_imu + HM;
+////	//std::cout<<bL_top.rows()<<" "<<bM_top.rows()<<" "<<bA_top.rows()<<" "<<b_sc.rows() <<std::endl;
+////	bFinal_top = bL_top  + bA_top - b_sc + b_imu ;
+////
+//	lastHS = HFinal_top - H_sc;
+//	lastbS = bFinal_top;
+//
+//
+//
+//	for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
+//	HFinal_top -= H_sc * (1.0f/(1+lambda));
+//
+//
+//	VecX x;
+//	if(setting_solverMode & SOLVER_SVD)
+//	{
+//		VecX SVecI = HFinal_top.diagonal().cwiseSqrt().cwiseInverse();
+//		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
+//		VecX bFinalScaled  = SVecI.asDiagonal() * bFinal_top;
+//		Eigen::JacobiSVD<MatXX> svd(HFinalScaled, Eigen::ComputeThinU | Eigen::ComputeThinV);
+//
+//		VecX S = svd.singularValues();
+//		double minSv = 1e10, maxSv = 0;
+//		for(int i=0;i<S.size();i++)
+//		{
+//			if(S[i] < minSv) minSv = S[i];
+//			if(S[i] > maxSv) maxSv = S[i];
+//		}
+//
+//		VecX Ub = svd.matrixU().transpose()*bFinalScaled;
+//		int setZero=0;
+//		for(int i=0;i<Ub.size();i++)
+//		{
+//			if(S[i] < setting_solverModeDelta*maxSv)
+//			{ Ub[i] = 0; setZero++; }
+//
+//			if((setting_solverMode & SOLVER_SVD_CUT7) && (i >= Ub.size()-7))
+//			{ Ub[i] = 0; setZero++; }
+//
+//			else Ub[i] /= S[i];
+//		}
+//		x = SVecI.asDiagonal() * svd.matrixV() * Ub;
+//
+//	}
+//	else
+//	{
+//		reduceHessian(HFinal_top,bFinal_top);
+//		VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
+//		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
+//		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
+//	}
+//
+//
+//	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
+//	{
+//
+//		VecX xOld = x;
+//		orthogonalize(&x, 0);
+//	}
+//
+//
+//	lastX = x;
+//
+//	//resubstituteF(x, HCalib);
+//	currentLambda= lambda;
+//	VIresubstituteF_MT(x, HCalib,multiThreading);
+//	currentLambda=0;
+//
+//}
 
 void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* HCalib)
 {
@@ -796,9 +948,6 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 	bM_top = (bM+ HM * getStitchedDeltaF());
-
-
-
 
 
 
@@ -845,11 +994,12 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		lastHS = HFinal_top - H_sc;
 		lastbS = bFinal_top;
 
+
+
+
 		for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
 		HFinal_top -= H_sc * (1.0f/(1+lambda));
 	}
-
-
 
 
 
@@ -890,6 +1040,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
 		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
+		std::cout<<"x is :"<<x.transpose()<<std::endl;
 	}
 
 

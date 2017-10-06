@@ -7,6 +7,12 @@ Mat1515 FrameShell::getIMUcovariance()
     return preint_imu->preintMeasCov();
 }
 
+Mat1515 FrameShell::getIMUcovarianceBA()
+{
+    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_kf_);
+    return preint_imu->preintMeasCov();
+}
+
 Vec3 FrameShell::TWB()
 {
     Mat44 Twc = camToWorld.matrix();
@@ -21,6 +27,43 @@ FrameShell::~FrameShell()
     {
         delete imu_factor_last_frame_;
     }
+}
+
+void FrameShell::linearizeImuFactorLastKeyFrame(
+        gtsam::NavState previouskf_navstate,
+        gtsam::NavState current_navstate,
+        gtsam::imuBias::ConstantBias previouskf_bias,
+        gtsam::imuBias::ConstantBias current_bias
+)
+{
+    if(!fh->needrelin) return;
+    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_kf_);
+    if (!imu_factor_last_kf_)
+    {
+        imu_factor_last_kf_ = new CombinedImuFactor(
+                X(0), V(0),
+                X(1), V(1),
+                B(0), B(1),
+                *preint_imu
+        );
+    }
+    else
+    {
+        *imu_factor_last_kf_ = CombinedImuFactor(
+                X(0), V(0),
+                X(1), V(1),
+                B(0), B(1),
+                *preint_imu
+        );
+    }
+    Values initial_values;
+    initial_values.insert(X(0), previouskf_navstate.pose());
+    initial_values.insert(X(1), current_navstate.pose());
+    initial_values.insert(V(0), previouskf_navstate.velocity());
+    initial_values.insert(V(1), current_navstate.velocity());
+    initial_values.insert(B(0), previouskf_bias);
+    initial_values.insert(B(1), current_bias);
+    imu_factor_last_kf_->linearize(initial_values);
 }
 
 void FrameShell::linearizeImuFactorLastFrame(
@@ -62,6 +105,27 @@ void FrameShell::linearizeImuFactorLastFrame(
     imu_factor_last_frame_->linearize(initial_values);
 }
 
+Vec15 FrameShell::evaluateIMUerrorsBA(
+        gtsam::NavState previous_navstate,
+        gtsam::NavState current_navstate,
+        gtsam::imuBias::ConstantBias previous_bias,
+        gtsam::imuBias::ConstantBias current_bias,
+        gtsam::Matrix &J_imu_Rt_i,
+        gtsam::Matrix &J_imu_v_i,
+        gtsam::Matrix &J_imu_Rt_j,
+        gtsam::Matrix &J_imu_v_j,
+        gtsam::Matrix &J_imu_bias_i,
+        gtsam::Matrix &J_imu_bias_j
+)
+{
+    Vec15 resreturn = imu_factor_last_kf_->evaluateError(
+            previous_navstate.pose(), previous_navstate.velocity(), current_navstate.pose(), current_navstate.velocity(),
+            previous_bias, current_bias,
+            J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
+    );
+    return resreturn;
+}
+
 Vec15 FrameShell::evaluateIMUerrors(
         gtsam::NavState previous_navstate,
         gtsam::NavState current_navstate,
@@ -79,56 +143,6 @@ Vec15 FrameShell::evaluateIMUerrors(
             initial_bias, this->bias,
             J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
     );
-//    std::cout<<"by gtsam: "<<std::endl;
-//    std::cout<<"J_imu_Rt_i:\n"<<J_imu_Rt_i<<std::endl;
-//    std::cout<<"J_imu_v_i:\n"<<J_imu_v_i<<std::endl;
-//    std::cout<<"J_imu_Rt_j:\n"<<J_imu_Rt_j<<std::endl;
-//    std::cout<<"J_imu_v_j:\n"<<J_imu_v_j<<std::endl;
-
-
-//    Mat33 Ri = previous_navstate.pose().rotation().matrix();
-//    Mat33 Rj = current_navstate.pose().rotation().matrix();
-//    Vec3 Vj = current_navstate.velocity();
-//    Vec3 Vi = previous_navstate.velocity();
-//    Vec3 Pi = previous_navstate.pose().translation().matrix();
-//    Vec3 Pj = current_navstate.pose().translation().matrix();
-//    double deltaT = imu_preintegrated_last_frame_->deltaTij();
-//    double deltaT2 = deltaT*deltaT;
-//
-//    J_imu_Rt_j.setZero();
-//    J_imu_Rt_j.block<3, 3>(0, 0) = (gtsam::SO3::LogmapDerivative(resreturn.segment<3>(0))).inverse();
-//    J_imu_Rt_j.block<3, 3>(3, 0) *= 0.0;
-//    J_imu_Rt_j.block<3, 3>(6, 0) *= 0.0;
-//
-//    J_imu_Rt_j.block<3, 3>(0, 3) *= 0.0;
-//    J_imu_Rt_j.block<3, 3>(3, 3) = Ri.transpose() * Rj;
-//    J_imu_Rt_j.block<3, 3>(6, 3) *= 0.0;
-//
-//    J_imu_v_j.block<3, 3>(0, 0) *= 0.0;
-//    J_imu_v_j.block<3, 3>(3, 0) *= 0.0;
-//    J_imu_v_j.block<3, 3>(6, 0) *= Ri.transpose();
-//
-//    J_imu_Rt_i.setZero();
-//    J_imu_Rt_i.block<3, 3>(0, 0) = -(gtsam::SO3::LogmapDerivative(resreturn.segment<3>(0))).inverse() * Rj.transpose() * Ri;
-//    J_imu_Rt_i.block<3, 3>(3, 0) = SO3::hat(Ri.transpose() * (Pj - Pi - Vi* deltaT - 0.5 * Vec3(0,0,-9.81) * deltaT2));
-//    J_imu_Rt_i.block<3, 3>(6, 0) = SO3::hat(Ri.transpose()*(Vj - Vi - Vec3(0,0,-9.81) * deltaT));
-//
-//    J_imu_Rt_i.block<3, 3>(0, 3) *= 0.0;
-//    J_imu_Rt_i.block<3, 3>(3, 3) = - Mat33::Identity();
-//    J_imu_Rt_i.block<3, 3>(6, 3) *= 0.0;
-//
-//    J_imu_v_i.block<3, 3>(0, 0) *= 0.0;
-//    J_imu_v_i.block<3, 3>(3, 0) = - Ri.transpose() * deltaT;
-//    J_imu_v_i.block<3, 3>(6, 0) = - Ri.transpose();
-//    std::cout<<"by myself: "<<std::endl;
-//    std::cout<<"J_imu_Rt_i:\n"<<J_imu_Rt_i<<std::endl;
-//    std::cout<<"J_imu_v_i:\n"<<J_imu_v_i<<std::endl;
-//    std::cout<<"J_imu_Rt_j:\n"<<J_imu_Rt_j<<std::endl;
-//    std::cout<<"J_imu_v_j:\n"<<J_imu_v_j<<std::endl;
-//
-//
-    std::cout<<"Navstate_i:\n"<<previous_navstate<<std::endl;
-    std::cout<<"Navstate_j:\n"<<current_navstate<<std::endl;
 
     return resreturn;
 }
