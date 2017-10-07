@@ -496,6 +496,356 @@ void EnergyFunctional::dropResidual(EFResidual* r)
 	r->data->efResidual=0;
 	delete r;
 }
+
+// from 8 to 8/17(biases are nor used for now)
+void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
+{
+	int nframes = frames.size();
+	if(nframes <=2 ){
+		std::cout<<"Do not call this function in vo model!"<<std::endl;
+		exit(0);
+	}
+	std::vector<int> sizearr;
+	sizearr.resize(nframes,8);
+	for(int i=1;i<nframes;i++){
+		if(frames[i]->data->imufactorvalid)
+		{
+			sizearr[i] = 17;
+			sizearr[i-1] = 17;
+		}
+	}
+
+	std::vector<int> framepos;
+	framepos.resize(nframes);
+	framepos[0] = CPARS-1;
+	for(int i = 1 ; i < nframes ; i++){
+		framepos[i] = framepos[i-1] + sizearr[i-1];
+	}
+
+
+	int totalsize = std::accumulate(sizearr.begin(),sizearr.end(),CPARS);
+	MatXX H_tmp = H;
+	VecX b_tmp = b;
+	H.conservativeResize(totalsize,totalsize);
+	b.conservativeResize(totalsize);
+	H.setZero();
+	b.setZero();
+
+	b.head(CPARS) = b_tmp.head(CPARS);
+	H.topLeftCorner(CPARS,CPARS)=H_tmp.topLeftCorner(CPARS,CPARS);
+
+	for(int indexi=0;indexi < nframes; indexi++)
+	{
+		b.segment<8>(framepos[indexi]) = b_tmp.segment<8>(CPARS+indexi*8);
+		H.block<CPARS,8>(0,framepos[indexi]) = H_tmp.block<CPARS,8>(0,CPARS+indexi*8);
+		for(int indexj=0;indexj<nFrames;indexj++)
+		{
+			H.block<8,8>(framepos[indexi],framepos[indexj])=H_tmp.block<8,8>(CPARS+indexi*8,CPARS+indexj*8);
+		}
+	}
+	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+}
+
+// from 11/8 to 8(only for vector)
+VecX EnergyFunctional::solutionreduce(VecX x)
+{
+	if(nFrames <=2 ){
+		std::cout<<"Do not call this function in vo model!"<<std::endl;
+		exit(0);
+	}
+	VecX x_tmp = x;
+	x.conservativeResize(CPARS+nFrames*8);
+	x.setZero();
+	x.head(CPARS) = x_tmp.head(CPARS);
+	for(int i=0;i < nFrames; i++)
+	{
+		x.segment<8>(CPARS+i*8) = x_tmp.segment<8>(frames[i]->reducedframepos);
+	}
+	return x;
+}
+
+// from 17 to 11/8(biases are nor used for now)
+void EnergyFunctional::statereduce(MatXX &H, VecX &b)
+{
+	if(nFrames <=2 ){
+		std::cout<<"Do not call this function in vo model!"<<std::endl;
+		exit(0);
+	}
+
+	std::vector<int> sizearr;
+	sizearr.resize(nFrames,8);
+	std::vector<int> reducedsizearr;
+	reducedsizearr.resize(nFrames,8);
+	for(int i=1;i<nFrames;i++){
+		if(frames[i]->data->imufactorvalid)
+		{
+			sizearr[i] = 17;
+			sizearr[i-1] = 17;
+			reducedsizearr[i] = 11;
+			reducedsizearr[i-1] = 11;
+		}
+		frames[i-1]->reducedstatesize = reducedsizearr[i-1];
+		frames[i]->reducedstatesize = reducedsizearr[i];
+	}
+	std::vector<int> framepos;
+	std::vector<int> reducedframepos;
+	framepos.resize(nFrames);
+	reducedframepos.resize(nFrames);
+	framepos[0] = CPARS-1;
+	reducedframepos[0] = CPARS-1;
+	frames[0]->framepos = framepos[0];
+	frames[0]->reducedframepos = reducedframepos[0];
+	for(int i = 1 ; i < nFrames ; i++){
+		framepos[i] = framepos[i-1] + sizearr[i-1];
+		reducedframepos[i] = reducedframepos[i-1] + reducedsizearr[i-1];
+		frames[i]->framepos = framepos[i];
+		frames[i]->reducedframepos = reducedframepos[i];
+	}
+	reducedtotalsize = std::accumulate(reducedsizearr.begin(),reducedsizearr.end(),CPARS);
+	MatXX H_tmp = H;
+	VecX b_tmp = b;
+
+	H.conservativeResize(reducedtotalsize,reducedtotalsize);
+	b.conservativeResize(reducedtotalsize);
+	H.setZero();
+	b.setZero();
+
+	b.head(CPARS) = b_tmp.head(CPARS);
+	H.topLeftCorner(CPARS,CPARS)=H_tmp.topLeftCorner(CPARS,CPARS);
+
+	int posi,posj,rposi,rposj,blocksize;
+	for(int i=0;i<nFrames;i++)
+	{
+
+		posi = framepos[i];
+		rposi = reducedframepos[i];
+		if(reducedsizearr[i] == 8) {
+			b.segment<8>(rposi) = b_tmp.segment<8>(posi);
+			H.block<CPARS, 8>(0, rposi) = H_tmp.block<CPARS, 8>(0, posi);
+			for (int j = 0; j < nFrames; j++) {
+				posj = framepos[j];
+				rposj = reducedframepos[j];
+				H.block<8, 8>(rposi, rposj)
+						= H_tmp.block<8, 8>(posi, posj);
+			}
+		}
+		else if(reducedsizearr[i] == 11)
+		{
+			b.segment<11>(rposi) = b_tmp.segment<11>(posi);
+			H.block<CPARS, 11>(0, rposi) = H_tmp.block<CPARS, 11>(0, posi);
+			for (int j = 0; j < nFrames; j++)
+			{
+				posj = framepos[j];
+				rposj = reducedframepos[j];
+				H.block<11, 11>(rposi, rposj)
+						= H_tmp.block<11, 11>(posi, posj);
+			}
+		}
+		else
+		{
+			assert(reducedsizearr[i] == 11|| reducedsizearr[i] == 8);
+		}
+	}
+
+
+	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+}
+
+//// brief: add those Kinematics constarints
+void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
+{
+    if(nFrames <=2 ){
+        std::cout<<"Do not call this function in vo model!"<<std::endl;
+        exit(0);
+    }
+    std::vector<int> sizearr;
+    sizearr.resize(nFrames,8);
+    for(int i=1;i<nFrames;i++){
+		if(frames[i]->data->imufactorvalid)
+            {
+                sizearr[i] = 17;
+                sizearr[i-1] = 17;
+            }
+		frames[i]->statesize = sizearr[i];
+		frames[i-1]->statesize = sizearr[i-1];
+    }
+    totalsize = std::accumulate(sizearr.begin(),sizearr.end(),CPARS);
+
+    H = MatXX::Zero(totalsize, totalsize);
+    b = VecX::Zero(totalsize);
+    int currentpos = CPARS-1;
+    for(int indexi=1;indexi<frames.size();indexi++)
+    {
+        if(!frames[indexi]->data->imufactorvalid)
+        {
+            currentpos += frames[indexi-1]->statesize;
+            continue;
+        }
+        Mat3434 H_temp;
+        Vec34 b_temp;
+        Mat1515 information_imu;
+        Vec15 res_imu;
+
+        H_temp.setZero();
+        b_temp.setZero();
+
+        information_imu = frames[indexi]->data->shell->getIMUcovarianceBA();
+        res_imu = frames[indexi]->data->kfimures;
+
+        Mat1517 J_imu_travb_previous;
+        J_imu_travb_previous.setZero();
+        J_imu_travb_previous.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 3);//J_imu_Rt_previous.block<15, 3>(0, 3);
+        J_imu_travb_previous.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 0);//J_imu_Rt_previous.block<15, 3>(0, 0);
+        J_imu_travb_previous.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_j.block<15, 3>(0, 0);//J_imu_v_previous.block<15, 3>(0, 0);
+
+        // ------------------ don't ignore the cross terms in hessian between i and jth poses ------------------
+        Mat1517 J_imu_travb_current;
+        J_imu_travb_current.setZero();
+        J_imu_travb_current.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 3);//J_imu_Rt.block<15, 3>(0, 3);
+        J_imu_travb_current.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 0);//J_imu_Rt.block<15, 3>(0, 0);
+        J_imu_travb_current.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_i.block<15, 3>(0, 0);//J_imu_v.block<15, 3>(0, 0);
+
+        Mat1534 J_imu_complete;
+        J_imu_complete.leftCols(17) = J_imu_travb_previous;
+        J_imu_complete.rightCols(17) = J_imu_travb_current;
+
+        H_temp.noalias() = J_imu_complete.transpose() * information_imu * J_imu_complete;
+        b_temp.noalias() = J_imu_complete.transpose() * information_imu * res_imu;
+
+        //// TODO: set the coressponding blocks in H_imu
+        H.block<34,34>(currentpos,currentpos) += H_temp;
+        b.segment<34>(currentpos) += b_temp;
+        currentpos += frames[indexi-1]->statesize;
+    }
+}
+
+
+void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian* HCalib){
+	if(setting_solverMode & SOLVER_USE_GN) lambda=0;
+	if(setting_solverMode & SOLVER_FIX_LAMBDA) lambda = 1e-5;
+
+	std::cout<<"sloving VI ba"<<std::endl;
+
+	assert(EFDeltaValid);
+	assert(EFAdjointsValid);
+	assert(EFIndicesValid);
+
+	MatXX HL_top, HA_top, H_sc , H_imu;
+	VecX  bL_top, bA_top, bM_top, b_sc, b_imu;
+
+	accumulateAF_MT(HA_top, bA_top,multiThreading);
+
+
+	accumulateLF_MT(HL_top, bL_top,multiThreading);
+
+
+	accumulateSCF_MT(H_sc, b_sc,multiThreading);
+
+	bM_top = (bM+ HM * getStitchedDeltaF());
+
+	accumulateIMU_ST(H_imu, b_imu);
+
+	MatXX HFinal_top;
+	VecX bFinal_top;
+
+	stateexpand(HA_top, bA_top);
+	stateexpand(HL_top, bL_top);
+	stateexpand(H_sc, b_sc);
+
+
+	HFinal_top = HL_top  + HA_top + H_imu;
+	//std::cout<<bL_top.rows()<<" "<<bM_top.rows()<<" "<<bA_top.rows()<<" "<<b_sc.rows() <<std::endl;
+	bFinal_top = bL_top  + bA_top - b_sc + b_imu;
+
+	lastHS = HFinal_top - H_sc;
+	lastbS = bFinal_top;
+
+
+
+
+
+	for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
+	HFinal_top -= H_sc * (1.0f/(1+lambda));
+
+
+	VecX x;
+	if(setting_solverMode & SOLVER_SVD)
+	{
+		VecX SVecI = HFinal_top.diagonal().cwiseSqrt().cwiseInverse();
+		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
+		VecX bFinalScaled  = SVecI.asDiagonal() * bFinal_top;
+		Eigen::JacobiSVD<MatXX> svd(HFinalScaled, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+		VecX S = svd.singularValues();
+		double minSv = 1e10, maxSv = 0;
+		for(int i=0;i<S.size();i++)
+		{
+			if(S[i] < minSv) minSv = S[i];
+			if(S[i] > maxSv) maxSv = S[i];
+		}
+
+		VecX Ub = svd.matrixU().transpose()*bFinalScaled;
+		int setZero=0;
+		for(int i=0;i<Ub.size();i++)
+		{
+			if(S[i] < setting_solverModeDelta*maxSv)
+			{ Ub[i] = 0; setZero++; }
+
+			if((setting_solverMode & SOLVER_SVD_CUT7) && (i >= Ub.size()-7))
+			{ Ub[i] = 0; setZero++; }
+
+			else Ub[i] /= S[i];
+		}
+		x = SVecI.asDiagonal() * svd.matrixV() * Ub;
+
+	}
+	else
+	{
+		statereduce(HFinal_top,bFinal_top);
+		VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
+		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
+		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
+	}
+
+
+	//// Todo: reduce the state to 8 for orthogonalization and after this operation, change it back
+//	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
+//	{
+//
+//		VecX xOld = x;
+//		orthogonalize(&x, 0);
+//	}
+
+
+	lastX = x;
+
+	//resubstituteF(x, HCalib);
+	currentLambda= lambda;
+	VIresubstituteF_MT(x, HCalib,multiThreading);
+	currentLambda=0;
+
+}
+
+void EnergyFunctional::VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
+{
+	assert(x.size() == CPARS+nFrames*17);
+	// calculate pose, a, b steps
+	resubstituteF_MT(solutionreduce(x), HCalib, MT);
+
+	// calculate velocity step
+	for(EFFrame* h : frames)
+	{
+		if(h->statesize != 8) {
+			h->data->vstep = -x.segment<3>(h->reducedframepos + 8);
+			// TODO: update this to optimize the bias
+			h->data->biasstep.setZero();
+			std::cout << "the velocity step of the frame" << h->frameID << " after:\n" << h->data->vstep << std::endl;
+		}
+	}
+
+	// calculate bias step
+}
+
 void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 {
 

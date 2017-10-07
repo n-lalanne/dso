@@ -1887,17 +1887,19 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 //	{
 //		marginalizeFrame(frameHessians.front());
 //	}
-//
-//	// clear all the prior factor since we're relinearizing
+
+	// clear all the prior factor since we're relinearizing
 //	ef->HM.setZero();
 //	ef->bM.setZero();
+
+//	for(FrameHessian* kf : frameHessians)
+//	{
+//		kf->setvbEvalPT();
+//	}
 
 	coarseTracker->makeCoarseDepthL0(frameHessians);
 	coarseTracker_forNewKF->makeCoarseDepthL0(frameHessians);
 
-	for(FrameHessian* kf : frameHessians){
-		kf->setvbEvalPT();
-	}
 
 	return;
 }
@@ -2468,6 +2470,7 @@ void FullSystem::updateimufactors(FrameHessian* Frame){
 				dt
 		);
 	}
+	Framenext->needrelin = true;
 }
 
 void FullSystem::initializeFromInitializer(FrameHessian* newFrame)

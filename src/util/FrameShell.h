@@ -75,6 +75,7 @@ public:
 	PreintegrationType *imu_preintegrated_last_kf_;
 
     CombinedImuFactor *imu_factor_last_frame_;
+	CombinedImuFactor *imu_factor_last_kf_;
 
 	// Predicted pose/biases ;
 	gtsam::NavState navstate;
@@ -136,6 +137,14 @@ public:
     gtsam::NavState PredictPose(gtsam::NavState ref_pose_imu, double lastTimestamp);
 
 	Mat1515 getIMUcovariance();
+	Mat1515 getIMUcovarianceBA();
+
+	void linearizeImuFactorLastKeyFrame(
+			gtsam::NavState previouskf_navstate,
+			gtsam::NavState current_navstate,
+			gtsam::imuBias::ConstantBias previouskf_bias,
+			gtsam::imuBias::ConstantBias current_bias
+	);
 
     /**
      *
@@ -151,7 +160,26 @@ public:
 	/**
 	 *
 	 * @param J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias: output jacobians
-	 * @return IMU residuals (9x1 vector)
+	 * @return IMU residuals (15x1 vector)
+	 */
+
+	Vec15 evaluateIMUerrorsBA(
+			gtsam::NavState previous_navstate,
+			gtsam::NavState current_navstate,
+			gtsam::imuBias::ConstantBias previous_bias,
+			gtsam::imuBias::ConstantBias current_bias,
+			gtsam::Matrix &J_imu_Rt_i,
+			gtsam::Matrix &J_imu_v_i,
+			gtsam::Matrix &J_imu_Rt_j,
+			gtsam::Matrix &J_imu_v_j,
+			gtsam::Matrix &J_imu_bias_i,
+			gtsam::Matrix &J_imu_bias_j
+	);
+
+	/**
+	 *
+	 * @param J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias: output jacobians
+	 * @return IMU residuals (15x1 vector)
 	 */
 	Vec15 evaluateIMUerrors(
 			gtsam::NavState previous_navstate,

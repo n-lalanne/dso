@@ -7,6 +7,12 @@ Mat1515 FrameShell::getIMUcovariance()
     return preint_imu->preintMeasCov();
 }
 
+Mat1515 FrameShell::getIMUcovarianceBA()
+{
+    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_kf_);
+    return preint_imu->preintMeasCov();
+}
+
 Vec3 FrameShell::TWB()
 {
     Mat44 Twc = camToWorld.matrix();
@@ -21,6 +27,43 @@ FrameShell::~FrameShell()
     {
         delete imu_factor_last_frame_;
     }
+}
+
+void FrameShell::linearizeImuFactorLastKeyFrame(
+        gtsam::NavState previouskf_navstate,
+        gtsam::NavState current_navstate,
+        gtsam::imuBias::ConstantBias previouskf_bias,
+        gtsam::imuBias::ConstantBias current_bias
+)
+{
+    if(!fh->needrelin) return;
+    PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_kf_);
+    if (!imu_factor_last_kf_)
+    {
+        imu_factor_last_kf_ = new CombinedImuFactor(
+                X(0), V(0),
+                X(1), V(1),
+                B(0), B(1),
+                *preint_imu
+        );
+    }
+    else
+    {
+        *imu_factor_last_kf_ = CombinedImuFactor(
+                X(0), V(0),
+                X(1), V(1),
+                B(0), B(1),
+                *preint_imu
+        );
+    }
+    Values initial_values;
+    initial_values.insert(X(0), previouskf_navstate.pose());
+    initial_values.insert(X(1), current_navstate.pose());
+    initial_values.insert(V(0), previouskf_navstate.velocity());
+    initial_values.insert(V(1), current_navstate.velocity());
+    initial_values.insert(B(0), previouskf_bias);
+    initial_values.insert(B(1), current_bias);
+    imu_factor_last_kf_->linearize(initial_values);
 }
 
 void FrameShell::linearizeImuFactorLastFrame(
@@ -60,6 +103,27 @@ void FrameShell::linearizeImuFactorLastFrame(
     initial_values.insert(B(1), current_bias);
 
     imu_factor_last_frame_->linearize(initial_values);
+}
+
+Vec15 FrameShell::evaluateIMUerrorsBA(
+        gtsam::NavState previous_navstate,
+        gtsam::NavState current_navstate,
+        gtsam::imuBias::ConstantBias previous_bias,
+        gtsam::imuBias::ConstantBias current_bias,
+        gtsam::Matrix &J_imu_Rt_i,
+        gtsam::Matrix &J_imu_v_i,
+        gtsam::Matrix &J_imu_Rt_j,
+        gtsam::Matrix &J_imu_v_j,
+        gtsam::Matrix &J_imu_bias_i,
+        gtsam::Matrix &J_imu_bias_j
+)
+{
+    Vec15 resreturn = imu_factor_last_kf_->evaluateError(
+            previous_navstate.pose(), previous_navstate.velocity(), current_navstate.pose(), current_navstate.velocity(),
+            previous_bias, current_bias,
+            J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
+    );
+    return resreturn;
 }
 
 Vec15 FrameShell::evaluateIMUerrors(
