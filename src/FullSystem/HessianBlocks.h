@@ -250,6 +250,7 @@ struct FrameHessian
 
 	void setvbEvalPT();
 	double getkfimufactor(FrameHessian * prevfh );
+    void updateimufactor(double svitimestamp);
 
 
 	void setStateZero(const Vec10 &state_zero);

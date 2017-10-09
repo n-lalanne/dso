@@ -456,6 +456,23 @@ float FullSystem::optimize(int mnumOptIts)
 		applyRes_Reductor(true,0,activeResiduals.size(),0,0);
 
 
+    //============================ linearize the imu factors for each keyframe(only for consecutive keyframes)=======
+    double lastIMUEnergy = 0.0;
+    int imufactorcount = 0;
+    if(isIMUinitialized())
+    {
+        for(int i=1;i<frameHessians.size();i++)
+        {
+            if(frameHessians[i]->imufactorvalid)
+            {
+                std::cout<<"Time gap is :"<<frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp<<std::endl;
+                lastIMUEnergy+=frameHessians[i]->getkfimufactor(frameHessians[i-1]);
+                imufactorcount++;
+            }
+        }
+        lastIMUEnergy /= imufactorcount;
+    }
+
     if(!setting_debugout_runquiet)
     {
         printf("Initial Error       \t");
@@ -622,8 +639,9 @@ void FullSystem::solveSystem(int iteration, double lambda)
 			ef->lastNullspaces_scale,
 			ef->lastNullspaces_affA,
 			ef->lastNullspaces_affB);
-
-	ef->solveSystemF(iteration, lambda,&Hcalib);
+    if(isIMUinitialized())
+        ef->solveVISystemF(iteration,lambda,&Hcalib);
+	else ef->solveSystemF(iteration, lambda,&Hcalib);
 }
 
 

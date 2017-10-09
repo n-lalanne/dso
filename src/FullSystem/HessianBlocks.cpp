@@ -194,10 +194,10 @@ double FrameHessian::getkfimufactor(FrameHessian * host){
         gtsam::imuBias::ConstantBias current_bias_evalPT = gtsam::imuBias::ConstantBias(bias_evalPT);
         previous_navstate_evalPT = host->navstate_evalPT;
         current_navstate_evalPT = navstate_evalPT;
-//		std::cout<<"previous_navstate_evalPT:"<<previous_navstate_evalPT<<std::endl;
-//		std::cout<<"current_navstate_evalPT:"<<current_navstate_evalPT<<std::endl;
-//		std::cout<<"previous_bias_evalPT"<<previous_bias_evalPT<<std::endl;
-//		std::cout<<"current_bias_evalPT"<<current_bias_evalPT<<std::endl;
+		std::cout<<"previous_navstate_evalPT:"<<previous_navstate_evalPT<<std::endl;
+		std::cout<<"current_navstate_evalPT:"<<current_navstate_evalPT<<std::endl;
+		std::cout<<"previous_bias_evalPT"<<previous_bias_evalPT<<std::endl;
+		std::cout<<"current_bias_evalPT"<<current_bias_evalPT<<std::endl;
         shell->linearizeImuFactorLastKeyFrame(previous_navstate_evalPT,current_navstate_evalPT,previous_bias_evalPT,current_bias_evalPT);
         needrelin = false;
     }
@@ -211,102 +211,128 @@ double FrameHessian::getkfimufactor(FrameHessian * host){
     return imuenergy;
 }
 
-void FrameHessian::makeImages(float* color, CalibHessian* HCalib, std::vector<dso_vi::IMUData>& vimuData)
-{
 
-	for(int i=0;i<pyrLevelsUsed;i++)
-	{
-		dIp[i] = new Eigen::Vector3f[wG[i]*hG[i]];
-		absSquaredGrad[i] = new float[wG[i]*hG[i]];
-	}
-	dI = dIp[0];
+void FrameHessian::updateimufactor(double sviTimestamp) {
+	shell->imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), shell->bias);
+	for (size_t i = 0; i < imu_kf_buff.size(); i++) {
+		dso_vi::IMUData imudata = imu_kf_buff[i];
 
-
-	// make d0
-	int w=wG[0];
-	int h=hG[0];
-	for(int i=0;i<w*h;i++)
-		dI[i][0] = color[i];
-
-	for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
-	{
-		int wl = wG[lvl], hl = hG[lvl];
-		Eigen::Vector3f* dI_l = dIp[lvl];
-
-		float* dabs_l = absSquaredGrad[lvl];
-		if(lvl>0)
-		{
-			int lvlm1 = lvl-1;
-			int wlm1 = wG[lvlm1];
-			Eigen::Vector3f* dI_lm = dIp[lvlm1];
-
-
-
-			for(int y=0;y<hl;y++)
-				for(int x=0;x<wl;x++)
-				{
-					dI_l[x + y*wl][0] = 0.25f * (dI_lm[2*x   + 2*y*wlm1][0] +
-												dI_lm[2*x+1 + 2*y*wlm1][0] +
-												dI_lm[2*x   + 2*y*wlm1+wlm1][0] +
-												dI_lm[2*x+1 + 2*y*wlm1+wlm1][0]);
-				}
+		Mat61 rawimudata;
+		rawimudata << imudata._a(0), imudata._a(1), imudata._a(2),
+				imudata._g(0), imudata._g(1), imudata._g(2);
+		if (imudata._t < sviTimestamp)continue;
+		double dt = 0;
+		// interpolate readings
+		if (i == imu_kf_buff.size() - 1) {
+			dt = shell->viTimestamp - imudata._t;
+		} else {
+			dt = imu_kf_buff[i + 1]._t - imudata._t;
 		}
 
-		for(int idx=wl;idx < wl*(hl-1);idx++)
-		{
-			float dx = 0.5f*(dI_l[idx+1][0] - dI_l[idx-1][0]);
-			float dy = 0.5f*(dI_l[idx+wl][0] - dI_l[idx-wl][0]);
+		if (i == 0) {
+			// assuming the missing imu reading between the previous frame and first IMU
+			dt += (imudata._t - sviTimestamp);
+		}
+
+		assert(dt >= 0);
+
+		shell->imu_preintegrated_last_kf_->integrateMeasurement(
+				rawimudata.block<3, 1>(0, 0),
+				rawimudata.block<3, 1>(3, 0),
+				dt
+		);
+		needrelin = true;
+	}
+}
+
+	void FrameHessian::makeImages(float *color, CalibHessian *HCalib, std::vector<dso_vi::IMUData> &vimuData) {
+
+		for (int i = 0; i < pyrLevelsUsed; i++) {
+			dIp[i] = new Eigen::Vector3f[wG[i] * hG[i]];
+			absSquaredGrad[i] = new float[wG[i] * hG[i]];
+		}
+		dI = dIp[0];
 
 
-			if(!std::isfinite(dx)) dx=0;
-			if(!std::isfinite(dy)) dy=0;
+		// make d0
+		int w = wG[0];
+		int h = hG[0];
+		for (int i = 0; i < w * h; i++)
+			dI[i][0] = color[i];
 
-			dI_l[idx][1] = dx;
-			dI_l[idx][2] = dy;
+		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++) {
+			int wl = wG[lvl], hl = hG[lvl];
+			Eigen::Vector3f *dI_l = dIp[lvl];
+
+			float *dabs_l = absSquaredGrad[lvl];
+			if (lvl > 0) {
+				int lvlm1 = lvl - 1;
+				int wlm1 = wG[lvlm1];
+				Eigen::Vector3f *dI_lm = dIp[lvlm1];
 
 
-			dabs_l[idx] = dx*dx+dy*dy;
+				for (int y = 0; y < hl; y++)
+					for (int x = 0; x < wl; x++) {
+						dI_l[x + y * wl][0] = 0.25f * (dI_lm[2 * x + 2 * y * wlm1][0] +
+													   dI_lm[2 * x + 1 + 2 * y * wlm1][0] +
+													   dI_lm[2 * x + 2 * y * wlm1 + wlm1][0] +
+													   dI_lm[2 * x + 1 + 2 * y * wlm1 + wlm1][0]);
+					}
+			}
 
-			if(setting_gammaWeightsPixelSelect==1 && HCalib!=0)
-			{
-				float gw = HCalib->getBGradOnly((float)(dI_l[idx][0]));
-				dabs_l[idx] *= gw*gw;	// convert to gradient of original color space (before removing response).
+			for (int idx = wl; idx < wl * (hl - 1); idx++) {
+				float dx = 0.5f * (dI_l[idx + 1][0] - dI_l[idx - 1][0]);
+				float dy = 0.5f * (dI_l[idx + wl][0] - dI_l[idx - wl][0]);
+
+
+				if (!std::isfinite(dx)) dx = 0;
+				if (!std::isfinite(dy)) dy = 0;
+
+				dI_l[idx][1] = dx;
+				dI_l[idx][2] = dy;
+
+
+				dabs_l[idx] = dx * dx + dy * dy;
+
+				if (setting_gammaWeightsPixelSelect == 1 && HCalib != 0) {
+					float gw = HCalib->getBGradOnly((float) (dI_l[idx][0]));
+					dabs_l[idx] *=
+							gw * gw;    // convert to gradient of original color space (before removing response).
+				}
 			}
 		}
 	}
+
+	void FrameFramePrecalc::set(FrameHessian *host, FrameHessian *target, CalibHessian *HCalib) {
+		this->host = host;
+		this->target = target;
+
+		SE3 leftToLeft_0 = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
+		PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();
+		PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
+
+
+		SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
+		PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
+		PRE_tTll = (leftToLeft.translation()).cast<float>();
+		distanceLL = leftToLeft.translation().norm();
+
+
+		Mat33f K = Mat33f::Zero();
+		K(0, 0) = HCalib->fxl();
+		K(1, 1) = HCalib->fyl();
+		K(0, 2) = HCalib->cxl();
+		K(1, 2) = HCalib->cyl();
+		K(2, 2) = 1;
+		PRE_KRKiTll = K * PRE_RTll * K.inverse();
+		PRE_RKiTll = PRE_RTll * K.inverse();
+		PRE_KtTll = K * PRE_tTll;
+
+
+		PRE_aff_mode = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l(),
+												   target->aff_g2l()).cast<float>();
+		PRE_b0_mode = host->aff_g2l_0().b;
+	}
+
+
 }
-
-void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )
-{
-	this->host = host;
-	this->target = target;
-
-	SE3 leftToLeft_0 = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
-	PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();
-	PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
-
-
-
-	SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
-	PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
-	PRE_tTll = (leftToLeft.translation()).cast<float>();
-	distanceLL = leftToLeft.translation().norm();
-
-
-	Mat33f K = Mat33f::Zero();
-	K(0,0) = HCalib->fxl();
-	K(1,1) = HCalib->fyl();
-	K(0,2) = HCalib->cxl();
-	K(1,2) = HCalib->cyl();
-	K(2,2) = 1;
-	PRE_KRKiTll = K * PRE_RTll * K.inverse();
-	PRE_RKiTll = PRE_RTll * K.inverse();
-	PRE_KtTll = K * PRE_tTll;
-
-
-	PRE_aff_mode = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l(), target->aff_g2l()).cast<float>();
-	PRE_b0_mode = host->aff_g2l_0().b;
-}
-
-}
-

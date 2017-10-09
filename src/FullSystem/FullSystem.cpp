@@ -1895,7 +1895,16 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 //	for(FrameHessian* kf : frameHessians)
 //	{
 //		kf->setvbEvalPT();
+//		kf->updateimufactor();
 //	}
+
+	for(int i=0;i<frameHessians.size();i++)
+	{
+		frameHessians[i]->setvbEvalPT();
+		if(i>=1&&frameHessians[i]->imufactorvalid){
+			frameHessians[i]->updateimufactor(frameHessians[i-1]->shell->viTimestamp);
+		}
+	}
 
 	coarseTracker->makeCoarseDepthL0(frameHessians);
 	coarseTracker_forNewKF->makeCoarseDepthL0(frameHessians);
@@ -2242,7 +2251,12 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 		assert(fh->shell->trackingRef != 0);
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
-		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
+        if(isIMUinitialized())
+        {
+            fh->setnavEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->navstate.velocity(),
+                                  fh->shell->bias.vector(), fh->shell->aff_g2l);
+        }
+        else fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 	}
 
 	fh->imu_kf_buff.insert(fh->imu_kf_buff.end(),mvIMUSinceLastKF.begin(),mvIMUSinceLastKF.end());
@@ -2435,42 +2449,39 @@ void FullSystem::updateimufactors(FrameHessian* Frame){
     Framenext->imu_kf_buff.clear();
     Framenext->imu_kf_buff.insert(Framenext->imu_kf_buff.end(),IMUdataSinceLastKFbak.begin(),IMUdataSinceLastKFbak.end());
 
-	Framenext->shell->imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), Framenext->shell->bias);
-
-	for (size_t i = 0; i < Framenext->imu_kf_buff.size(); i++)
+	if(isIMUinitialized())
 	{
-		dso_vi::IMUData imudata = Framenext->imu_kf_buff[i];
+		Framenext->shell->imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), Framenext->shell->bias);
+		for (size_t i = 0; i < Framenext->imu_kf_buff.size(); i++) {
+			dso_vi::IMUData imudata = Framenext->imu_kf_buff[i];
 
-		Mat61 rawimudata;
-		rawimudata << 	imudata._a(0), imudata._a(1), imudata._a(2),
-				imudata._g(0), imudata._g(1), imudata._g(2);
-		if(imudata._t < Frameprev->shell->viTimestamp)continue;
-		double dt = 0;
-		// interpolate readings
-		if (i == Framenext->imu_kf_buff.size() - 1)
-		{
-			dt = eviTimestamp - imudata._t;
+			Mat61 rawimudata;
+			rawimudata << imudata._a(0), imudata._a(1), imudata._a(2),
+					imudata._g(0), imudata._g(1), imudata._g(2);
+			if (imudata._t < Frameprev->shell->viTimestamp)continue;
+			double dt = 0;
+			// interpolate readings
+			if (i == Framenext->imu_kf_buff.size() - 1) {
+				dt = eviTimestamp - imudata._t;
+			} else {
+				dt = Framenext->imu_kf_buff[i + 1]._t - imudata._t;
+			}
+
+			if (i == 0) {
+				// assuming the missing imu reading between the previous frame and first IMU
+				dt += (imudata._t - sviTimestamp);
+			}
+
+			assert(dt >= 0);
+
+			Framenext->shell->imu_preintegrated_last_kf_->integrateMeasurement(
+					rawimudata.block<3, 1>(0, 0),
+					rawimudata.block<3, 1>(3, 0),
+					dt
+			);
 		}
-		else
-		{
-			dt = Framenext->imu_kf_buff[i+1]._t - imudata._t;
-		}
-
-		if (i == 0)
-		{
-			// assuming the missing imu reading between the previous frame and first IMU
-			dt += (imudata._t - sviTimestamp);
-		}
-
-		assert(dt >= 0);
-
-		Framenext->shell->imu_preintegrated_last_kf_->integrateMeasurement(
-				rawimudata.block<3,1>(0,0),
-				rawimudata.block<3,1>(3,0),
-				dt
-		);
+		Framenext->needrelin = true;
 	}
-	Framenext->needrelin = true;
 }
 
 void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
