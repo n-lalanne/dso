@@ -124,6 +124,7 @@ public:
         imu_preintegrated_last_frame_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
 		imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), bias);
         imu_factor_last_frame_ = NULL;
+		imu_factor_last_kf_ = NULL;
 
 	}
 

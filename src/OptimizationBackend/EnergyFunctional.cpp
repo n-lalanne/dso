@@ -807,6 +807,8 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
 	}
 
+    std::cout<<"The vi incremnt is :"<<x.transpose()<<std::endl;
+
 
 	//// Todo: reduce the state to 8 for orthogonalization and after this operation, change it back
 //	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))

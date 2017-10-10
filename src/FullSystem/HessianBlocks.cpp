@@ -206,8 +206,14 @@ double FrameHessian::getkfimufactor(FrameHessian * host){
     gtsam::imuBias::ConstantBias PRE_previous_bias = gtsam::imuBias::ConstantBias(host->PRE_bias);
     gtsam::imuBias::ConstantBias PRE_current_bias = gtsam::imuBias::ConstantBias(PRE_bias);
     kfimures  = shell->evaluateIMUerrorsBA(PRE_previous_navstate, PRE_current_navstate, PRE_previous_bias, PRE_current_bias, J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j);
-    kfimuinfo = shell->getIMUcovarianceBA();
-    imuenergy = kfimures.transpose() * kfimuinfo * kfimures;
+    kfimuinfo = shell->getIMUcovarianceBA().inverse();
+	kfimuinfo.rightCols(6).setZero();
+	kfimuinfo.bottomRows(6).setZero();
+	std::cout<<"kfimures:"<<kfimures.transpose()<<std::endl;
+	std::cout<<"kfimuinfo:"<<kfimuinfo.diagonal().transpose()<<std::endl;
+
+	imuenergy = kfimures.transpose() * kfimuinfo * kfimures;
+	std::cout<<"imuenergy:"<<imuenergy<<std::endl;
     return imuenergy;
 }
 

@@ -323,6 +323,8 @@ void FullSystem::backupState(bool backupLastStep)
 			{
 				fh->step_backup = fh->step;
 				fh->state_backup = fh->get_state();
+				fh->vstate_backup = fh->get_vstate();
+				fh->biasstate_backup = fh->get_biasstate();
 				for(PointHessian* ph : fh->pointHessians)
 				{
 					ph->idepth_backup = ph->idepth;
@@ -352,6 +354,8 @@ void FullSystem::backupState(bool backupLastStep)
 		for(FrameHessian* fh : frameHessians)
 		{
 			fh->state_backup = fh->get_state();
+			fh->vstate_backup = fh->get_vstate();
+			fh->biasstate_backup = fh->get_biasstate();
 			for(PointHessian* ph : fh->pointHessians)
 				ph->idepth_backup = ph->idepth;
 		}
@@ -364,7 +368,8 @@ void FullSystem::loadSateBackup()
 	Hcalib.setValue(Hcalib.value_backup);
 	for(FrameHessian* fh : frameHessians)
 	{
-		fh->setState(fh->state_backup);
+		if(!isIMUinitialized())fh->setState(fh->state_backup);
+		else fh->setnavState(fh->state_backup,fh->vstate_backup,fh->biasstate_backup);
 		for(PointHessian* ph : fh->pointHessians)
 		{
 			ph->setIdepth(ph->idepth_backup);
@@ -457,7 +462,7 @@ float FullSystem::optimize(int mnumOptIts)
 
 
     //============================ linearize the imu factors for each keyframe(only for consecutive keyframes)=======
-    double lastIMUEnergy = 0.0;
+    volatile double lastIMUEnergy = 0.0;
     int imufactorcount = 0;
     if(isIMUinitialized())
     {
@@ -465,7 +470,7 @@ float FullSystem::optimize(int mnumOptIts)
         {
             if(frameHessians[i]->imufactorvalid)
             {
-                std::cout<<"Time gap is :"<<frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp<<std::endl;
+                //std::cout<<"Time gap is :"<<frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp<<std::endl;
                 lastIMUEnergy+=frameHessians[i]->getkfimufactor(frameHessians[i-1]);
                 imufactorcount++;
             }
@@ -519,14 +524,26 @@ float FullSystem::optimize(int mnumOptIts)
 		double newEnergyL = calcLEnergy();
 		double newEnergyM = calcMEnergy();
 
-
+		double newIMUEnergy = 0.0;
+		if(isIMUinitialized())
+		{
+			for(int i=1;i<frameHessians.size();i++)
+			{
+				if(frameHessians[i]->imufactorvalid)
+				{
+					//std::cout<<"Time gap is :"<<frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp<<std::endl;
+					newIMUEnergy+=frameHessians[i]->getkfimufactor(frameHessians[i-1]);
+				}
+			}
+			newIMUEnergy /= imufactorcount;
+		}
 
 
         if(!setting_debugout_runquiet)
         {
             printf("%s %d (L %.2f, dir %.2f, ss %.1f): \t",
-				(newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM <
-						lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM) ? "ACCEPT" : "REJECT",
+				(newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM +  newIMUEnergy<
+						lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM + lastIMUEnergy) ? "ACCEPT" : "REJECT",
 				iteration,
 				log10(lambda),
 				incDirChange,
@@ -534,8 +551,12 @@ float FullSystem::optimize(int mnumOptIts)
             printOptRes(newEnergy, newEnergyL, newEnergyM , 0, 0, frameHessians.back()->aff_g2l().a, frameHessians.back()->aff_g2l().b);
         }
 
-		if(setting_forceAceptStep || (newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM <
-				lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM))
+		if(isIMUinitialized()){
+			std::cout<<"newEnergy[0]: "<<newEnergy[0]<<" newEnergy[1]: " <<newEnergy[1]<<" newIMUEnergy: "<<newIMUEnergy<<std::endl;
+		}
+
+		if(setting_forceAceptStep || (newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM + newIMUEnergy <
+				lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM + lastIMUEnergy))
 		{
 
 			if(multiThreading)
@@ -546,7 +567,7 @@ float FullSystem::optimize(int mnumOptIts)
 			lastEnergy = newEnergy;
 			lastEnergyL = newEnergyL;
 			lastEnergyM = newEnergyM;
-
+			if(isIMUinitialized())lastIMUEnergy = newIMUEnergy;
 			lambda *= 0.25;
 		}
 		else
@@ -608,13 +629,15 @@ float FullSystem::optimize(int mnumOptIts)
 			fh->shell->aff_g2l = fh->aff_g2l();
 			if(isIMUinitialized()) {
 				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
-				SE3 newC2W = fh->shell->camToWorld;
-				SE3 oldB2W = SE3(fh->shell->navstate.pose().matrix());
-				Vec3 oldV = fh->shell->navstate.v();
-				SE3 newB2W = newC2W * SE3(getTbc()).inverse();
-				Mat33 old2new = newB2W.rotationMatrix().inverse() * oldB2W.rotationMatrix();
-				Vec3 newV = old2new * oldV;
-				fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), newV);
+				fh->shell->navstate = fh->PRE_navstate;
+//				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
+//				SE3 newC2W = fh->shell->camToWorld;
+//				SE3 oldB2W = SE3(fh->shell->navstate.pose().matrix());
+//				Vec3 oldV = fh->shell->navstate.v();
+//				SE3 newB2W = newC2W * SE3(getTbc()).inverse();
+//				Mat33 old2new = newB2W.rotationMatrix().inverse() * oldB2W.rotationMatrix();
+//				Vec3 newV = old2new * oldV;
+//				fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), newV);
 			}
 		}
 	}

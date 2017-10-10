@@ -4,12 +4,14 @@
 Mat1515 FrameShell::getIMUcovariance()
 {
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
+    std::cout<<"or info:"<<preint_imu->preintMeasCov().diagonal().transpose()<<std::endl;
     return preint_imu->preintMeasCov();
 }
 
 Mat1515 FrameShell::getIMUcovarianceBA()
 {
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_kf_);
+    std::cout<<"info:"<<preint_imu->preintMeasCov().diagonal().transpose()<<std::endl;
     return preint_imu->preintMeasCov();
 }
 

@@ -647,21 +647,21 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 //    std::cout << "J_imu: \n " << J_imu_travb << std::endl;
     //std::cout<<" res_imu:\n"<<res_imu.transpose()<<std::endl;
     //std::cout<<" information_imu: \n"<<information_imu.diagonal().transpose()<<std::endl;
-	std::cout<<"J_imu\n"<<J_imu_travb.transpose()<<std::endl;
-	std::cout<<"information:\n"<<information_imu.diagonal().transpose()<<std::endl;
-	std::cout << "H_imu: \n" << H_imu_travb.topLeftCorner<11,11>() << std::endl;
-	std::cout << "b_imu: \n" << b_imu_travb.segment<11>(0).transpose() << std::endl;
-
-    std::cout << "before adding: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
-    std::cout << "before adding: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+//	std::cout<<"J_imu\n"<<J_imu_travb.transpose()<<std::endl;
+//	std::cout<<"information:\n"<<information_imu.diagonal().transpose()<<std::endl;
+//	std::cout << "H_imu: \n" << H_imu_travb.topLeftCorner<11,11>() << std::endl;
+//	std::cout << "b_imu: \n" << b_imu_travb.segment<11>(0).transpose() << std::endl;
+//
+//    std::cout << "before adding: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+//    std::cout << "before adding: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
 
 	if(fullSystem->addimu)
 	{
 		H_out += H_imu_travb;
 		b_out += b_imu_travb;
 	}
-	std::cout << "before rescale: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
-	std::cout << "before rescale: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+	//std::cout << "before rescale: H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+	//std::cout << "before rescale: b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
 
     H_unscaled.topLeftCorner<17, 17>() = H_out;
     b_unscaled.head(17) = b_out;
@@ -683,8 +683,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	b_out.segment<1>(7) *= SCALE_B;
 	b_out.segment<3>(8) *= SCALE_IMU_V;
 
-	std::cout << "H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
-	std::cout << "b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+//	std::cout << "H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
+//	std::cout << "b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
 
 
 //	H_out += H_imu_travb;
@@ -1333,7 +1333,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 			(newFrame->shell->groundtruth.pose.inverse() * lastRef->shell->groundtruth.pose).matrix()
 	));
 
-	std::cout << "Ref to new error: " << (refToNew_gt.inverse() * refToNew).log().transpose() << std::endl;
+	//std::cout << "Ref to new error: " << (refToNew_gt.inverse() * refToNew).log().transpose() << std::endl;
 
 	Mat33f RKi = (refToNew.rotationMatrix().cast<float>() * Ki[lvl]);
 	Vec3f t = (refToNew.translation()).cast<float>();
@@ -1545,7 +1545,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	if(priorEnergy<0.0)std::cout<<"priorEnergy is negative!!!"<<std::endl;
 	// TODO: make threshold a setting
 	float prior_huberTH = 50;
-	std::cout<<"priorEnergy(uncut): "<<priorEnergy<<std::endl;
+	//std::cout<<"priorEnergy(uncut): "<<priorEnergy<<std::endl;
 
 	if (priorEnergy > prior_huberTH)
 	{
@@ -1577,7 +1577,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	//std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
 	//std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
 	//std::cout<<"number of points:"<<numTermsInE<<std::endl;
-	std::cout<<"E vs IMU_error vs priorEnergy  is :"<<E <<" "<<IMUenergy<< " " <<priorEnergy<<" "<< lvl << std::endl;
+	//std::cout<<"E vs IMU_error vs priorEnergy  is :"<<E <<" "<<IMUenergy<< " " <<priorEnergy<<" "<< lvl << std::endl;
 
 	// calculate error wrt gt
 	Vec6 pose_error_current =  gtsam::Pose3::Logmap(gtsam::Pose3(
@@ -1590,11 +1590,11 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	));
 	Vec3 velocity_error_previous = previous_navstate.velocity() - fullSystem->T_dsoworld_eurocworld.topLeftCorner(3, 3) * newFrame->shell->last_frame->groundtruth.velocity;
 
-	std::cout << "error_j: " << pose_error_current.transpose() << " " << velocity_error_current.transpose() << std::endl;
-	std::cout << "error_i: " << pose_error_previous.transpose() << " " << velocity_error_previous.transpose() << std::endl;
+	//std::cout << "error_j: " << pose_error_current.transpose() << " " << velocity_error_current.transpose() << std::endl;
+	//std::cout << "error_i: " << pose_error_previous.transpose() << " " << velocity_error_previous.transpose() << std::endl;
 
 
-    std::cout<<"----------------------------------------------------------------"<<std::endl;
+    //std::cout<<"----------------------------------------------------------------"<<std::endl;
 //	E += IMUenergy;
 	if(fullSystem->addimu)
 	{
@@ -1967,7 +1967,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			for(int i=0;i<H.rows() ;i++) Hl(i,i) *= (1+lambda);
 			Vec32 inc = Vec32::Zero();
 
-			std::cout << "lambda: " << lambda << std::endl;
+			//std::cout << "lambda: " << lambda << std::endl;
 
 			if (!fullSystem->addimu)
 			{
@@ -2002,7 +2002,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				inc.head(11) = inc_temp.head(11);
 				inc.segment<9>(17) = inc_temp.tail(9);
 
-				std::cout << "Initial increment: " << inc_temp.transpose() << std::endl;
+				//std::cout << "Initial increment: " << inc_temp.transpose() << std::endl;
 
 //                inc = Hl.ldlt().solve(-b);
             }
@@ -2022,8 +2022,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
             incScaled.segment<3>(20) *= SCALE_XI_TRANS;
             incScaled.segment<3>(23) *= SCALE_IMU_V;
 
-			std::cout<<"increment_j: \n"<<incScaled.head(11).transpose()<<std::endl;
-            std::cout<<"increment_i: \n"<<incScaled.segment<9>(17).transpose()<<std::endl;
+			//std::cout<<"increment_j: \n"<<incScaled.head(11).transpose()<<std::endl;
+            //std::cout<<"increment_i: \n"<<incScaled.segment<9>(17).transpose()<<std::endl;
 
             if(!std::isfinite(incScaled.sum())) incScaled.setZero();
 
@@ -2165,10 +2165,10 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
     float velocity_direction_error = acos(
             velocity_gt.dot(navstate_out.velocity()) / (velocity_gt.norm() * navstate_out.velocity().norm())
     ) * 180 / M_PI;
-	std::cout<<"Optimized velocity: "<<navstate_out.velocity().transpose()
-            <<" GT: " << velocity_gt.transpose()<<std::endl
-            << "Angle error: " << velocity_direction_error << std::endl;
-	std::cout<<"Optimized velocity norm: "<<navstate_out.velocity().norm()<<" GT norm: "<<newFrame->shell->groundtruth.velocity.norm()<<std::endl;
+//	std::cout<<"Optimized velocity: "<<navstate_out.velocity().transpose()
+//            <<" GT: " << velocity_gt.transpose()<<std::endl
+//            << "Angle error: " << velocity_direction_error << std::endl;
+//	std::cout<<"Optimized velocity norm: "<<navstate_out.velocity().norm()<<" GT norm: "<<newFrame->shell->groundtruth.velocity.norm()<<std::endl;
 
 	// calculate error in gravity direction
 	Vec3 gravity_gt = newFrame->shell->last_frame->groundtruth.pose.rotation().matrix().bottomRows(1).transpose();
@@ -2177,17 +2177,17 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 		gravity_gt.dot(gravity_est) / (gravity_gt.norm() * gravity_est.norm())
 	) * 180 / M_PI;
 
-	std::cout << "Orientation error: " << gravity_error << std::endl;
-
-	std::cout << "Previous pose error: "
-			  << gtsam::Pose3::Logmap(navstate_i_gt.pose().inverse().compose(navstate_i_current.pose())).transpose() << " "
-			  << (navstate_i_current.velocity() - navstate_i_gt.velocity()).transpose()
-			  << std::endl;
-
-	std::cout << "Current pose error: "
-			  << gtsam::Pose3::Logmap(navstate_j_gt.pose().inverse().compose(navstate_j_current.pose())).transpose() << " "
-			  << (navstate_j_current.velocity() - navstate_j_gt.velocity()).transpose()
-			  << std::endl;
+//	std::cout << "Orientation error: " << gravity_error << std::endl;
+//
+//	std::cout << "Previous pose error: "
+//			  << gtsam::Pose3::Logmap(navstate_i_gt.pose().inverse().compose(navstate_i_current.pose())).transpose() << " "
+//			  << (navstate_i_current.velocity() - navstate_i_gt.velocity()).transpose()
+//			  << std::endl;
+//
+//	std::cout << "Current pose error: "
+//			  << gtsam::Pose3::Logmap(navstate_j_gt.pose().inverse().compose(navstate_j_current.pose())).transpose() << " "
+//			  << (navstate_j_current.velocity() - navstate_j_gt.velocity()).transpose()
+//			  << std::endl;
 
 //	std::cout<<" IMU version: affine a: "<< aff_g2l_out.a << "affine b_unscaled: "<< aff_g2l_out.b<<std::endl;
 //	std::cout<<" NAVSTATE: \n" << navstate_current.pose().matrix()<<std::endl;
@@ -2332,7 +2332,7 @@ void CoarseTracker::updatePriors()
 		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Prior_cov);
 		Eigen::MatrixXd Prior_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > 1e-6).select(saes.eigenvalues().array(), 0)).asDiagonal() * saes.eigenvectors().transpose();
 
-		std::cout << "Eigen values: " << Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd>(Prior_inv).eigenvalues().matrix().transpose() << std::endl;
+		//std::cout << "Eigen values: " << Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd>(Prior_inv).eigenvalues().matrix().transpose() << std::endl;
 		Eigen::LLT<Eigen::MatrixXd> lltOfA(Prior_inv); // compute the Cholesky decomposition of A
 		if(lltOfA.info() == Eigen::NumericalIssue)
 		{
@@ -2346,8 +2346,8 @@ void CoarseTracker::updatePriors()
 //		fullSystem->bprior = bb - Hbm.rightCols(15) * Hmm_inv * bm.tail(15);
 	}
 
-	std::cout << "Prior H: \n" << fullSystem->Hprior.topLeftCorner(9, 9) << std::endl
-			  << "Prior b: " << fullSystem->bprior.head(9).transpose() << std::endl;
+//	std::cout << "Prior H: \n" << fullSystem->Hprior.topLeftCorner(9, 9) << std::endl
+//			  << "Prior b: " << fullSystem->bprior.head(9).transpose() << std::endl;
 }
 
 void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::vector<IOWrap::Output3DWrapper*> &wraps)
