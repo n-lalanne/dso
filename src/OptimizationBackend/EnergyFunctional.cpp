@@ -515,8 +515,8 @@ void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
 			sizearr[i-1] = 17;
 		}
 	}
-	std::cout<<"H:\n "<<H.diagonal()<<std::endl;
-	std::cout<<"b:\n "<<b<<std::endl;
+//	std::cout<<"H:\n "<<H.diagonal()<<std::endl;
+//	std::cout<<"b:\n "<<b<<std::endl;
 	std::vector<int> framepos;
 	framepos.resize(nframes);
 	framepos[0] = CPARS;
@@ -546,8 +546,8 @@ void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
 		}
 	}
 	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
-	std::cout<<"(after extend)H:\n "<<H.diagonal()<<std::endl;
-	std::cout<<"(after extend)b:\n "<<b<<std::endl;
+//	std::cout<<"(after extend)H:\n "<<H.diagonal()<<std::endl;
+//	std::cout<<"(after extend)b:\n "<<b<<std::endl;
 }
 
 // from 11/8 to 8(only for vector)
@@ -700,7 +700,7 @@ void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
         H_temp.setZero();
         b_temp.setZero();
 
-        information_imu = frames[indexi]->data->shell->getIMUcovarianceBA();
+        information_imu = frames[indexi]->data->shell->getIMUcovarianceBA().inverse();
         res_imu = frames[indexi]->data->kfimures;
 
         Mat1517 J_imu_travb_previous;
