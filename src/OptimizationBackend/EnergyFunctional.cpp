@@ -510,14 +510,16 @@ void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
 	for(int i=1;i<nframes;i++){
 		if(frames[i]->data->imufactorvalid)
 		{
+			std::cout<< "frame "<<i <<" is valid"<<std::endl;
 			sizearr[i] = 17;
 			sizearr[i-1] = 17;
 		}
 	}
-
+	std::cout<<"H:\n "<<H.diagonal()<<std::endl;
+	std::cout<<"b:\n "<<b<<std::endl;
 	std::vector<int> framepos;
 	framepos.resize(nframes);
-	framepos[0] = CPARS-1;
+	framepos[0] = CPARS;
 	for(int i = 1 ; i < nframes ; i++){
 		framepos[i] = framepos[i-1] + sizearr[i-1];
 	}
@@ -544,6 +546,8 @@ void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
 		}
 	}
 	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+	std::cout<<"(after extend)H:\n "<<H.diagonal()<<std::endl;
+	std::cout<<"(after extend)b:\n "<<b<<std::endl;
 }
 
 // from 11/8 to 8(only for vector)
@@ -553,6 +557,7 @@ VecX EnergyFunctional::solutionreduce(VecX x)
 		std::cout<<"Do not call this function in vo model!"<<std::endl;
 		exit(0);
 	}
+	std::cout<<"x: "<<x.transpose()<<std::endl;
 	VecX x_tmp = x;
 	x.conservativeResize(CPARS+nFrames*8);
 	x.setZero();
@@ -562,6 +567,7 @@ VecX EnergyFunctional::solutionreduce(VecX x)
 		x.segment<8>(CPARS+i*8) = x_tmp.segment<8>(frames[i]->reducedframepos);
 	}
 	return x;
+	std::cout<<"after x: "<<x.transpose()<<std::endl;
 }
 
 // from 17 to 11/8(biases are nor used for now)
@@ -591,8 +597,8 @@ void EnergyFunctional::statereduce(MatXX &H, VecX &b)
 	std::vector<int> reducedframepos;
 	framepos.resize(nFrames);
 	reducedframepos.resize(nFrames);
-	framepos[0] = CPARS-1;
-	reducedframepos[0] = CPARS-1;
+	framepos[0] = CPARS;
+	reducedframepos[0] = CPARS;
 	frames[0]->framepos = framepos[0];
 	frames[0]->reducedframepos = reducedframepos[0];
 	for(int i = 1 ; i < nFrames ; i++){
@@ -602,6 +608,9 @@ void EnergyFunctional::statereduce(MatXX &H, VecX &b)
 		frames[i]->reducedframepos = reducedframepos[i];
 	}
 	reducedtotalsize = std::accumulate(reducedsizearr.begin(),reducedsizearr.end(),CPARS);
+
+	std::cout<<"H: "<<H.diagonal().transpose()<<std::endl;
+	std::cout<<"b: "<<b.transpose()<<std::endl;
 	MatXX H_tmp = H;
 	VecX b_tmp = b;
 
@@ -649,6 +658,8 @@ void EnergyFunctional::statereduce(MatXX &H, VecX &b)
 
 
 	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+	std::cout<<"after H: "<<H.diagonal().transpose()<<std::endl;
+	std::cout<<"after b: "<<b.transpose()<<std::endl;
 }
 
 //// brief: add those Kinematics constarints
@@ -743,8 +754,13 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 
 	bM_top = (bM+ HM * getStitchedDeltaF());
 
-	accumulateIMU_ST(H_imu, b_imu);
+	std::cout<<"vi model: bL_top:\n"<<bL_top<<std::endl;
+	std::cout<<"vi model: bM_top:\n"<<bM_top<<std::endl;
+	std::cout<<"vi model: bA_top:\n"<<bA_top<<std::endl;
+	std::cout<<"vi model: b_sc:\n"<<b_sc<<std::endl;
 
+	accumulateIMU_ST(H_imu, b_imu);
+	std::cout<<"vi model: b_imu:\n"<<b_imu<<std::endl;
 	MatXX HFinal_top;
 	VecX bFinal_top;
 
@@ -802,6 +818,7 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	else
 	{
 		statereduce(HFinal_top,bFinal_top);
+		std::cout<<"bFinal_top:\n"<<bFinal_top<<std::endl;
 		VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
 		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
@@ -1204,6 +1221,11 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		HFinal_top = HL_top + HM + HA_top;
 		bFinal_top = bL_top + bM_top + bA_top - b_sc;
 
+		std::cout<<"vo model: bL_top:\n"<<bL_top<<std::endl;
+		std::cout<<"vo model: bM_top:\n"<<bM_top<<std::endl;
+		std::cout<<"vo model: bA_top:\n"<<bA_top<<std::endl;
+		std::cout<<"vo model: b_sc:\n"<<b_sc<<std::endl;
+
 		lastHS = HFinal_top - H_sc;
 		lastbS = bFinal_top;
 
@@ -1249,6 +1271,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	}
 	else
 	{
+		std::cout<<"vo model: bFinal_top:\n"<<bFinal_top<<std::endl;
 		VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
 		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;

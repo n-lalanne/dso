@@ -224,7 +224,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	pstepfac.segment<4>(6).setConstant(stepfacA);
 
 
-	float sumA=0, sumB=0, sumT=0, sumR=0, sumID=0, numID=0;
+	float sumA=0, sumB=0, sumT=0, sumR=0, sumV=0, sumAcce=0, sumGyro=0, sumID=0, numID=0;
 
 	float sumNID=0;
 
@@ -259,11 +259,19 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 		Hcalib.setValue(Hcalib.value_backup + stepfacC*Hcalib.step);
 		for(FrameHessian* fh : frameHessians)
 		{
-			fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
+			if(isIMUinitialized())fh->setnavState(
+						fh->state_backup + pstepfac.cwiseProduct(fh->step),
+						fh->vstate_backup + fh->vstep,
+						fh->biasstate_backup + fh->biasstep
+				);
+			else fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
 			sumA += fh->step[6]*fh->step[6];
 			sumB += fh->step[7]*fh->step[7];
 			sumT += fh->step.segment<3>(0).squaredNorm();
 			sumR += fh->step.segment<3>(3).squaredNorm();
+			sumV += fh->vstep.squaredNorm();
+			sumAcce += fh->biasstep.segment<3>(0).squaredNorm();
+			sumGyro += fh->biasstep.segment<3>(3).squaredNorm();
 
 			for(PointHessian* ph : fh->pointHessians)
 			{
@@ -281,18 +289,21 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	sumB /= frameHessians.size();
 	sumR /= frameHessians.size();
 	sumT /= frameHessians.size();
+	sumV /= frameHessians.size();
+	sumAcce /= frameHessians.size();
+	sumGyro /= frameHessians.size();
 	sumID /= numID;
 	sumNID /= numID;
 
 
 
-    if(!setting_debugout_runquiet)
-        printf("STEPS: A %.1f; B %.1f; R %.1f; T %.1f. \t",
-                sqrtf(sumA) / (0.0005*setting_thOptIterations),
-                sqrtf(sumB) / (0.00005*setting_thOptIterations),
-                sqrtf(sumR) / (0.00005*setting_thOptIterations),
-                sqrtf(sumT)*sumNID / (0.00005*setting_thOptIterations));
-
+	if(!setting_debugout_runquiet)
+		printf("STEPS: A %.1f; B %.1f; R %.1f; T %.1f; V %.1f. \t",
+			   sqrtf(sumA) / (0.0005*setting_thOptIterations),
+			   sqrtf(sumB) / (0.00005*setting_thOptIterations),
+			   sqrtf(sumR) / (0.00005*setting_thOptIterations),
+			   sqrtf(sumT)*sumNID / (0.00005*setting_thOptIterations),
+			   sqrtf(sumV)*sumNID / (0.00005*setting_thOptIterations));
 
 	EFDeltaValid=false;
 	setPrecalcValues();
