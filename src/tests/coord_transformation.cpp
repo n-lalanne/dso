@@ -8,6 +8,10 @@
 #define MIN_DEPTH 4.0
 #define MAX_DEPTH 8.0
 
+#define SCALE 100
+
+#define NUM_POINTS 3
+
 #define FOCAL_LENGTH 1.0
 
 #define IMAGE_COORD_RANGE 100
@@ -26,6 +30,8 @@
 #include <gtsam/base/OptionalJacobian.h>
 #include <gtsam/geometry/Pose3.h>
 
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/eigen.hpp>
 
 using namespace dso;
 using namespace gtsam;
@@ -325,29 +331,38 @@ int main(int argc, char **argv)
     coordinate_transformation(1, 3) = ( ((double)rand()) / RAND_MAX - 0.5 ) * 2 * MAX_COORDINATE_TRANSLATION;
     coordinate_transformation(2, 3) = ( ((double)rand()) / RAND_MAX - 0.5 ) * 2 * MAX_COORDINATE_TRANSLATION;
 
-
-    // ----------------------------- point in ith frame ----------------------------- //
-    double d_i = MIN_DEPTH + (MAX_DEPTH - MIN_DEPTH) * ((double)rand()) / RAND_MAX;
-    Vec3 u_i = (Vec3() <<   ( ((double)rand()) / RAND_MAX - 0.5 ) * 2 * IMAGE_COORD_RANGE,
-                            ( ((double)rand()) / RAND_MAX - 0.5 ) * 2 * IMAGE_COORD_RANGE,
-                            1
-    ).finished();
-    Vec3 u_norm_i = K.inverse() * u_i;
-
     SE3 T_wi(R_i, t_i);
     SE3 T_wj = T_wi * SE3::exp(xi);
 
     SE3 T_w_bi = T_wi * SE3(Tbc).inverse();
     SE3 T_w_bj = T_wj * SE3(Tbc).inverse();
 
-    Vec3 p_i = d_i * u_norm_i;
-    Vec3 p_w = T_wi * p_i;
-    Vec3 p_j = T_wj.inverse() * p_w;
+    // ----------------------------- point in ith frame ----------------------------- //
+    std::vector<Reprojection> reprojections_0;
+    std::vector<Reprojection> reprojections_1;
+    reprojections_0.reserve(NUM_POINTS);
+    reprojections_1.reserve(NUM_POINTS);
+    for (size_t pt_idx = 0; pt_idx < NUM_POINTS; pt_idx++)
+    {
+        double d_i = MIN_DEPTH + (MAX_DEPTH - MIN_DEPTH) * ((double) rand()) / RAND_MAX;
+        Vec3 u_i = (Vec3() << (((double) rand()) / RAND_MAX - 0.5) * 2 * IMAGE_COORD_RANGE,
+                (((double) rand()) / RAND_MAX - 0.5) * 2 * IMAGE_COORD_RANGE,
+                1
+        ).finished();
 
-    Vec3 u_norm_j = p_j / p_j(2);
-    Vec3 u_j = K * u_norm_j;
+        reprojections_0.push_back(Reprojection(K, u_i, d_i));
+        reprojections_1.push_back(Reprojection(K, u_i, d_i*SCALE));
 
-    Reprojection reprojection(K, u_i, d_i);
+//        Vec3 u_norm_i = K.inverse() * u_i;
+
+//        Vec3 p_i = d_i * u_norm_i;
+//        Vec3 p_w = T_wi * p_i;
+//        Vec3 p_j = T_wj.inverse() * p_w;
+//
+//        Vec3 u_norm_j = p_j / p_j(2);
+//        Vec3 u_j = K * u_norm_j;
+    }
+
 
     // numerical jacobian
 //    boost::function<Vector2(const Pose3&, const Pose3&)> boostReproject = boost::bind(&Reprojection::reprojectTwoPoseIMU, reprojection, _1, _2, boost::none);
@@ -366,40 +381,91 @@ int main(int argc, char **argv)
 //    J_numerical.rightCols(6) = J_numerical_i;
 
     // In original frame
-    Eigen::Matrix<double, 2, 12> J_0;
-    reprojection.reprojectTwoPoseIMU(Pose3(T_w_bj.matrix()), Pose3(T_w_bi.matrix()), &J_0);
-
+    Eigen::Matrix<double, 2*NUM_POINTS, 12> J_0;
     // In transformed frame
-    Eigen::Matrix<double, 2, 12> J_1;
-    Reprojection reprojection2(K, u_i, d_i);
-    reprojection2.reprojectTwoPoseIMU(
-            Pose3(coordinate_transformation * T_w_bj.matrix()),
-            Pose3(coordinate_transformation * T_w_bi.matrix()),
-            &J_1
-    );
+    Eigen::Matrix<double, 2*NUM_POINTS, 12> J_1;
 
-    mrpt::math::CMatrixDouble66 df_dx(mrpt::math::UNINITIALIZED_MATRIX);
-    mrpt::math::CMatrixDouble66 df_du(mrpt::math::UNINITIALIZED_MATRIX);
+    // just scale
+    Mat44 T_w_bj2_mat = T_w_bj.matrix();
+    Mat44 T_w_bi2_mat = T_w_bi.matrix();
+    T_w_bj2_mat.topRightCorner(3, 1) *= SCALE;
+    T_w_bi2_mat.topRightCorner(3, 1) *= SCALE;
 
-    mrpt::poses::CPose3DPDF::jacobiansPoseComposition(
-            mrpt::poses::CPose3D(mrpt::math::CMatrixDouble44(T_w_bi.matrix())),
-            mrpt::poses::CPose3D(mrpt::math::CMatrixDouble44(coordinate_transformation.matrix())),
-            df_dx,
-            df_du
-    );
+    for (size_t pt_idx = 0; pt_idx < NUM_POINTS; pt_idx++)
+    {
+        Eigen::Matrix<double, 2, 12> temp;
+        // In original frame
+        reprojections_0[pt_idx].reprojectTwoPoseIMU(Pose3(T_w_bj.matrix()), Pose3(T_w_bi.matrix()), &temp);
+        J_0.block<2, 12>(pt_idx*2, 0) = temp;
+        // In transformed frame
+//        reprojections_1[pt_idx].reprojectTwoPoseIMU(
+//                Pose3(coordinate_transformation * T_w_bj.matrix()),
+//                Pose3(coordinate_transformation * T_w_bi.matrix()),
+//                &temp
+//        );
+        reprojections_1[pt_idx].reprojectTwoPoseIMU(
+                Pose3(T_w_bj2_mat),
+                Pose3(T_w_bi2_mat),
+                &temp
+        );
+        J_1.block<2, 12>(pt_idx*2, 0) = temp;
+    }
 
-    Eigen::Matrix<double, 2, 12> J_1_calc;
-    Mat66 adj;
-    adj = df_dx.transpose();
+//    mrpt::math::CMatrixDouble66 df_dx(mrpt::math::UNINITIALIZED_MATRIX);
+//    mrpt::math::CMatrixDouble66 df_du(mrpt::math::UNINITIALIZED_MATRIX);
+//
+//    mrpt::poses::CPose3DPDF::jacobiansPoseComposition(
+//            mrpt::poses::CPose3D(mrpt::math::CMatrixDouble44(T_w_bi.matrix())),
+//            mrpt::poses::CPose3D(mrpt::math::CMatrixDouble44(coordinate_transformation.matrix())),
+//            df_dx,
+//            df_du
+//    );
+
+    Eigen::Matrix<double, 2*NUM_POINTS, 12> J_1_calc;
+//    Mat66 adj;
+//    adj = df_dx.transpose();
 //    adj= SE3(coordinate_transformation).Adj().inverse().transpose();
-    J_1_calc.leftCols(6) = J_0.leftCols(6) * adj;
-    J_1_calc.rightCols(6) = J_0.rightCols(6) * adj;
+//    J_1_calc.leftCols(6) = J_0.leftCols(6) * adj;
+//    J_1_calc.rightCols(6) = J_0.rightCols(6) * adj;
 
-    std::cout << "actual J_0: \n" << J_0 << std::endl;
-    std::cout << "actual J_1: \n" << J_1 << std::endl;
-    std::cout << "calculated J_1: \n" << J_1_calc << std::endl;
-    std::cout << "err: \n" << J_1_calc - J_1 << std::endl;
+    std::cout << "J_0: \n" << J_0 << std::endl;
+    std::cout << "J_1: \n" << J_1 << std::endl;
 
+    cv::Mat cv_J_0_j(2*NUM_POINTS, 6, CV_64F);
+    cv::Mat cv_J_0_i(2*NUM_POINTS, 6, CV_64F);
+
+    cv::Mat cv_J_0_j_inv(6, 2*NUM_POINTS, CV_64F);
+    cv::Mat cv_J_0_i_inv(6, 2*NUM_POINTS, CV_64F);
+
+    Eigen::Matrix<double, 2*NUM_POINTS, 6> eigen_J_0_j = J_0.leftCols(6);
+    Eigen::Matrix<double, 2*NUM_POINTS, 6> eigen_J_0_i = J_0.rightCols(6);
+
+    Eigen::Matrix<double, 6, 2*NUM_POINTS> eigen_J_0_j_inv;
+    Eigen::Matrix<double, 6, 2*NUM_POINTS> eigen_J_0_i_inv;
+
+    cv::eigen2cv(eigen_J_0_j, cv_J_0_j);
+    cv::eigen2cv(eigen_J_0_i, cv_J_0_i);
+
+    cv::invert(cv_J_0_j, cv_J_0_j_inv, cv::DECOMP_SVD);
+    cv::invert(cv_J_0_i, cv_J_0_i_inv, cv::DECOMP_SVD);
+
+    cv::cv2eigen(cv_J_0_j_inv, eigen_J_0_j_inv);
+    cv::cv2eigen(cv_J_0_i_inv, eigen_J_0_i_inv);
+
+    Mat66 transform_J_j = eigen_J_0_j_inv * J_1.leftCols(6);
+    Mat66 transform_J_i = eigen_J_0_i_inv * J_1.rightCols(6);
+
+    J_1_calc.leftCols(6) = J_0.leftCols(6) * transform_J_j;
+    J_1_calc.rightCols(6) = J_0.rightCols(6) * transform_J_i;
+
+    std::cout << "J_1 cal: \n" << J_1_calc << std::endl;
+
+
+    std::cout << "transform for j: \n" << transform_J_j << std::endl;
+    std::cout << "transform for i: \n" << transform_J_i << std::endl;
+    std::cout << "transform diff: \n" << transform_J_j - transform_J_i << std::endl;
+//    std::cout << "calculated: \n" << J_1_calc << std::endl;
+//    std::cout << "err: \n" << J_1_calc - J_1 << std::endl;
 
 
 //    std::cout << "jacobian err: \n" << J_0 - J_numerical << std::endl;

@@ -1575,8 +1575,8 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	std::cout<< "g: "<<g<<std::endl;
 	Mat33 rot_diff = R0;
 
-	Mat33 initial_R = Rs[0];
-	Vec3 initial_P = Ps[0];
+	Mat33 new_origin_R0 = Rs[0];
+	Vec3 new_origin_t0 = Ps[0];
 
     // Rescale the camera position (origin is now at keyframe 0, but KF 0 has orientation wrt inertial frame)
 	for (int i = 0; i < allFrameHistory.size(); i++)
@@ -1760,11 +1760,25 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 				fh->shell->camToWorld = camToWorld;
 				fh->PRE_camToWorld = camToWorld;
 				fh->PRE_worldToCam = camToWorld.inverse();
-				fh->worldToCam_evalPT = fh->PRE_worldToCam;
 
-				// relinearize the states
-				fh->setState(Vec10::Zero());
-				fh->setStateZero(Vec10::Zero());
+                // compute the transformed linearization point (eval point)
+                // the transformation is more straight-forward in imu frame
+                // convert it back to camera frame later
+				Mat44 T_wb_evalPT = fh->get_worldToImu_evalPT().inverse().matrix();
+
+                T_wb_evalPT.topLeftCorner(3, 3).noalias() = rot_diff * T_wb_evalPT.topLeftCorner(3, 3);
+                T_wb_evalPT.topRightCorner(3, 1).noalias() = rot_diff * scale * (T_wb_evalPT.topRightCorner(3, 1) - new_origin_t0);
+                fh->worldToCam_evalPT = (SE3(T_wb_evalPT) * TBC).inverse();
+
+
+                // don't relinearize the states, since the relative transformation remain the same when the coord frame changes
+                // states (which are relative transformation) remain the same
+//				fh->setState(Vec10::Zero());
+//				fh->setStateZero(Vec10::Zero());
+				fh->setState(fh->state);
+				fh->setStateScaled(fh->state_scaled);
+				fh->setStateZero(fh->state_scaled);
+
 
 				size_t change_points_count = 0;
 				for(PointHessian* ph : fh->pointHessians)
