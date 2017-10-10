@@ -744,6 +744,9 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	MatXX HL_top, HA_top, H_sc , H_imu;
 	VecX  bL_top, bA_top, bM_top, b_sc, b_imu;
 
+    MatXX HFinal_top_imu;
+    VecX bFinal_top_imu;
+
 	accumulateAF_MT(HA_top, bA_top,multiThreading);
 
 
@@ -754,13 +757,13 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 
 	bM_top = (bM+ HM * getStitchedDeltaF());
 
-	std::cout<<"vi model: bL_top:\n"<<bL_top<<std::endl;
-	std::cout<<"vi model: bM_top:\n"<<bM_top<<std::endl;
-	std::cout<<"vi model: bA_top:\n"<<bA_top<<std::endl;
-	std::cout<<"vi model: b_sc:\n"<<b_sc<<std::endl;
+//	std::cout<<"vi model: bL_top:\n"<<bL_top<<std::endl;
+//	std::cout<<"vi model: bM_top:\n"<<bM_top<<std::endl;
+//	std::cout<<"vi model: bA_top:\n"<<bA_top<<std::endl;
+//	std::cout<<"vi model: b_sc:\n"<<b_sc<<std::endl;
 
 	accumulateIMU_ST(H_imu, b_imu);
-	std::cout<<"vi model: b_imu:\n"<<b_imu<<std::endl;
+//	std::cout<<"vi model: b_imu:\n"<<b_imu<<std::endl;
 	MatXX HFinal_top;
 	VecX bFinal_top;
 
@@ -769,22 +772,26 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	stateexpand(H_sc, b_sc);
 
 
-	HFinal_top = HL_top  + HA_top + H_imu;
+	HFinal_top = HL_top  + HA_top;// + H_imu;
 	//std::cout<<bL_top.rows()<<" "<<bM_top.rows()<<" "<<bA_top.rows()<<" "<<b_sc.rows() <<std::endl;
-	bFinal_top = bL_top  + bA_top - b_sc + b_imu;
+	bFinal_top = bL_top  + bA_top - b_sc;// + b_imu;
+
+    HFinal_top_imu = HL_top  + HA_top + H_imu;
+    bFinal_top_imu = bL_top  + bA_top - b_sc + b_imu;
 
 	lastHS = HFinal_top - H_sc;
 	lastbS = bFinal_top;
 
 
 
-
+    for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
+    HFinal_top_imu -= H_sc * (1.0f/(1+lambda));
 
 	for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
 	HFinal_top -= H_sc * (1.0f/(1+lambda));
 
 
-	VecX x;
+	VecX x,x_imu;
 	if(setting_solverMode & SOLVER_SVD)
 	{
 		VecX SVecI = HFinal_top.diagonal().cwiseSqrt().cwiseInverse();
@@ -817,15 +824,18 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	}
 	else
 	{
+        statereduce(HFinal_top_imu,bFinal_top_imu);
 		statereduce(HFinal_top,bFinal_top);
-		std::cout<<"bFinal_top:\n"<<bFinal_top<<std::endl;
 		VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
+        VecX SVecI_imu = (HFinal_top_imu.diagonal()+VecX::Constant(HFinal_top_imu.cols(), 10)).cwiseSqrt().cwiseInverse();
 		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
+        MatXX HFinalScaled_imu = SVecI_imu.asDiagonal() * HFinal_top_imu * SVecI_imu.asDiagonal();
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
+        x_imu = SVecI_imu.asDiagonal() * HFinalScaled_imu.ldlt().solve(SVecI_imu.asDiagonal() * bFinal_top_imu);
 	}
 
-    std::cout<<"The vi incremnt is :"<<x.transpose()<<std::endl;
-
+    std::cout<<"The vo incremnt is :"<<x.transpose()<<std::endl;
+    std::cout<<"The vi incremnt is :"<<x_imu.transpose()<<std::endl;
 
 	//// Todo: reduce the state to 8 for orthogonalization and after this operation, change it back
 //	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))

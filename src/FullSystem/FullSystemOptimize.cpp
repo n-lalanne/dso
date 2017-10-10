@@ -673,8 +673,10 @@ void FullSystem::solveSystem(int iteration, double lambda)
 			ef->lastNullspaces_scale,
 			ef->lastNullspaces_affA,
 			ef->lastNullspaces_affB);
-    if(isIMUinitialized())
+    if(isIMUinitialized()){
         ef->solveVISystemF(iteration,lambda,&Hcalib);
+    }
+        //ef->solveVISystemF(iteration,lambda,&Hcalib);
 	else ef->solveSystemF(iteration, lambda,&Hcalib);
 }
 
