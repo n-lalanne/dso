@@ -1900,7 +1900,7 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 
 	for(int i=0;i<frameHessians.size();i++)
 	{
-		//frameHessians[i]->setvbEvalPT();
+		frameHessians[i]->setvbEvalPT();
 		if(i>=1&&frameHessians[i]->imufactorvalid){
 			frameHessians[i]->updateimufactor(frameHessians[i-1]->shell->viTimestamp);
 		}
@@ -1908,7 +1908,6 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 
 	coarseTracker->makeCoarseDepthL0(frameHessians);
 	coarseTracker_forNewKF->makeCoarseDepthL0(frameHessians);
-
 
 	return;
 }

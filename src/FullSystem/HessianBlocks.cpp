@@ -178,7 +178,20 @@ void FrameHessian::setvbEvalPT()
     velocity_evalPT = shell->navstate.velocity();
     navstate_evalPT = shell->navstate;
     bias_evalPT = shell->bias.vector();
-    Vec10 initial_state = Vec10::Zero();
+    //Vec10 initial_state = Vec10::Zero();
+//	vstate_zero.setZero();
+//	vstate_scaled.setZero();
+//	vstate.setZero();
+//	vstep.setZero();
+//	vstep_backup.setZero();
+//	vstate_backup.setZero();
+//
+//	biasstate_zero.setZero();
+//	biasstate_scaled.setZero();
+//	biasstate.setZero();	// [0-2 gyro, 3-5 acce]
+//	biasstep.setZero();
+//	biasstep_backup.setZero();
+//	biasstate_backup.setZero();
     setnavStateScaled(get_state_scaled(), initial_vstate, initial_biasstate);
     //setnavStateScaled(initial_state, initial_vstate, initial_biasstate);
 }

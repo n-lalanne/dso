@@ -525,7 +525,7 @@ void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
 	}
 
 
-	int totalsize = std::accumulate(sizearr.begin(),sizearr.end(),CPARS);
+	totalsize = std::accumulate(sizearr.begin(),sizearr.end(),CPARS);
 	MatXX H_tmp = H;
 	VecX b_tmp = b;
 	H.conservativeResize(totalsize,totalsize);
@@ -658,8 +658,8 @@ void EnergyFunctional::statereduce(MatXX &H, VecX &b)
 
 
 	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
-	std::cout<<"after H: "<<H.diagonal().transpose()<<std::endl;
-	std::cout<<"after b: "<<b.transpose()<<std::endl;
+//	std::cout<<"after H: "<<H.diagonal().transpose()<<std::endl;
+//	std::cout<<"after b: "<<b.transpose()<<std::endl;
 }
 
 //// brief: add those Kinematics constarints
@@ -684,7 +684,7 @@ void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
 
     H = MatXX::Zero(totalsize, totalsize);
     b = VecX::Zero(totalsize);
-    int currentpos = CPARS-1;
+    int currentpos = CPARS;
     for(int indexi=1;indexi<frames.size();indexi++)
     {
         if(!frames[indexi]->data->imufactorvalid)
@@ -724,10 +724,15 @@ void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
         b_temp.noalias() = J_imu_complete.transpose() * information_imu * res_imu;
 
         //// TODO: set the coressponding blocks in H_imu
+//        std::cout<<"H_imu is : "<< H.diagonal()<<std::endl;
+//        std::cout<<"b_imu is : "<< b<<std::endl;
+//        std::cout<<"b_temp is : "<< b_temp<<std::endl;
         H.block<34,34>(currentpos,currentpos) += H_temp;
         b.segment<34>(currentpos) += b_temp;
         currentpos += frames[indexi-1]->statesize;
     }
+    std::cout<<"H_imu is : "<< H.diagonal()<<std::endl;
+    std::cout<<"b_imu is : "<< b<<std::endl;
 }
 
 
@@ -784,11 +789,18 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 
 
 
-    for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
+    for(int i=0;i<totalsize;i++) HFinal_top_imu(i,i) *= (1+lambda);
     HFinal_top_imu -= H_sc * (1.0f/(1+lambda));
 
-	for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
+	for(int i=0;i<totalsize;i++) HFinal_top(i,i) *= (1+lambda);
 	HFinal_top -= H_sc * (1.0f/(1+lambda));
+
+    std::cout<<"HFinal_top:\n"<<HFinal_top.diagonal()<<std::endl;
+    std::cout<<"H_imu:\n"<<H_imu.diagonal()<<std::endl;
+    std::cout<<"bFinal_top:\n"<<bFinal_top<<std::endl;
+    std::cout<<"b_imu:\n"<<b_imu<<std::endl;
+    std::cout<<"HFinal_top_imu:\n"<<HFinal_top_imu.diagonal()<<std::endl;
+    std::cout<<"bFinal_top_imu:\n"<<bFinal_top_imu<<std::endl;
 
 
 	VecX x,x_imu;
@@ -846,11 +858,11 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 //	}
 
 
-	lastX = x;
+	lastX = x_imu;
 
 	//resubstituteF(x, HCalib);
 	currentLambda= lambda;
-	VIresubstituteF_MT(x, HCalib,multiThreading);
+	VIresubstituteF_MT(x_imu, HCalib,multiThreading);
 	currentLambda=0;
 
 }
