@@ -1901,8 +1901,31 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	for(int i=0;i<frameHessians.size();i++)
 	{
 		frameHessians[i]->setvbEvalPT();
-		if(i>=1&&frameHessians[i]->imufactorvalid){
+		if(i>=1&&frameHessians[i]->imufactorvalid)
+		{
 			frameHessians[i]->updateimufactor(frameHessians[i-1]->shell->viTimestamp);
+
+			// debug: check if the imu factor predicts the pose okay
+			gtsam::NavState predicted = frameHessians[i]->shell->imu_preintegrated_last_kf_->predict(frameHessians[i-1]->shell->navstate, frameHessians[i-1]->shell->bias);
+			gtsam::Pose3 SE3_err = frameHessians[i]->shell->navstate.pose().inverse().compose(predicted.pose());
+			Vec6 se3_err = SE3(SE3_err.matrix()).log();
+			Vec3 vel_err = predicted.velocity() - frameHessians[i]->shell->navstate.velocity();
+
+
+			std::cout	<< "pose err: " 	<< se3_err.transpose() << std::endl
+						<< "velocity err: "	<< vel_err.transpose() << std::endl
+						<< "Actual dt: " 	<< frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp << std::endl
+						<< "IMU dt: " 		<< frameHessians[i]->shell->imu_preintegrated_last_kf_->deltaTij() << std::endl
+						<< "---------------------------------"
+						<< std::endl 		<< std::endl;
+
+		}
+		else if (i >=1)
+		{
+			std::cout 	<< "rejected dt: " << frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp
+					  	<< std::endl
+						<< "-----------------------------------"
+						<< std::endl << std::endl;
 		}
 	}
 

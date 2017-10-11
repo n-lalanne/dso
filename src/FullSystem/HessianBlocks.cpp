@@ -232,7 +232,7 @@ double FrameHessian::getkfimufactor(FrameHessian * host){
 
 
 void FrameHessian::updateimufactor(double sviTimestamp) {
-	shell->imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), shell->bias);
+	shell->imu_preintegrated_last_kf_->resetIntegrationAndSetBias(shell->bias);
 	for (size_t i = 0; i < imu_kf_buff.size(); i++) {
 		dso_vi::IMUData imudata = imu_kf_buff[i];
 

@@ -858,7 +858,7 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 //	}
 
 
-	lastX = x_imu;
+	lastX = x; //_imu;
 
 	//resubstituteF(x, HCalib);
 	currentLambda= lambda;
