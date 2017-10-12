@@ -355,6 +355,8 @@ public:
 	double gyro_bias_rw_sigma;
 	int WINDOW_SIZE = 40;
 
+	void checkImuFactors();
+
     void setBiasEstimate(Vec3 accBias, Vec3 gyroBias)
     {
         accBiasEstimate = accBias;

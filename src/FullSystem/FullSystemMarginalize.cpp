@@ -152,8 +152,34 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 //	printf("\n");
 }
 
+void FullSystem::checkImuFactors()
+{
+	// debug: check consistency
+	for (int i = 1; i < frameHessians.size(); i++)
+	{
+		if(!frameHessians[i]->imufactorvalid)continue;
+		// debug: check if the imu factor predicts the pose okay
+		gtsam::NavState predicted = frameHessians[i]->shell->imu_preintegrated_last_kf_->predict(
+				frameHessians[i - 1]->PRE_navstate, frameHessians[i - 1]->shell->bias
+		);
+		gtsam::Pose3 SE3_err = frameHessians[i]->PRE_navstate.pose().inverse().compose(predicted.pose());
+		Vec6 se3_err = SE3(SE3_err.matrix()).log();
+		Vec3 vel_err = predicted.velocity() - frameHessians[i]->PRE_velocity;
 
+		std::cout << "pose err: " << se3_err.transpose() << std::endl
+				  << "velocity err: " << vel_err.transpose() << std::endl
+				  << "Actual dt: "
+				  << frameHessians[i]->shell->viTimestamp - frameHessians[i - 1]->shell->viTimestamp << std::endl
+				  << "IMU dt: " << frameHessians[i]->shell->imu_preintegrated_last_kf_->deltaTij() << std::endl
+				  << "---------------------------------------"
+				  << std::endl << std::endl;
+		if(se3_err.norm()>0.5){
+			std::cout<<"pose error is too large"<<std::endl;
+			//exit(0);
+		}
 
+	}
+}
 
 void FullSystem::marginalizeFrame(FrameHessian* frame)
 {
@@ -163,31 +189,6 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 
 
 	ef->marginalizeFrame(frame->efFrame);
-
-    auto checkImuFactors = [this]() {
-        // debug: check consistency
-        for (int i = 1; i < frameHessians.size(); i++)
-        {
-            // debug: check if the imu factor predicts the pose okay
-            gtsam::NavState predicted = frameHessians[i]->shell->imu_preintegrated_last_kf_->predict(
-                    frameHessians[i - 1]->shell->navstate, frameHessians[i - 1]->shell->bias
-            );
-            gtsam::Pose3 SE3_err = frameHessians[i]->shell->navstate.pose().inverse().compose(predicted.pose());
-            Vec6 se3_err = SE3(SE3_err.matrix()).log();
-            Vec3 vel_err = predicted.velocity() - frameHessians[i]->shell->navstate.velocity();
-
-
-            std::cout << "pose err: " << se3_err.transpose() << std::endl
-                      << "velocity err: " << vel_err.transpose() << std::endl
-                      << "Actual dt: "
-                      << frameHessians[i]->shell->viTimestamp - frameHessians[i - 1]->shell->viTimestamp << std::endl
-                      << "IMU dt: " << frameHessians[i]->shell->imu_preintegrated_last_kf_->deltaTij() << std::endl
-                      << "---------------------------------------"
-                      << std::endl << std::endl;
-
-        }
-
-    };
 
     //merge the preintegration measurement
 

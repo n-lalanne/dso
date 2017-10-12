@@ -673,10 +673,10 @@ void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
     sizearr.resize(nFrames,8);
     for(int i=1;i<nFrames;i++){
 		if(frames[i]->data->imufactorvalid)
-            {
-                sizearr[i] = 17;
-                sizearr[i-1] = 17;
-            }
+		{
+			sizearr[i] = 17;
+			sizearr[i-1] = 17;
+		}
 		frames[i]->statesize = sizearr[i];
 		frames[i-1]->statesize = sizearr[i-1];
     }
@@ -705,16 +705,16 @@ void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
 
         Mat1517 J_imu_travb_previous;
         J_imu_travb_previous.setZero();
-        J_imu_travb_previous.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 3);//J_imu_Rt_previous.block<15, 3>(0, 3);
-        J_imu_travb_previous.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 0);//J_imu_Rt_previous.block<15, 3>(0, 0);
-        J_imu_travb_previous.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_j.block<15, 3>(0, 0);//J_imu_v_previous.block<15, 3>(0, 0);
+        J_imu_travb_previous.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 3);//J_imu_Rt_previous.block<15, 3>(0, 3);
+        J_imu_travb_previous.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 0);//J_imu_Rt_previous.block<15, 3>(0, 0);
+        J_imu_travb_previous.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_i.block<15, 3>(0, 0);//J_imu_v_previous.block<15, 3>(0, 0);
 
         // ------------------ don't ignore the cross terms in hessian between i and jth poses ------------------
         Mat1517 J_imu_travb_current;
         J_imu_travb_current.setZero();
-        J_imu_travb_current.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 3);//J_imu_Rt.block<15, 3>(0, 3);
-        J_imu_travb_current.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 0);//J_imu_Rt.block<15, 3>(0, 0);
-        J_imu_travb_current.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_i.block<15, 3>(0, 0);//J_imu_v.block<15, 3>(0, 0);
+        J_imu_travb_current.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 3);//J_imu_Rt.block<15, 3>(0, 3);
+        J_imu_travb_current.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 0);//J_imu_Rt.block<15, 3>(0, 0);
+        J_imu_travb_current.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_j.block<15, 3>(0, 0);//J_imu_v.block<15, 3>(0, 0);
 
         Mat1534 J_imu_complete;
         J_imu_complete.leftCols(17) = J_imu_travb_previous;
@@ -771,18 +771,20 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 //	std::cout<<"vi model: b_imu:\n"<<b_imu<<std::endl;
 	MatXX HFinal_top;
 	VecX bFinal_top;
-
+	MatXX HMbak = HM;
+	VecX bM_topbak = bM_top;
 	stateexpand(HA_top, bA_top);
 	stateexpand(HL_top, bL_top);
 	stateexpand(H_sc, b_sc);
+	stateexpand(HMbak, bM_topbak);
 
 
-	HFinal_top = HL_top  + HA_top;// + H_imu;
+	HFinal_top = HL_top  + HA_top + HMbak;// + H_imu;
 	//std::cout<<bL_top.rows()<<" "<<bM_top.rows()<<" "<<bA_top.rows()<<" "<<b_sc.rows() <<std::endl;
-	bFinal_top = bL_top  + bA_top - b_sc;// + b_imu;
+	bFinal_top = bL_top  + bA_top - b_sc + bM_topbak;// + b_imu;
 
-    HFinal_top_imu = HL_top  + HA_top + H_imu;
-    bFinal_top_imu = bL_top  + bA_top - b_sc + b_imu;
+    HFinal_top_imu = HL_top  + HA_top + H_imu + HMbak;
+    bFinal_top_imu = bL_top  + bA_top - b_sc + b_imu + bM_topbak;
 
 	lastHS = HFinal_top - H_sc;
 	lastbS = bFinal_top;
@@ -858,22 +860,22 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 //	}
 
 
-	lastX = x; //_imu;
+	lastX = x_imu; //_imu;
 
 	//resubstituteF(x, HCalib);
 	currentLambda= lambda;
 	VIresubstituteF_MT(x_imu, HCalib,multiThreading);
 	currentLambda=0;
 
+
+
 }
 
 void EnergyFunctional::VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 {
-	assert(x.size() == CPARS+nFrames*17);
-	// calculate pose, a, b steps
-	resubstituteF_MT(solutionreduce(x), HCalib, MT);
-
+	//assert(x.size() == CPARS+nFrames*17);
 	// calculate velocity step
+	// calculate bias step
 	for(EFFrame* h : frames)
 	{
 		if(h->statesize != 8) {
@@ -883,8 +885,14 @@ void EnergyFunctional::VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 			std::cout << "the velocity step of the frame" << h->frameID << " after:\n" << h->data->vstep << std::endl;
 		}
 	}
-
-	// calculate bias step
+	// calculate pose, a, b steps
+	resubstituteF_MT(solutionreduce(x), HCalib, MT);
+	for(EFFrame* h : frames)
+	{
+		if(h->statesize != 8) {
+			std::cout << "the velocity step of the frame" << h->frameID << " after:\n" << h->data->step << std::endl;
+		}
+	}
 }
 
 void EnergyFunctional::marginalizeFrame(EFFrame* fh)

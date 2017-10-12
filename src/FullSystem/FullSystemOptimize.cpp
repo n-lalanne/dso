@@ -41,6 +41,7 @@
 #include <cmath>
 
 #include <algorithm>
+#include <GroundTruthIterator/GroundTruthIterator.h>
 
 namespace dso
 {
@@ -434,7 +435,6 @@ float FullSystem::optimize(int mnumOptIts)
 
 
 	// get statistics and active residuals.
-
 	activeResiduals.clear();
 	int numPoints = 0;
 	int numLRes = 0;
@@ -497,8 +497,30 @@ float FullSystem::optimize(int mnumOptIts)
 
 	debugPlotTracking();
 
+    if(isIMUinitialized())
+    {
+        for (int i = 1; i < frameHessians.size(); i++) {
+            if (!frameHessians[i]->imufactorvalid)continue;
+            // debug: check if the imu factor predicts the pose okay
+            gtsam::NavState predicted = frameHessians[i]->shell->imu_preintegrated_last_kf_->predict(
+                    frameHessians[i - 1]->shell->navstate, frameHessians[i - 1]->shell->bias
+            );
+
+            gtsam::Pose3 SE3_err = frameHessians[i]->shell->navstate.pose().inverse().compose(predicted.pose());
+            Vec6 se3_err = SE3(SE3_err.matrix()).log();
+            Vec3 vel_err = predicted.velocity() - frameHessians[i]->shell->groundtruth.velocity;
 
 
+            std::cout << "pose err: " << se3_err.transpose() << std::endl
+                      << "velocity err: " << vel_err.transpose() << std::endl
+                      << "Actual dt: "
+                      << frameHessians[i]->shell->viTimestamp - frameHessians[i - 1]->shell->viTimestamp << std::endl
+                      << "IMU dt: " << frameHessians[i]->shell->imu_preintegrated_last_kf_->deltaTij() << std::endl
+                      << "---------------------------------------"
+                      << std::endl << std::endl;
+
+        }
+    }
 	double lambda = 1e-1;
 	float stepsize=1;
 	VecX previousX = VecX::Constant(CPARS+ 8*frameHessians.size(), NAN);
@@ -522,13 +544,19 @@ float FullSystem::optimize(int mnumOptIts)
 			if(stepsize <0.25) stepsize=0.25;
 		}
 
+		if (isIMUinitialized())
+		{
+			std::cout << "Before step: " << std::endl;
+			checkImuFactors();
+			std::cout << "------------------------------" << std::endl;
+		}
 		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize);
-
-
-
-
-
-
+		if (isIMUinitialized())
+		{
+			std::cout << "\nAfter step: " << std::endl;
+			checkImuFactors();
+			std::cout << "------------------------------" << std::endl;
+		}
 
 		// eval new energy!
 		Vec3 newEnergy = linearizeAll(false);
@@ -657,9 +685,7 @@ float FullSystem::optimize(int mnumOptIts)
 
 
 	debugPlotTracking();
-
 	return sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA)));
-
 }
 
 

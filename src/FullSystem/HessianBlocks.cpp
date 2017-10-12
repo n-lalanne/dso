@@ -198,6 +198,40 @@ void FrameHessian::setvbEvalPT()
 
 double FrameHessian::getkfimufactor(FrameHessian * host){
     assert(imufactorvalid);
+
+	if (imu_kf_buff.size() && fabs(host->shell->viTimestamp - imu_kf_buff.front()._t) > 0.01)
+	{
+		std::cerr << "host frame doesn't match imu measurements" << std::endl;
+		exit(1);
+	}
+	if 	(imu_kf_buff.size() && fabs(
+			(imu_kf_buff.back()._t - imu_kf_buff.front()._t) -
+			(shell->viTimestamp - host->shell->viTimestamp)
+
+		) > 0.01
+	)
+	{
+		std::cerr << "imu measurements and keyframes don't match" << std::endl;
+		exit(1);
+	}
+
+	if (!shell->imu_preintegrated_last_kf_)
+	{
+		std::cerr << "imu preintegrated NULL" << std::endl;
+		exit(1);
+	}
+	std::cout << "preinteg dt: " << shell->imu_preintegrated_last_kf_->deltaTij() << std::endl;
+	std::cout << "raw dt: " << (imu_kf_buff.back()._t - imu_kf_buff.front()._t) << std::endl;
+	if (imu_kf_buff.size() && fabs(
+			shell->imu_preintegrated_last_kf_->deltaTij() -
+			(imu_kf_buff.back()._t - imu_kf_buff.front()._t)
+		) > 0.01
+	)
+	{
+		std::cerr << "imu measurement not updated" << std::endl;
+		exit(1);
+	}
+
     double imuenergy;
     if(needrelin)
     {
@@ -212,6 +246,48 @@ double FrameHessian::getkfimufactor(FrameHessian * host){
 		std::cout<<"previous_bias_evalPT"<<previous_bias_evalPT<<std::endl;
 		std::cout<<"current_bias_evalPT"<<current_bias_evalPT<<std::endl;
         shell->linearizeImuFactorLastKeyFrame(previous_navstate_evalPT,current_navstate_evalPT,previous_bias_evalPT,current_bias_evalPT);
+
+		if (!shell->imu_factor_last_kf_)
+		{
+			std::cerr << "imu factor NULL" << std::endl;
+			exit(1);
+		}
+
+		if (fabs(
+				shell->imu_factor_last_kf_->preintegratedMeasurements().deltaTij() -
+				(imu_kf_buff.back()._t - imu_kf_buff.front()._t)
+			) > 0.01
+		)
+		{
+			std::cerr << "imu factor not updated" << std::endl;
+			exit(1);
+		}
+
+		if (!setting_debugout_runquiet)
+		{
+			gtsam::Matrix _J_imu_Rt_i;
+			gtsam::Matrix _J_imu_v_i;
+			gtsam::Matrix _J_imu_Rt_j;
+			gtsam::Matrix _J_imu_v_j;
+			gtsam::Matrix _J_imu_bias_i;
+			gtsam::Matrix _J_imu_bias_j;
+			Vec15 res = shell->evaluateIMUerrorsBA(
+					host->PRE_navstate,
+					PRE_navstate,
+					host->shell->bias,
+					shell->bias,
+					_J_imu_Rt_i,
+					_J_imu_v_i,
+					_J_imu_Rt_j,
+					_J_imu_v_j,
+					_J_imu_bias_i,
+					_J_imu_bias_j
+			);
+			if (res.norm() > 0.3)
+			{
+				std::cerr << "IMU factor resulted high error before optimization" << std::endl;
+			}
+		}
         needrelin = false;
     }
     gtsam::NavState PRE_previous_navstate = host->PRE_navstate;
