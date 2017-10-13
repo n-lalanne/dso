@@ -851,15 +851,15 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	std::cout<<"The vo incremnt is :"<<x.transpose()<<std::endl;
     std::cout<<"The vi incremnt is :"<<x_imu.transpose()<<std::endl;
 	//// Todo: reduce the state to 8 for orthogonalization and after this operation, change it back
-	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
-	{
-
-		lastX = VIorthogonalize(x_imu, 0);
-		std::cout << "orthogonalize: " << lastX.transpose() << std::endl;
-		incrementreplace(x_imu,&lastX);
-		std::cout << "incrementreplace: " << lastX.transpose() << std::endl;
-	}
-	else
+//	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
+//	{
+//
+//		lastX = VIorthogonalize(x_imu, 0);
+//		std::cout << "orthogonalize: " << lastX.transpose() << std::endl;
+//		incrementreplace(x_imu,&lastX);
+//		std::cout << "incrementreplace: " << lastX.transpose() << std::endl;
+//	}
+//	else
 	{
 		lastX = x_imu;
 	}

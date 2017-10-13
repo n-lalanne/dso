@@ -1578,6 +1578,14 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	Mat33 initial_R = Rs[0];
 	Vec3 initial_P = Ps[0];
 
+	for (size_t i = 0; i < frameHessians.size(); i++)
+	{
+		Vec6 pose_error = (frameHessians[i]->worldToCam_evalPT * frameHessians[i]->shell->camToWorld).log();
+		std::cout << "eval pt: "	<< frameHessians[i]->worldToCam_evalPT.inverse().matrix() << std::endl;
+		std::cout << "camToWorld: "	<< frameHessians[i]->shell->camToWorld.matrix() << std::endl;
+		std::cout << "pose_error: " << pose_error.transpose() << std::endl;
+	}
+
     // Rescale the camera position (origin is now at keyframe 0, but KF 0 has orientation wrt inertial frame)
 	for (int i = 0; i < allFrameHistory.size(); i++)
 	{
@@ -1730,6 +1738,22 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 
 	std::cout<<"scale is : "<<scale<<std::endl;
 
+    // update local window linearization point and scale
+    for (size_t i = 0; i < frameHessians.size(); i++)
+    {
+        SE3 T_wb = frameHessians[i]->get_imuToWorld_evalPT();
+        Mat44 T_wb_new = Mat44::Identity();
+
+        T_wb_new.topLeftCorner<3, 3>().noalias() = rot_diff * T_wb.rotationMatrix();
+        T_wb_new.topRightCorner<3, 1>().noalias() = rot_diff * scale * (T_wb.translation() - initial_P);
+
+        frameHessians[i]->worldToCam_evalPT = TCB * (SE3(T_wb_new).inverse());
+
+        Vec6 pose_error = (frameHessians[i]->worldToCam_evalPT * frameHessians[i]->shell->camToWorld).log();
+        std::cout << "camToWorld: "	<< frameHessians[i]->shell->camToWorld.matrix() << std::endl;
+        std::cout << "pose_error: " << pose_error.transpose() << std::endl;
+    }
+
 
 	// ------------------------------ Rescale the depth ------------------------------
 
@@ -1760,11 +1784,20 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 				fh->shell->camToWorld = camToWorld;
 				fh->PRE_camToWorld = camToWorld;
 				fh->PRE_worldToCam = camToWorld.inverse();
-				fh->worldToCam_evalPT = fh->PRE_worldToCam;
 
-				// relinearize the states
-				fh->setState(Vec10::Zero());
-				fh->setStateZero(Vec10::Zero());
+                // don't relinearize
+                fh->rescaleState(scale);
+                // check rescallng error
+                if (!setting_debugout_runquiet)
+                {
+                    Vec6 error = (fh->worldToCam_evalPT * fh->shell->camToWorld).log();
+                    std::cout << "Rescaling error: " << error << std::endl;
+                }
+
+                // relinearize the states
+//				fh->worldToCam_evalPT = fh->PRE_worldToCam;
+//				fh->setState(Vec10::Zero());
+//				fh->setStateZero(Vec10::Zero());
 
 				size_t change_points_count = 0;
 				for(PointHessian* ph : fh->pointHessians)
@@ -1887,6 +1920,15 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 //	{
 //		marginalizeFrame(frameHessians.front());
 //	}
+
+    size_t HM_size = ef->HM.cols();
+    double scale_inv = 1/scale;
+    for (size_t i = CPARS; i < HM_size; i+=8)
+    {
+        ef->HM.block(0, i, HM_size, 3) *= scale_inv;
+        ef->HM.block(i, 0, 3, HM_size) *= scale_inv;
+        ef->bM.segment<3>(i) *= scale_inv;
+    }
 
 	// clear all the prior factor since we're relinearizing
 //	ef->HM.setZero();

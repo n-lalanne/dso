@@ -346,6 +346,19 @@ struct FrameHessian
 		//setCurrentNullspace();
 	};
 
+	inline void rescaleState(double scale)
+	{
+		this->state.head<3>() *= scale;
+		this->state_zero.head<3>() *= scale;
+		state.segment<3>(0) = SCALE_XI_TRANS_INVERSE * state_scaled.segment<3>(0);
+
+		PRE_ImuToworld = get_imuToWorld_evalPT() * SE3::exp(b2w_rightEps());
+		PRE_worldToImu = PRE_ImuToworld.inverse();
+		PRE_worldToCam = Tbc.inverse() * PRE_worldToImu;
+		PRE_camToWorld = PRE_worldToCam.inverse();
+
+	}
+
 	void setnavEvalPT(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate );
 	void setnavEvalPT_scaled(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const AffLight &aff_g2l);
 
