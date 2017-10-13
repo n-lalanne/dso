@@ -705,16 +705,16 @@ void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
 
         Mat1517 J_imu_travb_previous;
         J_imu_travb_previous.setZero();
-        J_imu_travb_previous.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 3);//J_imu_Rt_previous.block<15, 3>(0, 3);
-        J_imu_travb_previous.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 0);//J_imu_Rt_previous.block<15, 3>(0, 0);
-        J_imu_travb_previous.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_i.block<15, 3>(0, 0);//J_imu_v_previous.block<15, 3>(0, 0);
+        J_imu_travb_previous.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 3) * SCALE_XI_ROT;//J_imu_Rt_previous.block<15, 3>(0, 3);
+        J_imu_travb_previous.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 0) * SCALE_XI_TRANS;//J_imu_Rt_previous.block<15, 3>(0, 0);
+        J_imu_travb_previous.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_i.block<15, 3>(0, 0) * SCALE_IMU_V;//J_imu_v_previous.block<15, 3>(0, 0);
 
         // ------------------ don't ignore the cross terms in hessian between i and jth poses ------------------
         Mat1517 J_imu_travb_current;
         J_imu_travb_current.setZero();
-        J_imu_travb_current.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 3);//J_imu_Rt.block<15, 3>(0, 3);
-        J_imu_travb_current.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 0);//J_imu_Rt.block<15, 3>(0, 0);
-        J_imu_travb_current.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_j.block<15, 3>(0, 0);//J_imu_v.block<15, 3>(0, 0);
+        J_imu_travb_current.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 3)* SCALE_XI_ROT;//J_imu_Rt.block<15, 3>(0, 3);
+        J_imu_travb_current.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 0) * SCALE_XI_TRANS;//J_imu_Rt.block<15, 3>(0, 0);
+        J_imu_travb_current.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_j.block<15, 3>(0, 0) * SCALE_IMU_V;//J_imu_v.block<15, 3>(0, 0);
 
         Mat1534 J_imu_complete;
         J_imu_complete.leftCols(17) = J_imu_travb_previous;
@@ -848,25 +848,27 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
         x_imu = SVecI_imu.asDiagonal() * HFinalScaled_imu.ldlt().solve(SVecI_imu.asDiagonal() * bFinal_top_imu);
 	}
 
-    std::cout<<"The vo incremnt is :"<<x.transpose()<<std::endl;
+	std::cout<<"The vo incremnt is :"<<x.transpose()<<std::endl;
     std::cout<<"The vi incremnt is :"<<x_imu.transpose()<<std::endl;
-
 	//// Todo: reduce the state to 8 for orthogonalization and after this operation, change it back
-//	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
-//	{
-//
-//		VecX xOld = x;
-//		orthogonalize(&x, 0);
-//	}
+	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
+	{
 
-
-	lastX = x_imu; //_imu;
+		lastX = VIorthogonalize(x_imu, 0);
+		std::cout << "orthogonalize: " << lastX.transpose() << std::endl;
+		incrementreplace(x_imu,&lastX);
+		std::cout << "incrementreplace: " << lastX.transpose() << std::endl;
+	}
+	else
+	{
+		lastX = x_imu;
+	}
 
 	//resubstituteF(x, HCalib);
 	currentLambda= lambda;
-	VIresubstituteF_MT(x_imu, HCalib,multiThreading);
+	VIresubstituteF_MT(lastX, HCalib,multiThreading);
 	currentLambda=0;
-
+	std::cout<<"goes here!"<<std::endl;
 
 
 }
@@ -890,7 +892,7 @@ void EnergyFunctional::VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 	for(EFFrame* h : frames)
 	{
 		if(h->statesize != 8) {
-			std::cout << "the velocity step of the frame" << h->frameID << " after:\n" << h->data->step << std::endl;
+			std::cout << "the se3 step of the frame" << h->frameID << " after:\n" << h->data->step << std::endl;
 		}
 	}
 }
@@ -1126,12 +1128,28 @@ void EnergyFunctional::removePoint(EFPoint* p)
 	delete p;
 }
 
+void EnergyFunctional::incrementreplace(VecX reducedstate,VecX * fullstate)
+{
+	int currentpos = CPARS;
+	for(int i=0;i<nFrames;i++)
+	{
+		(*fullstate).segment<8>(frames[i]->framepos) = reducedstate.segment<8>(CPARS+i*8);
+	}
+}
+
+VecX EnergyFunctional::VIorthogonalize(VecX& b, MatXX* H)
+{
+	VecX newb(nFrames*8 + CPARS);
+	newb = solutionreduce(b);
+	orthogonalize(&newb,0);
+	return newb;
+}
+
 void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 {
 //	VecX eigenvaluesPre = H.eigenvalues().real();
 //	std::sort(eigenvaluesPre.data(), eigenvaluesPre.data()+eigenvaluesPre.size());
 //	std::cout << "EigPre:: " << eigenvaluesPre.transpose() << "\n";
-
 
 	// decide to which nullspaces to orthogonalize.
 	std::vector<VecX> ns;

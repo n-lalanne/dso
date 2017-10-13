@@ -25,6 +25,7 @@
 #pragma once
 
 #undef Success
+#include <unistd.h>
 #include <Eigen/Core>
 #include "util/NumType.h"
 #include <pangolin/pangolin.h>

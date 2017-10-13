@@ -140,10 +140,12 @@ private:
 	void stateexpand(MatXX &H, VecX &b);
 	void statereduce(MatXX &H, VecX &b);
 	VecX solutionreduce(VecX x);
+	void incrementreplace(VecX reducedstate,VecX* fullstate);
 
 	void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
 
 	void orthogonalize(VecX* b, MatXX* H);
+	VecX VIorthogonalize(VecX& b, MatXX* H);
 	Mat18f* adHTdeltaF;
 
 	Mat88* adHost;

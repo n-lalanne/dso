@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <unistd.h>
 #include "Eigen/Core"
 #include "sophus/sim3.hpp"
 #include "sophus/se3.hpp"
