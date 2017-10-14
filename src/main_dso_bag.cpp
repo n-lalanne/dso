@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <fstream>
+#include <csignal>
 
 #include "util/settings.h"
 #include "FullSystem/FullSystem.h"
@@ -57,6 +58,7 @@ double bagOffset = 0.0;
 bool addprior;
 
 bool useSampleOutput=false;
+bool is_exit = false;
 
 std::ofstream angleComparisonFile;
 gtsam::Pose3 relativePose;
@@ -454,6 +456,10 @@ int main( int argc, char** argv )
 
     dso_vi::GroundTruthIterator groundtruthIterator(groundTruthFile);
 
+    signal(SIGINT, [](int s) -> void {
+        std::cout << "Caught signal " << s << std::endl;
+        is_exit = true;
+    });
 
     BOOST_FOREACH(rosbag::MessageInstance const m, *bagView)
     {
@@ -468,11 +474,41 @@ int main( int argc, char** argv )
             msgsync.imageCallback(simage);
         }
 
-        if (step(msgsync, config, groundtruthIterator))
+        if (step(msgsync, config, groundtruthIterator) || is_exit)
         {
             break;
         }
     }
+
+    FILE *trajectory_log = fopen("logs/trajectory.txt", "w");
+
+    if (trajectory_log)
+    {
+        std::cout << "Saving trajectory" << std::endl;
+        for(FrameShell *fs: fullSystem->getAllFrameHistory())
+        {
+            dso::SE3 pose = fs->camToWorld;
+            fprintf(
+                    trajectory_log, "%.5f %f %f %f %f %f %f %f\n",
+                    fs->viTimestamp,
+                    pose.translation()(0),
+                    pose.translation()(1),
+                    pose.translation()(2),
+                    pose.unit_quaternion().x(),
+                    pose.unit_quaternion().y(),
+                    pose.unit_quaternion().z(),
+                    pose.unit_quaternion().w()
+
+            );
+        }
+        fclose(trajectory_log);
+        std::cout << "Trajectory saved" << std::endl;
+    }
+    else
+    {
+        std::cout << "Could not log trajectory" << std::endl;
+    }
+
 
 
     for(IOWrap::Output3DWrapper* ow : fullSystem->outputWrapper)
