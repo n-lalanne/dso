@@ -1,0 +1,6 @@
+Datasets
+MAV:	EuROC
+LOOP:	Mono-VI (cuz only loop closure data available)
+SIM:	ICL-NUIM simulated dataset
+
+
