@@ -566,8 +566,8 @@ VecX EnergyFunctional::solutionreduce(VecX x)
 	{
 		x.segment<8>(CPARS+i*8) = x_tmp.segment<8>(frames[i]->reducedframepos);
 	}
-	return x;
 	std::cout<<"after x: "<<x.transpose()<<std::endl;
+	return x;
 }
 
 // from 17 to 11/8(biases are nor used for now)
@@ -851,22 +851,28 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	std::cout<<"The vo incremnt is :"<<x.transpose()<<std::endl;
     std::cout<<"The vi incremnt is :"<<x_imu.transpose()<<std::endl;
 	//// Todo: reduce the state to 8 for orthogonalization and after this operation, change it back
-//	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
-//	{
-//
-//		lastX = VIorthogonalize(x_imu, 0);
-//		std::cout << "orthogonalize: " << lastX.transpose() << std::endl;
-//		incrementreplace(x_imu,&lastX);
-//		std::cout << "incrementreplace: " << lastX.transpose() << std::endl;
-//	}
-//	else
+	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
 	{
-		lastX = x_imu;
+
+		lastX = VIorthogonalize(x_imu, 0);
+		std::cout << "before lastX: " << lastX.transpose() << std::endl;
+		std::cout << "x_imu: " << x_imu.transpose() << std::endl;
+		incrementreplace(lastX,&x_imu);
+//		for(int i=0;i<nFrames;i++)
+//		{
+//			x_imu.segment<8>(frames[i]->reducedframepos) = lastX.segment<8>(CPARS+i*8);
+//		}
+//		std::cout << "after lastX: " << lastX.transpose() << std::endl;
+//		std::cout << "x_imu: " << x_imu.transpose() << std::endl;
 	}
+//	else
+//	{
+//		lastX = x_imu;
+//	}
 
 	//resubstituteF(x, HCalib);
 	currentLambda= lambda;
-	VIresubstituteF_MT(lastX, HCalib,multiThreading);
+	VIresubstituteF_MT(x_imu, HCalib,multiThreading);
 	currentLambda=0;
 	std::cout<<"goes here!"<<std::endl;
 
@@ -1130,10 +1136,9 @@ void EnergyFunctional::removePoint(EFPoint* p)
 
 void EnergyFunctional::incrementreplace(VecX reducedstate,VecX * fullstate)
 {
-	int currentpos = CPARS;
 	for(int i=0;i<nFrames;i++)
 	{
-		(*fullstate).segment<8>(frames[i]->framepos) = reducedstate.segment<8>(CPARS+i*8);
+		(*fullstate).segment<8>(frames[i]->reducedframepos) = reducedstate.segment<8>(CPARS+i*8);
 	}
 }
 
@@ -1141,7 +1146,9 @@ VecX EnergyFunctional::VIorthogonalize(VecX& b, MatXX* H)
 {
 	VecX newb(nFrames*8 + CPARS);
 	newb = solutionreduce(b);
+	std::cout<<"b:\n"<<b<<std::endl;
 	orthogonalize(&newb,0);
+	std::cout<<"newb:\n"<<newb<<std::endl;
 	return newb;
 }
 

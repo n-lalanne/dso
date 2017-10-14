@@ -1790,7 +1790,7 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
                 // check rescallng error
                 if (!setting_debugout_runquiet)
                 {
-                    Vec6 error = (fh->worldToCam_evalPT * fh->shell->camToWorld).log();
+                    Vec6 error = (fh->PRE_worldToCam * fh->shell->camToWorld).log();
                     std::cout << "Rescaling error: " << error << std::endl;
                 }
 
