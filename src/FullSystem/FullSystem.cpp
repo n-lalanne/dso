@@ -359,6 +359,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
     Vec6 final_biases, current_biases;
 	//for debuging
 	SE3 groundtruth_lastF_2_fh;
+    FrameShell* slast;
+    FrameShell* sprelast;
 
 	if(allFrameHistory.size() == 2)
 	{
@@ -366,9 +368,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	}
 	else
 	{
-
-		FrameShell* slast = allFrameHistory[allFrameHistory.size()-2];
-		FrameShell* sprelast = allFrameHistory[allFrameHistory.size()-3];
+        slast = allFrameHistory[allFrameHistory.size()-2];
+        sprelast = allFrameHistory[allFrameHistory.size()-3];
 		// get last delta-movement.
 		if(!slast->poseValid || !sprelast->poseValid || !lastF->shell->poseValid)
 		{
@@ -624,7 +625,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	gtsam::NavState navstate_this;
 	gtsam::NavState navstate_current = prop_navstate;
 	gtsam::NavState slast_trynavstate = slast_navstate;
-	Vec6 biases_this;
+	Vec6 biases_this,pbiases_this;
 
 	bool haveOneGood = false;
 	int tryIterations=0;
@@ -634,6 +635,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		SE3 lastF_2_fh_this = lastF_2_fh_tries[i];
 		SE3 slast_2_fh_this = lastF_2_fh_this * lastF_2_slast.inverse();
 		biases_this = fh->shell->bias.vector();
+        pbiases_this = fh->shell->last_frame->bias.vector();
+
 		bool trackingIsGood;
 		if (IMUinitialized)
 		{
@@ -661,7 +664,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //			std::cout<<"lastRef->Tib from camtoworld: "<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
 
 			trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
-					fh, slast_trynavstate, navstate_this, biases_this, aff_g2l_thisIMU,
+					fh, slast_trynavstate, navstate_this, pbiases_this, biases_this, aff_g2l_thisIMU,
 					pyrLevelsUsed-1,
 					achievedRes);
 

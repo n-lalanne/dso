@@ -131,7 +131,8 @@ Vec15 FrameShell::evaluateIMUerrorsBA(
 Vec15 FrameShell::evaluateIMUerrors(
         gtsam::NavState previous_navstate,
         gtsam::NavState current_navstate,
-        gtsam::imuBias::ConstantBias initial_bias,
+        gtsam::imuBias::ConstantBias previous_biases,
+        gtsam::imuBias::ConstantBias current_biases,
         gtsam::Matrix &J_imu_Rt_i,
         gtsam::Matrix &J_imu_v_i,
         gtsam::Matrix &J_imu_Rt_j,
@@ -142,7 +143,7 @@ Vec15 FrameShell::evaluateIMUerrors(
 {
     Vec15 resreturn = imu_factor_last_frame_->evaluateError(
             previous_navstate.pose(), previous_navstate.velocity(), current_navstate.pose(), current_navstate.velocity(),
-            initial_bias, this->bias,
+            previous_biases, current_biases,
             J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
     );
 //    std::cout<<"by gtsam: "<<std::endl;

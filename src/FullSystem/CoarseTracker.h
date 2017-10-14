@@ -57,7 +57,7 @@ public:
 
 	bool trackNewestCoarsewithIMU(
 			FrameHessian* newFrameHessian,
-			gtsam::NavState &navstate_i_out, gtsam::NavState &navstate_out,  Vec6 &biases_out, AffLight &aff_g2l_out,
+			gtsam::NavState &navstate_i_out, gtsam::NavState &navstate_out,Vec6 &pbiases_out,  Vec6 &biases_out, AffLight &aff_g2l_out,
 			int coarsestLvl,
 			Vec5 minResForAbort,
 			IOWrap::Output3DWrapper* wrap=0);
@@ -98,6 +98,7 @@ public:
 
     void debugPlotIDepthMap(float* minID, float* maxID, std::vector<IOWrap::Output3DWrapper*> &wraps);
     void debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*> &wraps);
+	void setprevbias(const Vec6 bias);
 
 	FrameHessian* lastRef;
 	AffLight lastRef_aff_g2l;
@@ -133,7 +134,7 @@ private:
 	void calcGSSSEst(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 
     // for imu errors
-    Vec15 calcIMURes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate, Vec6 bias);
+    Vec15 calcIMURes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate, Vec6 prev_biases, Vec6 bias);
 	Vec15 calcPriorRes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate);
     gtsam::Matrix  J_imu_Rt, J_imu_bias, J_imu_v;
     gtsam::Matrix  J_imu_Rt_previous, J_imu_bias_previous, J_imu_v_previous;
