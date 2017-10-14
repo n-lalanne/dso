@@ -418,6 +418,7 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     J_imu_travb_previous.block<15, 3>(0, 0) = J_imu_Rt_previous.block<15, 3>(0, 3);
     J_imu_travb_previous.block<15, 3>(0, 3) = J_imu_Rt_previous.block<15, 3>(0, 0);
     J_imu_travb_previous.block<15, 3>(0, 6) = J_imu_v_previous.block<15, 3>(0, 0);
+	J_imu_travb_previous.block<15, 6>(0, 9) = J_imu_bias_previous.block<15, 6>(0, 0);
 
     // ------------------ don't ignore the cross terms in hessian between i and jth poses ------------------
     Mat1517 J_imu_travb_current;
@@ -425,6 +426,7 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     J_imu_travb_current.block<15, 3>(0, 0) = J_imu_Rt.block<15, 3>(0, 3);
     J_imu_travb_current.block<15, 3>(0, 3) = J_imu_Rt.block<15, 3>(0, 0);
     J_imu_travb_current.block<15, 3>(0, 8) = J_imu_v.block<15, 3>(0, 0);
+	J_imu_travb_current.block<15, 6>(0, 11) = J_imu_bias.block<15, 6>(0, 0);
 
     Mat1532 J_imu_complete;
     J_imu_complete.leftCols(17) = J_imu_travb_current;
@@ -480,28 +482,40 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     H_out.block<32,1>(0,6) *= SCALE_A;
     H_out.block<32,1>(0,7) *= SCALE_B;
     H_out.block<32,3>(0,8) *= SCALE_IMU_V;
+	H_out.block<32,3>(0,11) *= SCALE_IMU_ACCE;
+	H_out.block<32,3>(0,14) *= SCALE_IMU_GYRO;
     H_out.block<32,3>(0,17) *= SCALE_XI_ROT;
     H_out.block<32,3>(0,20) *= SCALE_XI_TRANS;
     H_out.block<32,3>(0,23) *= SCALE_IMU_V;
+	H_out.block<32,3>(0,26) *= SCALE_IMU_ACCE;
+	H_out.block<32,3>(0,29) *= SCALE_IMU_GYRO;
 
     H_out.block<3,32>(0,0) *= SCALE_XI_ROT;
     H_out.block<3,32>(3,0) *= SCALE_XI_TRANS;
     H_out.block<1,32>(6,0) *= SCALE_A;
     H_out.block<1,32>(7,0) *= SCALE_B;
     H_out.block<3,32>(8,0) *= SCALE_IMU_V;
+	H_out.block<3,32>(11,0) *= SCALE_IMU_ACCE;
+	H_out.block<3,32>(14,0) *= SCALE_IMU_GYRO;
     H_out.block<3,32>(17,0) *= SCALE_XI_ROT;
     H_out.block<3,32>(20,0) *= SCALE_XI_TRANS;
     H_out.block<3,32>(23,0) *= SCALE_IMU_V;
+	H_out.block<3,32>(26,0) *= SCALE_IMU_ACCE;
+	H_out.block<3,32>(29,0) *= SCALE_IMU_GYRO;
 
     b_out.segment<3>(0) *= SCALE_XI_ROT;
     b_out.segment<3>(3) *= SCALE_XI_TRANS;
     b_out.segment<1>(6) *= SCALE_A;
     b_out.segment<1>(7) *= SCALE_B;
     b_out.segment<3>(8) *= SCALE_IMU_V;
+	b_out.segment<3>(14) *= SCALE_IMU_ACCE;
+	b_out.segment<3>(17) *= SCALE_IMU_GYRO;
 
     b_out.segment<3>(17) *= SCALE_XI_ROT;
     b_out.segment<3>(20) *= SCALE_XI_TRANS;
     b_out.segment<3>(23) *= SCALE_IMU_V;
+	b_out.segment<3>(26) *= SCALE_IMU_ACCE;
+	b_out.segment<3>(29) *= SCALE_IMU_GYRO;
 }
 
 void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, const gtsam::NavState navState_, AffLight aff_g2l)
@@ -599,6 +613,7 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	J_imu_travb.block<15, 3>(0, 0) = J_imu_Rt.block<15, 3>(0, 3);
 	J_imu_travb.block<15, 3>(0, 3) = J_imu_Rt.block<15, 3>(0, 0);
     J_imu_travb.block<15, 3>(0, 8) = J_imu_v.block<15, 3>(0, 0);
+	J_imu_travb.block<15, 6>(0,11) = J_imu_bias.block<15, 6>(0, 0);
 
 //	// delta t/ navstate j trv
 //	J_imu_travb.block<3, 3>(3, 0) = J_imu_Rt.block<3, 3>(3, 3);
@@ -676,12 +691,18 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	H_out.block<1,17>(7,0) *= SCALE_B;
 	H_out.block<3,17>(8,0) *= SCALE_IMU_V;
 	H_out.block<17,3>(0,8) *= SCALE_IMU_V;
+	H_out.block<17,3>(0,11) *= SCALE_IMU_ACCE;
+	H_out.block<3,17>(11,0) *= SCALE_IMU_ACCE;
+	H_out.block<17,3>(0,14) *= SCALE_IMU_GYRO;
+	H_out.block<3,17>(14,0) *= SCALE_IMU_GYRO;
 
 	b_out.segment<3>(0) *= SCALE_XI_ROT;
 	b_out.segment<3>(3) *= SCALE_XI_TRANS;
 	b_out.segment<1>(6) *= SCALE_A;
 	b_out.segment<1>(7) *= SCALE_B;
 	b_out.segment<3>(8) *= SCALE_IMU_V;
+	b_out.segment<3>(11) *= SCALE_IMU_ACCE;
+	b_out.segment<3>(14) *= SCALE_IMU_GYRO;
 
 //	std::cout << "H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
 //	std::cout << "b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
@@ -1032,7 +1053,7 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState previous_navstate, gtsam::NavSta
 			current_navstate,
 			previous_biases,
 			current_biases,
-			J_imu_Rt_previous, J_imu_v_previous, J_imu_Rt, J_imu_v, J_imu_bias_previous, this->J_imu_bias
+			J_imu_Rt_previous, J_imu_v_previous, J_imu_Rt, J_imu_v, J_imu_bias_previous, J_imu_bias
 	);
 //    std::cout<<"J_imu_Rt_i:\n"<<J_imu_Rt_i<<std::endl;
 //    std::cout<<"J_imu_v_i:\n"<<J_imu_v_i<<std::endl;
@@ -1502,8 +1523,10 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	std::cout<<"----------------------------------------------------------------"<<std::endl;
 	Vec15 imu_error = calcIMURes(previous_navstate, current_navstate, prev_biases, biases);
 	//std::cout << "Before IMU error: " << imu_error.head<3>().transpose() << std::endl;
-	imu_error.segment<6>(9) = Eigen::Matrix<double,6,1>::Zero();
-	//imu_error.segment<3>()
+
+
+	//imu_error.segment<6>(9) = Eigen::Matrix<double,6,1>::Zero();
+
 
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 	//std::cout << "imu_error: " << imu_error.transpose() << std::endl;
@@ -2026,10 +2049,14 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			incScaled.segment<1>(6) *= SCALE_A;
 			incScaled.segment<1>(7) *= SCALE_B;
             incScaled.segment<3>(8) *= SCALE_IMU_V;
+			incScaled.segment<3>(11) *= SCALE_IMU_ACCE;
+			incScaled.segment<3>(14) *= SCALE_IMU_GYRO;
 
             incScaled.segment<3>(17) *= SCALE_XI_ROT;
             incScaled.segment<3>(20) *= SCALE_XI_TRANS;
             incScaled.segment<3>(23) *= SCALE_IMU_V;
+			incScaled.segment<3>(26) *= SCALE_IMU_ACCE;
+			incScaled.segment<3>(29) *= SCALE_IMU_GYRO;
 
 			//std::cout<<"increment_j: \n"<<incScaled.head(11).transpose()<<std::endl;
             //std::cout<<"increment_i: \n"<<incScaled.segment<9>(17).transpose()<<std::endl;
@@ -2062,7 +2089,11 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 			//std::cout<<"increment of biases: "<<incScaled.tail<6>().transpose()<<std::endl;
 			Vec6 biases_new = biases_current + incScaled.tail<6>();
-			Vec6 biases_prev_new = biases_prev + incScaled.tail<6>();
+
+//			Todo:: update previous biases!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//			incScaled.segment<3>(11) *= SCALE_IMU_ACCE;
+//			incScaled.segment<3>(14) *= SCALE_IMU_GYRO;
+			Vec6 biases_prev_new = biases_prev + incScaled.segment<6>(11);
 
 //			SE3 wToIMU_new = IMUTow_j_new.inverse();
 //			SE3 wToNew_new = imutocam * wToIMU_new;
