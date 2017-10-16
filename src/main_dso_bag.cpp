@@ -54,6 +54,8 @@ std::string gammaFile = "";
 std::string configFile = "";
 std::string groundTruthFile = "";
 std::string bagFile = "";
+std::string outputFile = "";
+
 double bagOffset = 0.0;
 bool addprior;
 
@@ -157,6 +159,13 @@ void parseArgument(char* arg)
     {
         bagFile = buf;
         printf("loading bag from %s!\n", bagFile.c_str());
+        return;
+    }
+
+    if(1==sscanf(arg,"output=%s",buf))
+    {
+        outputFile = buf;
+        printf("loading output from %s!\n", outputFile.c_str());
         return;
     }
 
@@ -480,7 +489,7 @@ int main( int argc, char** argv )
         }
     }
 
-    FILE *trajectory_log = fopen("logs/trajectory.txt", "w");
+    FILE *trajectory_log = fopen((std::string("logs/")+outputFile).c_str(), "w");
 
     if (trajectory_log)
     {
