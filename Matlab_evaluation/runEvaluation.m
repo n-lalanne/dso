@@ -30,6 +30,10 @@ function [] = runEvaluation(executable, config, datasetDir)
 
 				if status == 0
 					break;
+				else
+					fileId = fopen('logs/failure.txt', 'a');
+					fprintf(fileId, datasets{datasetIdx});
+					fclose(fileId);
 				end
 			end
 		end
