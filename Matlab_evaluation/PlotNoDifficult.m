@@ -52,14 +52,14 @@ caxis([0 maxError]); %caxis([0 0.5]);
 hold on
 plot(20*[0 23],20*[10 10]+0.5,'black','LineWidth',2)
 plot(20*[5 5]+0.5,20*[-100 100],'black','LineWidth',2)
-plot(20*[8 8]+0.5,20*[-100 100],'black','LineWidth',2)
-plot(20*[11 11]+0.5,20*[-100 100],'black','LineWidth',2)
+plot(20*[7 7]+0.5,20*[-100 100],'black','LineWidth',2)
+plot(20*[9 9]+0.5,20*[-100 100],'black','LineWidth',2)
+plot(20*[14 14]+0.5,20*[-100 100],'black','LineWidth',2)
 plot(20*[16 16]+0.5,20*[-100 100],'black','LineWidth',2)
-plot(20*[19 19]+0.5,20*[-100 100],'black','LineWidth',2)
 
 set(gca, 'YTick',[5 15]*20-10)
 set(gca, 'YTickLabel',{'Fwd', 'Bwd'})
-set(gca, 'XTick',[3 7 10 14 18 21]*20-10)
+set(gca, 'XTick',[3 6.5 8.5 12 15.5 17.5]*20-10)
 set(gca, 'XTickLabel',{'MH_l', 'V1_l', 'V2_l', 'MH_r', 'V1_r', 'V2_r'})
 
 title('DSVIO')
@@ -71,18 +71,18 @@ subplot(1,2,2)
 imagesc(imresize(DSO_MAV,20,'nearest') );
 caxis([0 maxError]);
 hold on
+
 plot(20*[0 23],20*[10 10]+0.5,'black','LineWidth',2)
 plot(20*[5 5]+0.5,20*[-100 100],'black','LineWidth',2)
-plot(20*[8 8]+0.5,20*[-100 100],'black','LineWidth',2)
-plot(20*[11 11]+0.5,20*[-100 100],'black','LineWidth',2)
+plot(20*[7 7]+0.5,20*[-100 100],'black','LineWidth',2)
+plot(20*[9 9]+0.5,20*[-100 100],'black','LineWidth',2)
+plot(20*[14 14]+0.5,20*[-100 100],'black','LineWidth',2)
 plot(20*[16 16]+0.5,20*[-100 100],'black','LineWidth',2)
-plot(20*[19 19]+0.5,20*[-100 100],'black','LineWidth',2)
-
-
 
 set(gca, 'YTick',[5 15]*20-10)
 set(gca, 'YTickLabel',{'Fwd', 'Bwd'})
-set(gca, 'XTick',[3 7 10 14 18 21]*20-10)
+set(gca, 'XTick',[3 6.5 8.5 12 15.5 17.5]*20-10)
 set(gca, 'XTickLabel',{'MH_l', 'V1_l', 'V2_l', 'MH_r', 'V1_r', 'V2_r'})
+
 colorbar
 title('DSO')

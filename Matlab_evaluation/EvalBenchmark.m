@@ -1,5 +1,5 @@
 % set this to the supplementary files folder.
-FILEPATH = '/home/rakesh/SLAM/dso_supplementary/supp_v2'
+FILEPATH = '/home/rakesh/SLAM/dso_supplementary/supp_v2';
 
 DSO_EVAL_FILEPATH = '/home/rakesh/SLAM/dso_supplementary/Matlab_Evaluation';
 DSO_FILEPATH = FILEPATH;
