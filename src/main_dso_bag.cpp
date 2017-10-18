@@ -442,7 +442,7 @@ int main( int argc, char** argv )
     if (bagFile.empty())
     {
         std::cerr << "bagfile empty" << std::endl;
-        exit(0);
+        exit(1);
     }
     else
     {

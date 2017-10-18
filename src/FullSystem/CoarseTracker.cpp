@@ -1361,7 +1361,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 
 	if(lvl == 0 && nl < 50){
 		std::cout<<"not enough depth!"<<std::endl;
-		exit(0);
+		exit(1);
 	}
 
 //	std::cout << "CalcResIMU: " << std::endl;

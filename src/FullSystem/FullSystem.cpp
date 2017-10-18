@@ -750,7 +750,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		flowVecs = Vec3(0,0,0);
 		aff_g2l = aff_last_2_l;
 		lastF_2_fh = lastF_2_fh_tries[0];
-		exit(0);
+		exit(1);
 		if (IMUinitialized)
 		{
 			navstate_this = prop_navstate;
@@ -2022,7 +2022,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		else
 		{
 			std::cout << "Failed to solve scale!!!" << std::endl;
-			exit(0);
+			exit(1);
 		}
     }
 
