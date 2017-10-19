@@ -17,4 +17,5 @@ logPath_fwd = [DSO_FILEPATH '/DS-VO_Forward/'];
 %% DSVIO
 logPath_fwd = [DSVIO_FILEPATH];
 [ DSVIO_MAV_FWD ] = evalMAVdataset( logPath_fwd, options, errorPerSequenceMAV(FILEPATH) );
-save('DSVIO.mat', 'DSVIO_MAV_FWD')
+save('logs/DSVIO.mat', 'DSVIO_MAV_FWD')
+Plot

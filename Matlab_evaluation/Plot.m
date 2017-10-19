@@ -85,4 +85,5 @@ set(gca, 'YTickLabel',{'Fwd', 'Bwd'})
 set(gca, 'XTick',[3 7 10 14 18 21]*20-10)
 set(gca, 'XTickLabel',{'MH_l', 'V1_l', 'V2_l', 'MH_r', 'V1_r', 'V2_r'})
 colorbar
+colormap(jet(256))
 title('DSO')
