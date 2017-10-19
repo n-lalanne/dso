@@ -789,15 +789,17 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //		std::cout << "camToWorld normal: \n" << fh->shell->camToWorld.matrix() << std::endl;
 
 
-		fh->shell->navstate = navstate_this;
+		fh->shell->updateNavState(navstate_this);
 		fh->shell->bias = gtsam::imuBias::ConstantBias(biases_this);
 		fh->shell->camToTrackingRef = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
 				(lastF->shell->navstate.pose().inverse() * navstate_this.pose()).matrix()
 		));
 		fh->shell->trackingRef = lastF->shell;
 		fh->shell->aff_g2l = aff_g2l;
-		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
+//		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef; // already done in updateNavState
 
+        fh->shell->last_frame->updateNavState(slast_trynavstate);
+        fh->shell->last_frame->bias = gtsam::imuBias::ConstantBias(pbiases_this);
 		//std::cout << "camToWorld imu: \n" << fh->shell->camToWorld.matrix() << std::endl;
     }
 
@@ -1511,7 +1513,7 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		}
 
         gyroBiasEstimate = allKeyFramesHistory.back()->bias.gyroscope();
-		accBiasEstimate << -0.015406, 0.083464, 0.036466; //-0.013337, 0.103464, 0.093086;
+//		accBiasEstimate << -0.015406, 0.083464, 0.036466; //-0.013337, 0.103464, 0.093086;
 
 //		std::cout << "\"gyroscope bias initial calibration::::::; " << delta_bg.transpose() << std::endl;
 		std::cout << "\"gyroscope bias initial calibration::::::; " << gyroBiasEstimate.transpose() << std::endl;
@@ -2030,8 +2032,19 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 
 	// =========================== add into allFrameHistory =========================
     FrameHessian* fh = new FrameHessian();
+    FrameShell* shell;
     fh->Tbc = Tbc;
-	FrameShell* shell = new FrameShell(accBiasEstimate, gyroBiasEstimate);
+    if(isIMUinitialized())
+    {
+        Vec3 paccbias = allFrameHistory.back()->bias.accelerometer();
+        Vec3 pgyrobias = allFrameHistory.back()->bias.gyroscope();
+        shell = new FrameShell(paccbias, pgyrobias);
+        std::cout<<" bias: "<< allFrameHistory.back()->bias.accelerometer().transpose() <<" "<< allFrameHistory.back()->bias.gyroscope().transpose()<<std::endl;
+    }
+    else
+    {
+        shell = new FrameShell(accBiasEstimate, gyroBiasEstimate);
+    }
 	shell->camToWorld = SE3(); 		// no lock required, as fh is not used anywhere yet.
 	shell->aff_g2l = AffLight(0,0);
     shell->marginalizedAt = shell->id = allFrameHistory.size();

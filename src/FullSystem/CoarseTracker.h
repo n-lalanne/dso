@@ -124,7 +124,7 @@ private:
 
 	Vec6 calcResAndGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
 	Vec6 calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToNew, AffLight aff_g2l, float cutoffTH);
-	Vec6 calcResIMU(int lvl, const gtsam::NavState previous_navstate, const gtsam::NavState current_navstate, AffLight aff_g2l,const Vec6 biases, float cutoffTH);
+	Vec6 calcResIMU(int lvl, const gtsam::NavState previous_navstate, const gtsam::NavState current_navstate, AffLight aff_g2l,const Vec6 prev_biases,const Vec6 biases, float cutoffTH);
 	void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
 	void calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, const gtsam::NavState navState_, AffLight aff_g2l);

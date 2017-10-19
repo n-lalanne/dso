@@ -1529,7 +1529,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 
 
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
-	//std::cout << "imu_error: " << imu_error.transpose() << std::endl;
+	std::cout << "imu_error: " << imu_error.transpose() << std::endl;
     // TODO: make threshold a setting
 	float imu_huberTH = 21.66;
 	//std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
@@ -1537,7 +1537,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 
 	if(fabs(imu_error(8))>0.5||fabs(imu_error(7))>0.5||fabs(imu_error(6))>0.5){
 		std::cout<<" wrong imu_error!!!!"<<std::endl;
-//		exit(0);
+		//exit(1);
 	}
 
     if (IMUenergy > imu_huberTH)
@@ -1964,7 +1964,6 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
         H.setZero(); b.setZero();
 
 		float levelCutoffRepeat=1;
-		Vec6 biases_prev = newFrame->shell->last_frame->bias.vector();
 		Vec6 resOld = calcResIMU(lvl, navstate_i_current, navstate_j_current, aff_g2l_current,prev_biases_current, biases_current, setting_coarseCutoffTH*levelCutoffRepeat);
 
 		//std::cout << "threshold: " << setting_coarseCutoffTH*levelCutoffRepeat << std::endl;
@@ -2001,40 +2000,43 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 			//std::cout << "lambda: " << lambda << std::endl;
 
-			if (!fullSystem->addimu)
-			{
-				// remove the bias blocks
-				inc.head<8>() = Hl.topLeftCorner<8, 8>().ldlt().solve(-b.head<8>());
-//                inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
-			}
+//			if (!fullSystem->addimu)
+//			{
+//				// remove the bias blocks
+//				inc.head<8>() = Hl.topLeftCorner<8, 8>().ldlt().solve(-b.head<8>());
+////                inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
+//			}
 
-            else if(isOptimizeSingle)
+            if(isOptimizeSingle)
             {
 				// remove the bias blocks
-				inc.head<11>() = Hl.topLeftCorner<11, 11>().ldlt().solve(-b.head<11>());
-//                inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
+				//inc.head<11>() = Hl.topLeftCorner<17, 11>().ldlt().solve(-b.head<11>());
+                inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
             }
             else
             {
 				// remove the bias blocks
-				Eigen::Matrix<double, 20, 20> H_no_bias;
-				// diagonals
-				H_no_bias.topLeftCorner<11, 11>() = Hl.topLeftCorner<11, 11>();
-				H_no_bias.bottomRightCorner<9, 9>() = Hl.block<9, 9>(17, 17);
-				// off-diagonals
-				H_no_bias.topRightCorner<11, 9>() =Hl.block<11, 9>(0, 17);
-				H_no_bias.bottomLeftCorner<9, 11>() = Hl.block<9, 11>(17, 0);
+//				Eigen::Matrix<double, 20, 20> H_no_bias;
+//				// diagonals
+//				H_no_bias.topLeftCorner<11, 11>() = Hl.topLeftCorner<11, 11>();
+//				H_no_bias.bottomRightCorner<9, 9>() = Hl.block<9, 9>(17, 17);
+//				// off-diagonals
+//				H_no_bias.topRightCorner<11, 9>() =Hl.block<11, 9>(0, 17);
+//				H_no_bias.bottomLeftCorner<9, 11>() = Hl.block<9, 11>(17, 0);
+//
+//				Eigen::Matrix<double, 20, 1> b_no_bias;
+//				b_no_bias.head(11) = b.head(11);
+//				b_no_bias.tail(9) = b.segment<9>(17);
+//
+//				Eigen::Matrix<double, 20, 1> inc_temp = H_no_bias.ldlt().solve(-b_no_bias);
+//
+//				inc.head(11) = inc_temp.head(11);
+//				inc.segment<9>(17) = inc_temp.tail(9);
 
-				Eigen::Matrix<double, 20, 1> b_no_bias;
-				b_no_bias.head(11) = b.head(11);
-				b_no_bias.tail(9) = b.segment<9>(17);
 
-				Eigen::Matrix<double, 20, 1> inc_temp = H_no_bias.ldlt().solve(-b_no_bias);
+				inc = Hl.ldlt().solve(-b);
 
-				inc.head(11) = inc_temp.head(11);
-				inc.segment<9>(17) = inc_temp.tail(9);
-
-				//std::cout << "Initial increment: " << inc_temp.transpose() << std::endl;
+				std::cout << "Initial increment: " << inc.transpose() << std::endl;
 
 //                inc = Hl.ldlt().solve(-b);
             }
@@ -2049,17 +2051,17 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			incScaled.segment<1>(6) *= SCALE_A;
 			incScaled.segment<1>(7) *= SCALE_B;
             incScaled.segment<3>(8) *= SCALE_IMU_V;
-			incScaled.segment<3>(11) *= SCALE_IMU_ACCE;
-			incScaled.segment<3>(14) *= SCALE_IMU_GYRO;
+			incScaled.segment<3>(11) *= SCALE_IMU_ACCE*0;
+			incScaled.segment<3>(14) *= SCALE_IMU_GYRO*0;
 
             incScaled.segment<3>(17) *= SCALE_XI_ROT;
             incScaled.segment<3>(20) *= SCALE_XI_TRANS;
             incScaled.segment<3>(23) *= SCALE_IMU_V;
-			incScaled.segment<3>(26) *= SCALE_IMU_ACCE;
-			incScaled.segment<3>(29) *= SCALE_IMU_GYRO;
+			incScaled.segment<3>(26) *= SCALE_IMU_ACCE*0;
+			incScaled.segment<3>(29) *= SCALE_IMU_GYRO*0;
 
-			//std::cout<<"increment_j: \n"<<incScaled.head(11).transpose()<<std::endl;
-            //std::cout<<"increment_i: \n"<<incScaled.segment<9>(17).transpose()<<std::endl;
+			std::cout<<"increment_j: \n"<<incScaled.head(17).transpose()<<std::endl;
+            std::cout<<"increment_i: \n"<<incScaled.segment<15>(17).transpose()<<std::endl;
 
             if(!std::isfinite(incScaled.sum())) incScaled.setZero();
 
@@ -2088,12 +2090,12 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			//std::cout << "ref2new optimized: \n" << refToNew_new.matrix() << std::endl;
 
 			//std::cout<<"increment of biases: "<<incScaled.tail<6>().transpose()<<std::endl;
-			Vec6 biases_new = biases_current + incScaled.tail<6>();
+			Vec6 biases_new =  biases_current + incScaled.segment<6>(11);
 
 //			Todo:: update previous biases!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //			incScaled.segment<3>(11) *= SCALE_IMU_ACCE;
 //			incScaled.segment<3>(14) *= SCALE_IMU_GYRO;
-			Vec6 biases_prev_new = biases_prev + incScaled.segment<6>(11);
+			Vec6 biases_prev_new = prev_biases_current + incScaled.tail<6>();
 
 //			SE3 wToIMU_new = IMUTow_j_new.inverse();
 //			SE3 wToNew_new = imutocam * wToIMU_new;
@@ -2118,13 +2120,13 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			if(accept)
 			{
 				std::cout<<"resNew[0] : resOld[0] "<<resNew[0] <<" : " <<resOld[0]<<" ,accept this incre"<<std::endl;
-				if(!fullSystem->addimu)
-				{
-					calcGSSSESingleIMU(lvl, H17, b17, navstate_j_current, aff_g2l_current);
-					H.topLeftCorner<8, 8>() = H17.block<8,8>(0,0);
-					b.head<8>() = b17.segment<8>(0);
-				}
-                else if (isOptimizeSingle)
+//				if(!fullSystem->addimu)
+//				{
+//					calcGSSSESingleIMU(lvl, H17, b17, navstate_j_current, aff_g2l_current);
+//					H.topLeftCorner<8, 8>() = H17.block<8,8>(0,0);
+//					b.head<8>() = b17.segment<8>(0);
+//				}
+                if (isOptimizeSingle)
                 {
                     calcGSSSESingleIMU(lvl, H17, b17, navstate_j_current, aff_g2l_current);
                     H.topLeftCorner<17, 17>() = H17;
@@ -2141,6 +2143,9 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				navstate_j_current = navstate_j_new;
                 navstate_i_current = navstate_i_new;
 				lambda *= 0.5;
+				if (!isOptimizeSingle){
+					prev_biases_current = biases_prev_new;
+				}
 
 //				refToNew_current = refToNew_new;
 //				ImuTow_current = IMUTow_j_new;
@@ -2201,6 +2206,9 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	navstate_i_out = navstate_i_current;
 	aff_g2l_out = aff_g2l_current;
 	biases_out = biases_current;
+	pbiases_out = prev_biases_current;
+
+
 
     Vec3 velocity_gt =fullSystem->T_dsoworld_eurocworld.block<3,3>(0,0) * newFrame->shell->groundtruth.velocity;
     float velocity_direction_error = acos(
