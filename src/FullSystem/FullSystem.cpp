@@ -2014,6 +2014,12 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 			UpdateState(g,initialstates);
 			IMUinitialized = true;
 
+			// reset the visualizer
+			for (IOWrap::Output3DWrapper* ow: outputWrapper)
+			{
+				ow->reset();
+			}
+
             std::cout << "-------------- After initialization --------------" << std::endl;
             std::cout << "Last keyframe ID: " << allKeyFramesHistory.back()->id << std::endl;
             std::cout << "Last frame ID: " << allKeyFramesHistory.back()->id << std::endl;
