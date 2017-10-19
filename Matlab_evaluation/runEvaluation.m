@@ -70,15 +70,15 @@ function [] = runEvaluation(executable, config, datasetDir)
 					[' end_frame=' num2str(datasets{datasetIdx}.endFrame)], ...
 					[' nogui=1']
 				];
-				[executable arguments]
-				return
+				% [executable arguments]
+				% return
                 [status, cmdout] = system([executable arguments], '-echo')
 
 				if status == 0
 					break;
 				else
-					fileId = fopen('logs/failure.txt\n', 'a');
-					fprintf(fileId, datasets{datasetIdx}.name);
+					fileId = fopen('logs/failure.txt', 'a');
+					fprintf(fileId, [datasets{datasetIdx}.name '\n']);
 					fclose(fileId);
 				end
 			end
