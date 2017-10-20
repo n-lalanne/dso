@@ -189,6 +189,10 @@ else()
 	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
 endif()
 
+# utilities
+add_executable(groundtruth_parser ${PROJECT_SOURCE_DIR}/src/main_groundtruth_parser.cpp)
+target_link_libraries(groundtruth_parser ${ROS_LIBS})
+
 # tests
 #add_executable(matrix_assignments_test ${PROJECT_SOURCE_DIR}/src/tests/matrix_assignments.cpp)
 #target_link_libraries(matrix_assignments_test dso)
