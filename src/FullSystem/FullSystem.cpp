@@ -231,11 +231,6 @@ FullSystem::FullSystem()
 
     isLocalBADone = true;
 
-	mTbc<< 0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
-			0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
-			-0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
-			0.0, 0.0, 0.0, 1.0;
-	Tbc = SE3(mTbc);
 }
 
 FullSystem::~FullSystem()
@@ -786,15 +781,17 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //		std::cout << "camToWorld normal: \n" << fh->shell->camToWorld.matrix() << std::endl;
 
 
-		fh->shell->navstate = navstate_this;
+		fh->shell->updateNavState(navstate_this);
 		fh->shell->bias = gtsam::imuBias::ConstantBias(biases_this);
 		fh->shell->camToTrackingRef = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
 				(lastF->shell->navstate.pose().inverse() * navstate_this.pose()).matrix()
 		));
 		fh->shell->trackingRef = lastF->shell;
 		fh->shell->aff_g2l = aff_g2l;
-		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
+//		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef; // already done in updateNavState
 
+		fh->shell->last_frame->updateNavState(slast_trynavstate);
+//		fh->shell->last_frame->bias = gtsam::imuBias::ConstantBias(pbiases_this);
 		//std::cout << "camToWorld imu: \n" << fh->shell->camToWorld.matrix() << std::endl;
     }
 

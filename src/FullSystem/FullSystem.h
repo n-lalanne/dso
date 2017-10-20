@@ -173,7 +173,7 @@ public:
 	std::vector<FrameShell*> getAllFrameHistory() { return allFrameHistory; }
 	Mat33 getRbc() { return dso_vi::Tbc.rotationMatrix(); }
 	Mat44 getTbc() { return dso_vi::Tbc.matrix(); }
-	void setTbc(Mat44 _Tbc) { dso_vi::setTbc(_Tbc); }
+	void setTbc(Mat44 _Tbc) { dso_vi::setTbc(_Tbc); mTbc = _Tbc; Tbc = SE3(_Tbc); }
     std::vector<dso_vi::IMUData> getIMUSinceLastKF() { return mvIMUSinceLastKF; }
     SE3 Tbc;
     SE3 Tcb;

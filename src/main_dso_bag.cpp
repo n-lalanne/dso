@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <limits>
 #include <stdexcept>
 #include <iostream>
 #include <fstream>
@@ -55,8 +56,10 @@ std::string configFile = "";
 std::string groundTruthFile = "";
 std::string bagFile = "";
 std::string outputFile = "";
+int startFrame = 0;
+int endFrame = std::numeric_limits<int>::max();
 
-double bagOffset = 0.0;
+unsigned frameCount = 0;
 bool addprior;
 
 bool useSampleOutput=false;
@@ -169,12 +172,18 @@ void parseArgument(char* arg)
         return;
     }
 
-    if(1==sscanf(arg,"bag_offset=%s",buf))
+    if(1==sscanf(arg,"start_frame=%d",&startFrame))
     {
-        bagOffset = atof(buf);
-        printf("Bag offset %f!\n", bagOffset);
+        printf("start frame %d\n", startFrame);
         return;
     }
+
+    if(1==sscanf(arg,"end_frame=%d",&endFrame))
+    {
+        printf("end frame %d\n", endFrame);
+        return;
+    }
+
 
     printf("could not parse argument \"%s\"!!\n", arg);
 }
@@ -303,6 +312,8 @@ int step(dso_vi::MsgSynchronizer &msgsync, dso_vi::ConfigParam &config, dso_vi::
 
     if (bdata)
     {
+        frameCount++;
+
         std::vector<dso_vi::IMUData> vimuData;
         vimuData.reserve(vimuMsg.size());
 
@@ -333,11 +344,11 @@ int step(dso_vi::MsgSynchronizer &msgsync, dso_vi::ConfigParam &config, dso_vi::
                         previousState, currentState
                 );
             }
-            catch (std::exception e)
+            catch (std::exception &e)
             {
                 std::cerr << e.what() << std::endl;
-                std::cout << "Ran out of groundtruth, exitting..." << std::endl;
-                return 1;
+                std::cout << "Ran out of groundtruth, not exiting though..." << std::endl;
+//                return 1;
             }
             ROS_INFO("GT VS CAM, Start %f, End %f",
                      (previousState.timestamp - nPreviousImageTimestamp)*1e3,
@@ -350,7 +361,15 @@ int step(dso_vi::MsgSynchronizer &msgsync, dso_vi::ConfigParam &config, dso_vi::
 //				relativePose.translation().y(),
 //				relativePose.translation().z()
 //			);
-            track(imageMsg, vimuData, config, currentState);
+
+            if (frameCount >= startFrame && frameCount <= endFrame)
+            {
+                track(imageMsg, vimuData, config, currentState);
+            }
+            else if (frameCount > endFrame)
+            {
+                is_exit = true;
+            }
         }
         nPreviousImageTimestamp = imageMsg->header.stamp.toSec();
     }
@@ -454,10 +473,7 @@ int main( int argc, char** argv )
         topics.push_back(imagetopic);
         topics.push_back(imutopic);
 
-        rosbag::View tempBagView(bag, rosbag::TopicQuery(topics));
-        ros::Time startTime = tempBagView.getBeginTime() + ros::Duration(bagOffset);
-
-        bagView = new rosbag::View(bag, rosbag::TopicQuery(topics), startTime, ros::TIME_MAX);
+        bagView = new rosbag::View(bag, rosbag::TopicQuery(topics), ros::TIME_MIN, ros::TIME_MAX);
 
         ROS_INFO("BAG starts at: %f", bagView->getBeginTime().toSec());
     }

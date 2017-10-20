@@ -237,6 +237,13 @@ public:
     }
 
     Vec3 TWB();
+
+	inline void updateNavState(gtsam::NavState new_navstate)
+	{
+		navstate = new_navstate;
+		SE3 Twb(navstate.pose().matrix());
+		camToWorld = Twb * dso_vi::Tbc;
+	}
 };
 
 

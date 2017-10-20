@@ -35,7 +35,7 @@ bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/MH_01_easy.
 #######################################
 
 imutopic: "/imu0"
-imagetopic: "/cam0/image_raw"
+imagetopic: "/cam1/image_raw"
 
 #if withprior(1: with prior 0: without prior)
 addprior: 1
@@ -51,9 +51,9 @@ IMU.multiplyG: 0
 
 # camera-imu frame transformation, Pi = Tic * Pc
 Camera.Tbc:
- [0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
-  0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
-  -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+ [0.0125552670891, -0.999755099723, 0.0182237714554, -0.0198435579556,
+  0.999598781151, 0.0130119051815, 0.0251588363115, 0.0453689425024,
+  -0.0253898008918, 0.0179005838253, 0.999517347078, 0.00786212447038,
   0.0, 0.0, 0.0, 1.0]
 
 IMU.accBias: [-0.013337, 0.103464, 0.093086]
@@ -71,21 +71,21 @@ gyro_bias_rw_sigma: 0.0002
 # Camera Parameters. Adjust them!
 #--------------------------------------------------------------------------------------------
 
-# Camera calibration and distortion parameters (OpenCV) 
-Camera.fx: 458.654
-Camera.fy: 457.296
-Camera.cx: 367.215
-Camera.cy: 248.375
+# Camera calibration and distortion parameters (OpenCV)
+Camera.fx: 457.587
+Camera.fy: 456.134
+Camera.cx: 379.999
+Camera.cy: 255.238
 
-Camera.k1: -0.28340811
-Camera.k2: 0.07395907
-Camera.p1: 0.00019359
-Camera.p2: 0.00001762 
+Camera.k1: -0.28368365
+Camera.k2: 0.07451284
+Camera.p1: -0.00010473
+Camera.p2: -3.55590700e-05
 
 Camera.width: 752
 Camera.height: 480
 
-# Camera frames per second 
+# Camera frames per second
 Camera.fps: 20.0
 
 # IR projector baseline times fx (aprox.)
@@ -107,16 +107,16 @@ DepthMapFactor: 1.0
 # ORB Extractor: Number of features per image
 ORBextractor.nFeatures: 1000
 
-# ORB Extractor: Scale factor between levels in the scale pyramid 
+# ORB Extractor: Scale factor between levels in the scale pyramid
 ORBextractor.scaleFactor: 1.2
 
-# ORB Extractor: Number of levels in the scale pyramid 
+# ORB Extractor: Number of levels in the scale pyramid
 ORBextractor.nLevels: 8
 
 # ORB Extractor: Fast threshold
 # Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
 # Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
-# You can lower these values if your images have low contrast   
+# You can lower these values if your images have low contrast
 ORBextractor.iniThFAST: 20
 ORBextractor.minThFAST: 7
 
