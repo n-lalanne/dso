@@ -1,3 +1,6 @@
 [submodule "thirdparty/sse2neon"]
 	path = thirdparty/sse2neon
 	url = https://github.com/jratcliff63367/sse2neon.git
+[submodule "evaluate_ate_scale"]
+	path = evaluate_ate_scale
+	url = https://github.com/rakeshshrestha31/evaluate_ate_scale.git
