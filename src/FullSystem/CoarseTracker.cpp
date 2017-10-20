@@ -2168,7 +2168,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 //	gtsam::NavState navstate_j_current_bak = navstate_out;
 //	gtsam::NavState navstate_i_current_bak = navstate_i_out;
 
-	if((navstate_j_current_bak.v() - navstate_out.v()).norm()>0.5||(navstate_i_current_bak.v()-navstate_j_current_bak.v()).norm()>0.5)
+	if((navstate_j_current_bak.v() - navstate_out.v()).norm()>0.3||(navstate_i_current_bak.v()-navstate_j_current_bak.v()).norm()>0.3)
 	{
 		std::cout<<"before navi:"<<navstate_i_current_bak<<std::endl;
 		std::cout<<"before navj:"<<	navstate_j_current_bak<<std::endl;
