@@ -171,6 +171,7 @@ public:
 	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
 
 	std::vector<FrameShell*> getAllFrameHistory() { return allFrameHistory; }
+    std::vector<FrameShell*> getAllKeyFrameHistory() { return allKeyFramesHistory; }
 	Mat33 getRbc() { return dso_vi::Tbc.rotationMatrix(); }
 	Mat44 getTbc() { return dso_vi::Tbc.matrix(); }
 	void setTbc(Mat44 _Tbc) { dso_vi::setTbc(_Tbc); mTbc = _Tbc; Tbc = SE3(_Tbc); }

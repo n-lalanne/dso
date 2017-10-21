@@ -510,8 +510,9 @@ int main( int argc, char** argv )
     if (trajectory_log)
     {
         std::cout << "Saving trajectory" << std::endl;
-        for(FrameShell *fs: fullSystem->getAllFrameHistory())
+        for(size_t fh_idx=0, len=fullSystem->getAllKeyFrameHistory().size(); fh_idx < len; fh_idx++)
         {
+            FrameShell *fs = fullSystem->getAllKeyFrameHistory()[fh_idx];
             dso::SE3 pose = fs->camToWorld;
             fprintf(
                     trajectory_log, "%.5f %f %f %f %f %f %f %f\n",
@@ -523,7 +524,6 @@ int main( int argc, char** argv )
                     pose.unit_quaternion().y(),
                     pose.unit_quaternion().z(),
                     pose.unit_quaternion().w()
-
             );
         }
         fclose(trajectory_log);
