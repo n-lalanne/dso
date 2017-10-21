@@ -676,8 +676,13 @@ float FullSystem::optimize(int mnumOptIts)
 			fh->shell->aff_g2l = fh->aff_g2l();
 			if(isIMUinitialized()) {
 				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
-				std::cout<<"The velocity before IMUBA:\n"<<fh->shell->navstate<<std::endl;
-				std::cout<<"The velocity after IMUBA:\n"<<fh->PRE_navstate<<std::endl;
+                if((fh->shell->navstate.v()-fh->PRE_navstate.v()).norm()>0.5)
+                {
+                    std::cout<<"before BA:\n"<<fh->shell->navstate<<std::endl;
+                    std::cout<<"after BA:\n"<<fh->PRE_navstate<<std::endl;
+                    std::cout<<"veloctiy increment is too high!"<<std::endl;
+                }
+
 				fh->shell->navstate = fh->PRE_navstate;
 //				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
 //				SE3 newC2W = fh->shell->camToWorld;

@@ -1577,7 +1577,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	//std::cout<<"information_imu :\n"<<information_imu.diagonal().transpose()<<std::endl;
 	//std::cout<<"imu_error:\n"<<imu_error.transpose()<<std::endl;
 	//std::cout<<"number of points:"<<numTermsInE<<std::endl;
-	//std::cout<<"E vs IMU_error vs priorEnergy  is :"<<E <<" "<<IMUenergy<< " " <<priorEnergy<<" "<< lvl << std::endl;
+	std::cout<<"E vs IMU_error vs priorEnergy  is :"<<E <<" "<<IMUenergy<< " " <<priorEnergy<<" "<< lvl << std::endl;
 
 	// calculate error wrt gt
 	Vec6 pose_error_current =  gtsam::Pose3::Logmap(gtsam::Pose3(
@@ -1884,6 +1884,10 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	float lambdaExtrapolationLimit = 0.001;
 
 	Vec6 biases_current = biases_out;
+
+	gtsam::NavState navstate_j_current_bak = navstate_out;
+	gtsam::NavState navstate_i_current_bak = navstate_i_out;
+
 	gtsam::NavState navstate_j_current = navstate_out;
 	gtsam::NavState navstate_i_current = navstate_i_out;
 	gtsam::NavState navstate_i_first_estimate = navstate_i_current;
@@ -2161,6 +2165,18 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	aff_g2l_out = aff_g2l_current;
 	biases_out = biases_current;
 
+//	gtsam::NavState navstate_j_current_bak = navstate_out;
+//	gtsam::NavState navstate_i_current_bak = navstate_i_out;
+
+	if((navstate_j_current_bak.v() - navstate_out.v()).norm()>0.3||(navstate_i_current_bak.v()-navstate_j_current_bak.v()).norm()>0.3)
+	{
+		std::cout<<"before navi:"<<navstate_i_current_bak<<std::endl;
+		std::cout<<"before navj:"<<	navstate_j_current_bak<<std::endl;
+		std::cout<<"after navi:"<<	navstate_i_out<<std::endl;
+		std::cout<<"after navj:"<<	navstate_out<<std::endl;
+
+		std::cout<<"velocity increment is too high!"<<std::endl;
+	}
     Vec3 velocity_gt =fullSystem->T_dsoworld_eurocworld.block<3,3>(0,0) * newFrame->shell->groundtruth.velocity;
     float velocity_direction_error = acos(
             velocity_gt.dot(navstate_out.velocity()) / (velocity_gt.norm() * navstate_out.velocity().norm())

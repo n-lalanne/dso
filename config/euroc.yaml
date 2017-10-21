@@ -61,6 +61,22 @@ IMU.gyroBias: [-0.002153, 0.020744, 0.075806]
 #IMU.accBias: [-0.012406, 0.54766, 0.069073]
 #IMU.gyroBias: [-0.002229, 0.0207, 0.07635]
 
+# for v202
+#IMU.accBias: [-0.013337, 0.103464, 0.093086]
+#IMU.gyroBias: [-0.00153, 0.020744, 0.075806]
+
+# for v203
+#IMU.accBias: [-0.015406, 0.083464, 0.036466]
+#IMU.gyroBias: [-0.00153, 0.020744, 0.085806]
+
+#for v101
+#IMU.accBias: [-0.012406, 0.54766, 0.069073]
+#IMU.gyroBias: [-0.002229, 0.0207, 0.07635]
+
+#for v103
+#IMU.accBias: [-0.022808, 0.177689, 0.090354]
+#IMU.gyroBias: [-0.002229, 0.0207, 0.07635]
+
 # Local Window size
 LocalMapping.LocalWindowSize: 20
 
