@@ -797,12 +797,12 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	for(int i=0;i<totalsize;i++) HFinal_top(i,i) *= (1+lambda);
 	HFinal_top -= H_sc * (1.0f/(1+lambda));
 
-    std::cout<<"HFinal_top:\n"<<HFinal_top.diagonal()<<std::endl;
-    std::cout<<"H_imu:\n"<<H_imu.diagonal()<<std::endl;
-    std::cout<<"bFinal_top:\n"<<bFinal_top<<std::endl;
-    std::cout<<"b_imu:\n"<<b_imu<<std::endl;
-    std::cout<<"HFinal_top_imu:\n"<<HFinal_top_imu.diagonal()<<std::endl;
-    std::cout<<"bFinal_top_imu:\n"<<bFinal_top_imu<<std::endl;
+//    std::cout<<"HFinal_top:\n"<<HFinal_top.diagonal()<<std::endl;
+//    std::cout<<"H_imu:\n"<<H_imu.diagonal()<<std::endl;
+//    std::cout<<"bFinal_top:\n"<<bFinal_top<<std::endl;
+//    std::cout<<"b_imu:\n"<<b_imu<<std::endl;
+//    std::cout<<"HFinal_top_imu:\n"<<HFinal_top_imu.diagonal()<<std::endl;
+//    std::cout<<"bFinal_top_imu:\n"<<bFinal_top_imu<<std::endl;
 
 
 	VecX x,x_imu;
@@ -891,6 +891,11 @@ void EnergyFunctional::VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
 			// TODO: update this to optimize the bias
 			h->data->biasstep.setZero();
 			std::cout << "the velocity step of the frame" << h->frameID << " after:\n" << h->data->vstep << std::endl;
+		}
+		else
+		{
+			h->data->vstep.setZero();
+			h->data->biasstep.setZero();
 		}
 	}
 	// calculate pose, a, b steps

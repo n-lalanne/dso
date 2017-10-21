@@ -2345,6 +2345,13 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 	setPrecalcValues();
 
+	if(isIMUinitialized()){
+		for(FrameHessian* kf : frameHessians)
+		{
+			std::cout<<"begin: The Velocity before IMUBA:\n"<<kf->shell->navstate<<std::endl;
+		}
+	}
+
 	// =========================== add new residuals for old points =========================
 	int numFwdResAdde=0;
 	for(FrameHessian* fh1 : frameHessians)		// go through all active frames
@@ -2491,6 +2498,12 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 	mvIMUSinceLastKF.clear();
+	if(isIMUinitialized()){
+		for(FrameHessian* kf : frameHessians)
+		{
+			std::cout<<"end: The Velocity after IMUBA:\n"<<kf->shell->navstate<<std::endl;
+		}
+	}
 }
 
 void FullSystem::updateimufactors(FrameHessian* Frame){

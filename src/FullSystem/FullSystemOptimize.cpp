@@ -266,6 +266,14 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 						fh->biasstate_backup + fh->biasstep
 				);
 			else fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
+
+			if(fh->PRE_navstate.v().norm()>100)
+			{
+				std::cout<<"The velocity is wrong!!!"<<std::endl;
+				std::cout<<"fh->PRE_navstate:"<<fh->PRE_navstate<<std::endl;
+				std::cout<<"fh->vstep:"<<fh->vstep.transpose()<<std::endl;
+			}
+
 			sumA += fh->step[6]*fh->step[6];
 			sumB += fh->step[7]*fh->step[7];
 			sumT += fh->step.segment<3>(0).squaredNorm();
@@ -544,19 +552,19 @@ float FullSystem::optimize(int mnumOptIts)
 			if(stepsize <0.25) stepsize=0.25;
 		}
 
-		if (isIMUinitialized())
-		{
-			std::cout << "Before step: " << std::endl;
-			checkImuFactors();
-			std::cout << "------------------------------" << std::endl;
-		}
+//		if (isIMUinitialized())
+//		{
+//			std::cout << "Before step: " << std::endl;
+//			checkImuFactors();
+//			std::cout << "------------------------------" << std::endl;
+//		}
 		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize);
-		if (isIMUinitialized())
-		{
-			std::cout << "\nAfter step: " << std::endl;
-			checkImuFactors();
-			std::cout << "------------------------------" << std::endl;
-		}
+//		if (isIMUinitialized())
+//		{
+//			std::cout << "\nAfter step: " << std::endl;
+//			checkImuFactors();
+//			std::cout << "------------------------------" << std::endl;
+//		}
 
 		// eval new energy!
 		Vec3 newEnergy = linearizeAll(false);
@@ -668,6 +676,8 @@ float FullSystem::optimize(int mnumOptIts)
 			fh->shell->aff_g2l = fh->aff_g2l();
 			if(isIMUinitialized()) {
 				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
+				std::cout<<"The velocity before IMUBA:\n"<<fh->shell->navstate<<std::endl;
+				std::cout<<"The velocity after IMUBA:\n"<<fh->PRE_navstate<<std::endl;
 				fh->shell->navstate = fh->PRE_navstate;
 //				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
 //				SE3 newC2W = fh->shell->camToWorld;
