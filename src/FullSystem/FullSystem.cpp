@@ -619,7 +619,10 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	gtsam::NavState navstate_this;
 	gtsam::NavState navstate_current = prop_navstate;
 	gtsam::NavState slast_trynavstate = slast_navstate;
-	Vec6 biases_this;
+	gtsam::imuBias::ConstantBias biases_current = fh->shell->bias;
+	gtsam::imuBias::ConstantBias pbiases_current = fh->shell->last_frame->bias;
+	Vec6 trybiases_this;
+	Vec6 trybiases_prev;
 
 	bool haveOneGood = false;
 	int tryIterations=0;
@@ -628,12 +631,12 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		AffLight aff_g2l_this = aff_last_2_l;
 		SE3 lastF_2_fh_this = lastF_2_fh_tries[i];
 		SE3 slast_2_fh_this = lastF_2_fh_this * lastF_2_slast.inverse();
-		biases_this = fh->shell->bias.vector();
+		trybiases_this = fh->shell->bias.vector();
+		trybiases_prev = fh->shell->last_frame->bias.vector();
+		slast_trynavstate = slast_navstate;
 		bool trackingIsGood;
 		if (IMUinitialized)
 		{
-			//navstate_this = (lastF->shell->camToWorld.inverse() * lastF_2_fh_tries[i]);
-
 			SE3 new2w = SE3(
 					((lastF->shell->camToWorld * lastF_2_fh_tries[i].inverse()).matrix()) * getTbc().inverse()
 			);
@@ -641,34 +644,13 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			navstate_this = gtsam::NavState(
 					gtsam::Pose3(new2w.matrix()), shared_velocity
 			);
-//			if(i == 0){
-//			std::cout<< "\n processed predicted navstate:\n"<<navstate_this.pose().matrix()<<std::endl;
-//			std::cout<< "\n original predicted navstate:\n"<<prop_navstate.pose().matrix()<<std::endl;
-//			}
-//			std::cout<< "last navstate:\n"<< fh->shell->last_frame->navstate.pose().matrix()<<std::endl;
 			AffLight aff_g2l_thisIMU = aff_g2l_this;
-			//std::cout<<"before IMU optimization :lastF_2_fh_this: \n"<<lastF_2_fh_this.matrix()<<std::endl;
-//			std::cout<<"getTbc() : \n"<<getTbc()<<std::endl;
-//			std::cout<<"camtoimu : \n"<<coarseTracker->camtoimu().matrix()<<std::endl;
-//
-//			std::cout<<"lastRef id : "<<lastF->shell->id<<std::endl;
-//			std::cout<<"lastRef->Tib: "<<lastF->shell->navstate.pose().matrix()<<std::endl;
-//			std::cout<<"lastRef->Tib from camtoworld: "<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
-
+			//std::cout<<"The bias before optimization:"<<trybiases_this.transpose()<<std::endl;
 			trackingIsGood = coarseTracker->trackNewestCoarsewithIMU(
-					fh, slast_trynavstate, navstate_this, biases_this, aff_g2l_thisIMU,
+					fh, slast_trynavstate, navstate_this, trybiases_prev, trybiases_this, aff_g2l_thisIMU,
 					pyrLevelsUsed-1,
 					achievedRes);
-
-//		}// in each level has to be at least as good as the last try.
-//		else
-//		{
-//			std::cout<<"after IMU optimization :lastF_2_fh_this: \n"<<lastF_2_fh_this.matrix()<<std::endl;
-//            //std::cout<<"try "<<i<<"th"<<" candidate pose"<<std::endl;
-//            trackingIsGood = coarseTracker->trackNewestCoarse(
-//                    fh, lastF_2_fh_this, slast_2_fh_this, aff_g2l_this,
-//                    pyrLevelsUsed - 1,
-//                    achievedRes);// in each level has to be at least as good as the last try.
+			//std::cout<<"The bias after optimization:"<<trybiases_this.transpose()<<std::endl;
         }
 		else{
 			trackingIsGood = coarseTracker->trackNewestCoarse(
@@ -705,15 +687,22 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			flowVecs = coarseTracker->lastFlowIndicators;
 			aff_g2l = aff_g2l_this;
 			lastF_2_fh = lastF_2_fh_this;
-			navstate_current = navstate_this;
-			slast_navstate = slast_trynavstate;
+			if(isIMUinitialized())
+			{
+				std::cout<<"The bias before tracking"<<biases_current.vector()<<std::endl;
+				navstate_current = navstate_this;
+				slast_navstate = slast_trynavstate;
+				std::cout << "The bias of the current frame is :" << trybiases_this.transpose() << std::endl;
+				biases_current = gtsam::imuBias::ConstantBias(trybiases_this.head(3), trybiases_this.tail(3));
+				pbiases_current = gtsam::imuBias::ConstantBias(trybiases_prev.head(3), trybiases_prev.tail(3));
+			}
 			haveOneGood = true;
         }
-		else
-		{
-			// reset to the last known good previous pose
-			slast_trynavstate = slast_navstate;
-		}
+//		else
+//		{
+//			// reset to the last known good previous pose
+//			slast_trynavstate = slast_navstate;
+//		}
 
 		// take over achieved res (always).
 		if(haveOneGood)
@@ -782,7 +771,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 
 		fh->shell->updateNavState(navstate_this);
-		fh->shell->bias = gtsam::imuBias::ConstantBias(biases_this);
+		fh->shell->bias = biases_current;
+		fh->shell->last_frame->bias = pbiases_current;
 		fh->shell->camToTrackingRef = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
 				(lastF->shell->navstate.pose().inverse() * navstate_this.pose()).matrix()
 		));
@@ -2030,8 +2020,17 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 
 	// =========================== add into allFrameHistory =========================
     FrameHessian* fh = new FrameHessian();
+    FrameShell* shell;
     fh->Tbc = Tbc;
-	FrameShell* shell = new FrameShell(accBiasEstimate, gyroBiasEstimate);
+    if(isIMUinitialized())
+    {
+		std::cout<<"bias is :"<<allFrameHistory.back()->bias.accelerometer().transpose()<< allFrameHistory.back()->bias.gyroscope().transpose()<<std::endl;
+        shell = new FrameShell(allFrameHistory.back()->bias.accelerometer(), allFrameHistory.back()->bias.gyroscope());
+    }
+    else
+    {
+        shell = new FrameShell(accBiasEstimate, gyroBiasEstimate);
+    }
 	shell->camToWorld = SE3(); 		// no lock required, as fh is not used anywhere yet.
 	shell->aff_g2l = AffLight(0,0);
     shell->marginalizedAt = shell->id = allFrameHistory.size();
