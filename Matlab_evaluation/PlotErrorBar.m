@@ -4,17 +4,48 @@ dsoError = zeros(10, 22);
 dsvioError = zeros(10, 22);
 
 for seqNum = 1:22
-	dsoError(:, seqNum) = DSO_MAV_FWD{seqNum}.allSegRMSE(:, :);
-	dsvioError(:, seqNum) = DSVIO_MAV_FWD{seqNum}.allSegRMSE(:, :);
+	dsoError(:, seqNum) = DSO_MAV_FWD{seqNum}.allSegRMSE;
+	dsvioError(:, seqNum) = DSVIO_MAV_FWD{seqNum}.allSegRMSE;
 end
+
+clipFun = @(x) (x<=0.5)*x + (x>0.5)*0.5;
+% clip error to be atmost 0.5
+% dsoError = arrayfun(clipFun, dsoError);
+% dsvioError = arrayfun(clipFun, dsvioError);
+
+meanDsoError = mean(dsoError);
+meanDsvioError = mean(dsvioError);
+
+maxDsoError = max(dsoError);
+maxDsvioError = max(dsvioError);
+
+minDsoError = min(dsoError);
+minDsvioError = min(dsvioError);
+
+% --------------------------- clip error to be atmost 0.5 --------------------------- %
+meanDsoError = arrayfun(clipFun, meanDsoError);
+meanDsvioError = arrayfun(clipFun, meanDsvioError);
+
+maxDsoError = arrayfun(clipFun, maxDsoError);
+maxDsvioError = arrayfun(clipFun, maxDsvioError);
+
+minDsoError = arrayfun(clipFun, minDsoError);
+minDsvioError = arrayfun(clipFun, minDsvioError);
+
+% calculate the difference from the mean
+maxDsoError = maxDsoError - meanDsoError;
+maxDsvioError = maxDsvioError - meanDsvioError;
+
+minDsoError = meanDsoError - minDsoError;
+minDsvioError = meanDsvioError - minDsvioError;
 
 figure
 hold on
 grid on
-plot1 = errorbar([1:22]-0.1, mean(dsoError), min(dsoError), max(dsoError), 'bo');
-plot2 = errorbar([1:22]+0.1, mean(dsvioError), min(dsvioError), max(dsvioError), 'r*');
+plot1 = errorbar([1:22]-0.1, meanDsoError, minDsoError, maxDsoError, 'bo');
+plot2 = errorbar([1:22]+0.1, meanDsvioError, minDsvioError, maxDsvioError, 'r*');
 % baseline error (0.5)
-plot3 = plot(0:23, 0.5*ones(1,24), 'k--', 'LineWidth', 2);
+% plot3 = plot(0:23, 0.5*ones(1,24), 'k--', 'LineWidth', 2);
 
 sequences = { ...
 	'MH01l', 'MH02l', 'MH03l', 'MH04l', 'MH05l', ...

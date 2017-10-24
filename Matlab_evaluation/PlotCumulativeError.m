@@ -21,8 +21,8 @@ figure
 hold on
 grid on
 
-plot(intervalDuration:intervalDuration:(length(dsoError)*intervalDuration),		dsoError,	'bo');
-plot(intervalDuration:intervalDuration:(length(dsvioError)*intervalDuration),	dsvioError, 'r*');
+plot(intervalDuration:intervalDuration:(length(dsoError)*intervalDuration),		dsoError,	'b-o');
+plot(intervalDuration:intervalDuration:(length(dsvioError)*intervalDuration),	dsvioError, 'r-*');
 
 set(gca, 'XTick', intervalDuration:intervalDuration:(length(dsoError))*intervalDuration)
 xlabel('Time (s)')
