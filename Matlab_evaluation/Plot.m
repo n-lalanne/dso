@@ -24,8 +24,9 @@ hold on
 semilogx(dso_mav_rmse,(numDataset*numIter)*(1:dso_mav_n)/dso_mav_n,'blue','LineWidth',2)
 semilogx(dsvio_mav_rmse,(numDataset*numIter)*(1:dsvio_mav_n)/dsvio_mav_n,'red','LineWidth',2)
 
-
-legend('DSO', 'DSVIO', 'Location', 'eastoutside')
+xlabel('ATE (m)');
+ylabel('number of runs');
+legend('DSO', 'DSVIO', 'Location', 'southeast')
 axis([0 0.5 0 (numDataset*numIter)]);
 grid on
 
@@ -45,7 +46,7 @@ for i=1:numDataset
 end
 
 
-subplot(1,2,1)
+subplot(2,1,1)
 imagesc(imresize(DSVIO_MAV,20,'nearest') );
 
 caxis([0 maxError]); %caxis([0 0.5]);
@@ -58,16 +59,17 @@ plot(20*[16 16]+0.5,20*[-100 100],'black','LineWidth',2)
 plot(20*[19 19]+0.5,20*[-100 100],'black','LineWidth',2)
 
 set(gca, 'YTick',[5 15]*20-10)
-set(gca, 'YTickLabel',{'Fwd', 'Bwd'})
+set(gca, 'YTickLabel',{'ATE (m)'})
 set(gca, 'XTick',[3 7 10 14 18 21]*20-10)
 set(gca, 'XTickLabel',{'MH_l', 'V1_l', 'V2_l', 'MH_r', 'V1_r', 'V2_r'})
-
+colorbar
+colormap(jet(256))
 title('DSVIO')
 
 
 
 
-subplot(1,2,2)
+subplot(2,1,2)
 imagesc(imresize(DSO_MAV,20,'nearest') );
 caxis([0 maxError]);
 hold on
@@ -81,7 +83,7 @@ plot(20*[19 19]+0.5,20*[-100 100],'black','LineWidth',2)
 
 
 set(gca, 'YTick',[5 15]*20-10)
-set(gca, 'YTickLabel',{'Fwd', 'Bwd'})
+set(gca, 'YTickLabel',{'ATE (m)'})
 set(gca, 'XTick',[3 7 10 14 18 21]*20-10)
 set(gca, 'XTickLabel',{'MH_l', 'V1_l', 'V2_l', 'MH_r', 'V1_r', 'V2_r'})
 colorbar
