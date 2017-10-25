@@ -41,6 +41,7 @@
 #include <cmath>
 
 #include <algorithm>
+#include <GroundTruthIterator/GroundTruthIterator.h>
 
 namespace dso
 {
@@ -54,7 +55,7 @@ void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointF
 	for(int k=min;k<max;k++)
 	{
 		PointFrameResidual* r = activeResiduals[k];
-		(*stats)[0] += r->linearize(&Hcalib);
+		(*stats)[0] += r->linearizeright(&Hcalib,Tbc);
 
 		if(fixLinearization)
 		{
@@ -224,7 +225,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	pstepfac.segment<4>(6).setConstant(stepfacA);
 
 
-	float sumA=0, sumB=0, sumT=0, sumR=0, sumID=0, numID=0;
+	float sumA=0, sumB=0, sumT=0, sumR=0, sumV=0, sumAcce=0, sumGyro=0, sumID=0, numID=0;
 
 	float sumNID=0;
 
@@ -259,11 +260,27 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 		Hcalib.setValue(Hcalib.value_backup + stepfacC*Hcalib.step);
 		for(FrameHessian* fh : frameHessians)
 		{
-			fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
+			if(isIMUinitialized())fh->setnavState(
+						fh->state_backup + pstepfac.cwiseProduct(fh->step),
+						fh->vstate_backup + fh->vstep,
+						fh->biasstate_backup + fh->biasstep
+				);
+			else fh->setState(fh->state_backup + pstepfac.cwiseProduct(fh->step));
+
+			if(fh->PRE_navstate.v().norm()>100)
+			{
+				std::cout<<"The velocity is wrong!!!"<<std::endl;
+				std::cout<<"fh->PRE_navstate:"<<fh->PRE_navstate<<std::endl;
+				std::cout<<"fh->vstep:"<<fh->vstep.transpose()<<std::endl;
+			}
+
 			sumA += fh->step[6]*fh->step[6];
 			sumB += fh->step[7]*fh->step[7];
 			sumT += fh->step.segment<3>(0).squaredNorm();
 			sumR += fh->step.segment<3>(3).squaredNorm();
+			sumV += fh->vstep.squaredNorm();
+			sumAcce += fh->biasstep.segment<3>(0).squaredNorm();
+			sumGyro += fh->biasstep.segment<3>(3).squaredNorm();
 
 			for(PointHessian* ph : fh->pointHessians)
 			{
@@ -281,18 +298,21 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 	sumB /= frameHessians.size();
 	sumR /= frameHessians.size();
 	sumT /= frameHessians.size();
+	sumV /= frameHessians.size();
+	sumAcce /= frameHessians.size();
+	sumGyro /= frameHessians.size();
 	sumID /= numID;
 	sumNID /= numID;
 
 
 
-    if(!setting_debugout_runquiet)
-        printf("STEPS: A %.1f; B %.1f; R %.1f; T %.1f. \t",
-                sqrtf(sumA) / (0.0005*setting_thOptIterations),
-                sqrtf(sumB) / (0.00005*setting_thOptIterations),
-                sqrtf(sumR) / (0.00005*setting_thOptIterations),
-                sqrtf(sumT)*sumNID / (0.00005*setting_thOptIterations));
-
+	if(!setting_debugout_runquiet)
+		printf("STEPS: A %.1f; B %.1f; R %.1f; T %.1f; V %.1f. \t",
+			   sqrtf(sumA) / (0.0005*setting_thOptIterations),
+			   sqrtf(sumB) / (0.00005*setting_thOptIterations),
+			   sqrtf(sumR) / (0.00005*setting_thOptIterations),
+			   sqrtf(sumT)*sumNID / (0.00005*setting_thOptIterations),
+			   sqrtf(sumV)*sumNID / (0.00005*setting_thOptIterations));
 
 	EFDeltaValid=false;
 	setPrecalcValues();
@@ -323,6 +343,8 @@ void FullSystem::backupState(bool backupLastStep)
 			{
 				fh->step_backup = fh->step;
 				fh->state_backup = fh->get_state();
+				fh->vstate_backup = fh->get_vstate();
+				fh->biasstate_backup = fh->get_biasstate();
 				for(PointHessian* ph : fh->pointHessians)
 				{
 					ph->idepth_backup = ph->idepth;
@@ -352,6 +374,8 @@ void FullSystem::backupState(bool backupLastStep)
 		for(FrameHessian* fh : frameHessians)
 		{
 			fh->state_backup = fh->get_state();
+			fh->vstate_backup = fh->get_vstate();
+			fh->biasstate_backup = fh->get_biasstate();
 			for(PointHessian* ph : fh->pointHessians)
 				ph->idepth_backup = ph->idepth;
 		}
@@ -364,7 +388,8 @@ void FullSystem::loadSateBackup()
 	Hcalib.setValue(Hcalib.value_backup);
 	for(FrameHessian* fh : frameHessians)
 	{
-		fh->setState(fh->state_backup);
+		if(!isIMUinitialized())fh->setState(fh->state_backup);
+		else fh->setnavState(fh->state_backup,fh->vstate_backup,fh->biasstate_backup);
 		for(PointHessian* ph : fh->pointHessians)
 		{
 			ph->setIdepth(ph->idepth_backup);
@@ -418,7 +443,6 @@ float FullSystem::optimize(int mnumOptIts)
 
 
 	// get statistics and active residuals.
-
 	activeResiduals.clear();
 	int numPoints = 0;
 	int numLRes = 0;
@@ -456,6 +480,23 @@ float FullSystem::optimize(int mnumOptIts)
 		applyRes_Reductor(true,0,activeResiduals.size(),0,0);
 
 
+    //============================ linearize the imu factors for each keyframe(only for consecutive keyframes)=======
+    volatile double lastIMUEnergy = 0.0;
+    int imufactorcount = 0;
+    if(isIMUinitialized())
+    {
+        for(int i=1;i<frameHessians.size();i++)
+        {
+            if(frameHessians[i]->imufactorvalid)
+            {
+                //std::cout<<"Time gap is :"<<frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp<<std::endl;
+                lastIMUEnergy+=frameHessians[i]->getkfimufactor(frameHessians[i-1]);
+                imufactorcount++;
+            }
+        }
+        lastIMUEnergy /= imufactorcount;
+    }
+
     if(!setting_debugout_runquiet)
     {
         printf("Initial Error       \t");
@@ -464,8 +505,30 @@ float FullSystem::optimize(int mnumOptIts)
 
 	debugPlotTracking();
 
+    if(isIMUinitialized())
+    {
+        for (int i = 1; i < frameHessians.size(); i++) {
+            if (!frameHessians[i]->imufactorvalid)continue;
+            // debug: check if the imu factor predicts the pose okay
+            gtsam::NavState predicted = frameHessians[i]->shell->imu_preintegrated_last_kf_->predict(
+                    frameHessians[i - 1]->shell->navstate, frameHessians[i - 1]->shell->bias
+            );
+
+            gtsam::Pose3 SE3_err = frameHessians[i]->shell->navstate.pose().inverse().compose(predicted.pose());
+            Vec6 se3_err = SE3(SE3_err.matrix()).log();
+            Vec3 vel_err = predicted.velocity() - frameHessians[i]->shell->groundtruth.velocity;
 
 
+            std::cout << "pose err: " << se3_err.transpose() << std::endl
+                      << "velocity err: " << vel_err.transpose() << std::endl
+                      << "Actual dt: "
+                      << frameHessians[i]->shell->viTimestamp - frameHessians[i - 1]->shell->viTimestamp << std::endl
+                      << "IMU dt: " << frameHessians[i]->shell->imu_preintegrated_last_kf_->deltaTij() << std::endl
+                      << "---------------------------------------"
+                      << std::endl << std::endl;
+
+        }
+    }
 	double lambda = 1e-1;
 	float stepsize=1;
 	VecX previousX = VecX::Constant(CPARS+ 8*frameHessians.size(), NAN);
@@ -489,27 +552,45 @@ float FullSystem::optimize(int mnumOptIts)
 			if(stepsize <0.25) stepsize=0.25;
 		}
 
+//		if (isIMUinitialized())
+//		{
+//			std::cout << "Before step: " << std::endl;
+//			checkImuFactors();
+//			std::cout << "------------------------------" << std::endl;
+//		}
 		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize);
-
-
-
-
-
-
+//		if (isIMUinitialized())
+//		{
+//			std::cout << "\nAfter step: " << std::endl;
+//			checkImuFactors();
+//			std::cout << "------------------------------" << std::endl;
+//		}
 
 		// eval new energy!
 		Vec3 newEnergy = linearizeAll(false);
 		double newEnergyL = calcLEnergy();
 		double newEnergyM = calcMEnergy();
 
-
+		double newIMUEnergy = 0.0;
+		if(isIMUinitialized())
+		{
+			for(int i=1;i<frameHessians.size();i++)
+			{
+				if(frameHessians[i]->imufactorvalid)
+				{
+					//std::cout<<"Time gap is :"<<frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp<<std::endl;
+					newIMUEnergy+=frameHessians[i]->getkfimufactor(frameHessians[i-1]);
+				}
+			}
+			newIMUEnergy /= imufactorcount;
+		}
 
 
         if(!setting_debugout_runquiet)
         {
             printf("%s %d (L %.2f, dir %.2f, ss %.1f): \t",
-				(newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM <
-						lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM) ? "ACCEPT" : "REJECT",
+				(newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM +  newIMUEnergy<
+						lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM + lastIMUEnergy) ? "ACCEPT" : "REJECT",
 				iteration,
 				log10(lambda),
 				incDirChange,
@@ -517,8 +598,12 @@ float FullSystem::optimize(int mnumOptIts)
             printOptRes(newEnergy, newEnergyL, newEnergyM , 0, 0, frameHessians.back()->aff_g2l().a, frameHessians.back()->aff_g2l().b);
         }
 
-		if(setting_forceAceptStep || (newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM <
-				lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM))
+		if(isIMUinitialized()){
+			std::cout<<"newEnergy[0]: "<<newEnergy[0]<<" newEnergy[1]: " <<newEnergy[1]<<" newIMUEnergy: "<<newIMUEnergy<<std::endl;
+		}
+
+		if(setting_forceAceptStep || (newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM + newIMUEnergy <
+				lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM + lastIMUEnergy))
 		{
 
 			if(multiThreading)
@@ -529,7 +614,7 @@ float FullSystem::optimize(int mnumOptIts)
 			lastEnergy = newEnergy;
 			lastEnergyL = newEnergyL;
 			lastEnergyM = newEnergyM;
-
+			if(isIMUinitialized())lastIMUEnergy = newIMUEnergy;
 			lambda *= 0.25;
 		}
 		else
@@ -589,8 +674,25 @@ float FullSystem::optimize(int mnumOptIts)
 		{
 			fh->shell->camToWorld = fh->PRE_camToWorld;
 			fh->shell->aff_g2l = fh->aff_g2l();
-			SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
-			fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), fh->shell->navstate.velocity());
+			if(isIMUinitialized()) {
+				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
+                if((fh->shell->navstate.v()-fh->PRE_navstate.v()).norm()>0.5)
+                {
+                    std::cout<<"before BA:\n"<<fh->shell->navstate<<std::endl;
+                    std::cout<<"after BA:\n"<<fh->PRE_navstate<<std::endl;
+                    std::cout<<"veloctiy increment is too high!"<<std::endl;
+                }
+
+				fh->shell->navstate = fh->PRE_navstate;
+//				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
+//				SE3 newC2W = fh->shell->camToWorld;
+//				SE3 oldB2W = SE3(fh->shell->navstate.pose().matrix());
+//				Vec3 oldV = fh->shell->navstate.v();
+//				SE3 newB2W = newC2W * SE3(getTbc()).inverse();
+//				Mat33 old2new = newB2W.rotationMatrix().inverse() * oldB2W.rotationMatrix();
+//				Vec3 newV = old2new * oldV;
+//				fh->shell->navstate = gtsam::NavState(gtsam::Pose3(T_world_imu.matrix()), newV);
+			}
 		}
 	}
 
@@ -598,9 +700,7 @@ float FullSystem::optimize(int mnumOptIts)
 
 
 	debugPlotTracking();
-
 	return sqrtf((float)(lastEnergy[0] / (patternNum*ef->resInA)));
-
 }
 
 
@@ -614,8 +714,11 @@ void FullSystem::solveSystem(int iteration, double lambda)
 			ef->lastNullspaces_scale,
 			ef->lastNullspaces_affA,
 			ef->lastNullspaces_affB);
-
-	ef->solveSystemF(iteration, lambda,&Hcalib);
+    if(isIMUinitialized()){
+        ef->solveVISystemF(iteration,lambda,&Hcalib);
+    }
+        //ef->solveVISystemF(iteration,lambda,&Hcalib);
+	else ef->solveSystemF(iteration, lambda,&Hcalib);
 }
 
 

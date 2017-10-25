@@ -25,6 +25,7 @@
 #pragma once
 
 #undef Success
+#include <unistd.h>
 #include <Eigen/Core>
 #include "util/NumType.h"
 #include <pangolin/pangolin.h>
@@ -89,6 +90,9 @@ public:
 	int id;
 	bool active;
 	SE3 camToWorld;
+	Vec3 velocity;
+	Vec3 GTvelocity;
+	FrameShell *frameShell;
 
     inline bool operator < (const KeyFrameDisplay& other) const
     {

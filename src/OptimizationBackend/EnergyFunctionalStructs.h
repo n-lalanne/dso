@@ -156,6 +156,11 @@ public:
 	Vec8 delta;				// state - state_zero.
 
 
+	int statesize;
+	int reducedstatesize;
+	int framepos;
+	int reducedframepos;
+
 
 	std::vector<EFPoint*> points;
 	FrameHessian* data;

@@ -31,11 +31,12 @@
 //#include <GL/glu.h>
 
 #include <pangolin/pangolin.h>
+#include <GroundTruthIterator/GroundTruthIterator.h>
 #include "KeyFrameDisplay.h"
 #include "FullSystem/HessianBlocks.h"
 #include "FullSystem/ImmaturePoint.h"
 #include "util/FrameShell.h"
-
+#include "FullSystem/FullSystem.h"
 
 
 namespace dso
@@ -44,7 +45,7 @@ namespace IOWrap
 {
 
 
-KeyFrameDisplay::KeyFrameDisplay()
+KeyFrameDisplay::KeyFrameDisplay(): frameShell(NULL)
 {
 	originalInputSparse = 0;
 	numSparseBufferSize=0;
@@ -64,6 +65,7 @@ KeyFrameDisplay::KeyFrameDisplay()
 
 	numGLBufferPoints=0;
 	bufferValid = false;
+
 }
 void KeyFrameDisplay::setFromF(FrameShell* frame, CalibHessian* HCalib)
 {
@@ -79,6 +81,9 @@ void KeyFrameDisplay::setFromF(FrameShell* frame, CalibHessian* HCalib)
 	cxi = -cx / fx;
 	cyi = -cy / fy;
 	camToWorld = frame->camToWorld;
+	velocity = frame->navstate.v();
+	GTvelocity = frame->fullSystem->T_dsoworld_eurocworld.block<3,3>(0,0) *frame->groundtruth.velocity;
+	frameShell = frame;
 	needRefresh=true;
 }
 
@@ -372,6 +377,7 @@ void KeyFrameDisplay::drawCam(float lineWidth, float* color, float sizeFactor)
 		glEnd();
 	glPopMatrix();
 
+	// draw gravity direction
 	glPushMatrix();
 
 		m.block<3,3>(0,0) = Sophus::Matrix3f::Identity();
@@ -391,6 +397,34 @@ void KeyFrameDisplay::drawCam(float lineWidth, float* color, float sizeFactor)
 
 		glEnd();
 	glPopMatrix();
+
+	if (frameShell && frameShell->fullSystem->isIMUinitialized())
+	{
+		glPushMatrix();
+
+		m.block<3,3>(0,0) = Sophus::Matrix3f::Identity();
+		glMultMatrixf((GLfloat*)m.data());
+
+		glColor3f(0,255,0);
+
+		glLineWidth(lineWidth);
+		glBegin(GL_LINES);
+		glVertex3f(0,0,0);
+		glVertex3f(velocity(0),velocity(1),velocity(2));
+
+		glEnd();
+
+		glColor3f(0,128,128);
+		glLineWidth(lineWidth);
+		glBegin(GL_LINES);
+		glVertex3f(0,0,0);
+		glVertex3f(GTvelocity(0),GTvelocity(1),GTvelocity(2));
+
+		glEnd();
+
+		glPopMatrix();
+	}
+
 }
 
 

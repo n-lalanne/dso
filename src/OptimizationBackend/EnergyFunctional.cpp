@@ -46,63 +46,63 @@ bool EFDeltaValid = false;
 void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 {
 
-	if(adHost != 0) delete[] adHost;
-	if(adTarget != 0) delete[] adTarget;
-	adHost = new Mat88[nFrames*nFrames];
-	adTarget = new Mat88[nFrames*nFrames];
+    if(adHost != 0) delete[] adHost;
+    if(adTarget != 0) delete[] adTarget;
+    adHost = new Mat88[nFrames*nFrames];
+    adTarget = new Mat88[nFrames*nFrames];
 
-	for(int h=0;h<nFrames;h++)
-		for(int t=0;t<nFrames;t++)
-		{
-			FrameHessian* host = frames[h]->data;
-			FrameHessian* target = frames[t]->data;
+    for(int h=0;h<nFrames;h++)
+        for(int t=0;t<nFrames;t++)
+        {
+            FrameHessian* host = frames[h]->data;
+            FrameHessian* target = frames[t]->data;
 
-			SE3 hostToTarget = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
+            SE3 hostToTarget = target->get_worldToImu_evalPT() * host->get_worldToImu_evalPT().inverse();
 
-			Mat88 AH = Mat88::Identity();
-			Mat88 AT = Mat88::Identity();
+            Mat88 AH = Mat88::Identity();
+            Mat88 AT = Mat88::Identity();
 
-			AH.topLeftCorner<6,6>() = -hostToTarget.Adj().transpose();
-			AT.topLeftCorner<6,6>() = Mat66::Identity();
-
-
-			Vec2f affLL = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l_0(), target->aff_g2l_0()).cast<float>();
-			AT(6,6) = -affLL[0];
-			AH(6,6) = affLL[0];
-			AT(7,7) = -1;
-			AH(7,7) = affLL[0];
-
-			AH.block<3,8>(0,0) *= SCALE_XI_TRANS;
-			AH.block<3,8>(3,0) *= SCALE_XI_ROT;
-			AH.block<1,8>(6,0) *= SCALE_A;
-			AH.block<1,8>(7,0) *= SCALE_B;
-			AT.block<3,8>(0,0) *= SCALE_XI_TRANS;
-			AT.block<3,8>(3,0) *= SCALE_XI_ROT;
-			AT.block<1,8>(6,0) *= SCALE_A;
-			AT.block<1,8>(7,0) *= SCALE_B;
-
-			adHost[h+t*nFrames] = AH;
-			adTarget[h+t*nFrames] = AT;
-		}
-	cPrior = VecC::Constant(setting_initialCalibHessian);
+            AH.topLeftCorner<6,6>() = -hostToTarget.Adj().transpose();
+            AT.topLeftCorner<6,6>() = Mat66::Identity();
 
 
-	if(adHostF != 0) delete[] adHostF;
-	if(adTargetF != 0) delete[] adTargetF;
-	adHostF = new Mat88f[nFrames*nFrames];
-	adTargetF = new Mat88f[nFrames*nFrames];
+            Vec2f affLL = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l_0(), target->aff_g2l_0()).cast<float>();
+            AT(6,6) = -affLL[0];
+            AH(6,6) = affLL[0];
+            AT(7,7) = -1;
+            AH(7,7) = affLL[0];
 
-	for(int h=0;h<nFrames;h++)
-		for(int t=0;t<nFrames;t++)
-		{
-			adHostF[h+t*nFrames] = adHost[h+t*nFrames].cast<float>();
-			adTargetF[h+t*nFrames] = adTarget[h+t*nFrames].cast<float>();
-		}
+            AH.block<3,8>(0,0) *= SCALE_XI_TRANS;
+            AH.block<3,8>(3,0) *= SCALE_XI_ROT;
+            AH.block<1,8>(6,0) *= SCALE_A;
+            AH.block<1,8>(7,0) *= SCALE_B;
+            AT.block<3,8>(0,0) *= SCALE_XI_TRANS;
+            AT.block<3,8>(3,0) *= SCALE_XI_ROT;
+            AT.block<1,8>(6,0) *= SCALE_A;
+            AT.block<1,8>(7,0) *= SCALE_B;
 
-	cPriorF = cPrior.cast<float>();
+            adHost[h+t*nFrames] = AH;
+            adTarget[h+t*nFrames] = AT;
+        }
+    cPrior = VecC::Constant(setting_initialCalibHessian);
 
 
-	EFAdjointsValid = true;
+    if(adHostF != 0) delete[] adHostF;
+    if(adTargetF != 0) delete[] adTargetF;
+    adHostF = new Mat88f[nFrames*nFrames];
+    adTargetF = new Mat88f[nFrames*nFrames];
+
+    for(int h=0;h<nFrames;h++)
+        for(int t=0;t<nFrames;t++)
+        {
+            adHostF[h+t*nFrames] = adHost[h+t*nFrames].cast<float>();
+            adTargetF[h+t*nFrames] = adTarget[h+t*nFrames].cast<float>();
+        }
+
+    cPriorF = cPrior.cast<float>();
+
+
+    EFAdjointsValid = true;
 }
 
 
@@ -435,6 +435,7 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 	nFrames++;
 	fh->efFrame = eff;
 
+	//bM.conservativeResize(11 *nFrames+CPARS -11);
 	assert(HM.cols() == 8*nFrames+CPARS-8);
 	bM.conservativeResize(8*nFrames+CPARS);
 	HM.conservativeResize(8*nFrames+CPARS,8*nFrames+CPARS);
@@ -495,6 +496,418 @@ void EnergyFunctional::dropResidual(EFResidual* r)
 	r->data->efResidual=0;
 	delete r;
 }
+
+// from 8 to 8/17(biases are nor used for now)
+void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
+{
+	int nframes = frames.size();
+	if(nframes <=2 ){
+		std::cout<<"Do not call this function in vo model!"<<std::endl;
+		exit(0);
+	}
+	std::vector<int> sizearr;
+	sizearr.resize(nframes,8);
+	for(int i=1;i<nframes;i++){
+		if(frames[i]->data->imufactorvalid)
+		{
+			std::cout<< "frame "<<i <<" is valid"<<std::endl;
+			sizearr[i] = 17;
+			sizearr[i-1] = 17;
+		}
+	}
+//	std::cout<<"H:\n "<<H.diagonal()<<std::endl;
+//	std::cout<<"b:\n "<<b<<std::endl;
+	std::vector<int> framepos;
+	framepos.resize(nframes);
+	framepos[0] = CPARS;
+	for(int i = 1 ; i < nframes ; i++){
+		framepos[i] = framepos[i-1] + sizearr[i-1];
+	}
+
+
+	totalsize = std::accumulate(sizearr.begin(),sizearr.end(),CPARS);
+	MatXX H_tmp = H;
+	VecX b_tmp = b;
+	H.conservativeResize(totalsize,totalsize);
+	b.conservativeResize(totalsize);
+	H.setZero();
+	b.setZero();
+
+	b.head(CPARS) = b_tmp.head(CPARS);
+	H.topLeftCorner(CPARS,CPARS)=H_tmp.topLeftCorner(CPARS,CPARS);
+
+	for(int indexi=0;indexi < nframes; indexi++)
+	{
+		b.segment<8>(framepos[indexi]) = b_tmp.segment<8>(CPARS+indexi*8);
+		H.block<CPARS,8>(0,framepos[indexi]) = H_tmp.block<CPARS,8>(0,CPARS+indexi*8);
+		for(int indexj=0;indexj<nFrames;indexj++)
+		{
+			H.block<8,8>(framepos[indexi],framepos[indexj])=H_tmp.block<8,8>(CPARS+indexi*8,CPARS+indexj*8);
+		}
+	}
+	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+//	std::cout<<"(after extend)H:\n "<<H.diagonal()<<std::endl;
+//	std::cout<<"(after extend)b:\n "<<b<<std::endl;
+}
+
+// from 11/8 to 8(only for vector)
+VecX EnergyFunctional::solutionreduce(VecX x)
+{
+	if(nFrames <=2 ){
+		std::cout<<"Do not call this function in vo model!"<<std::endl;
+		exit(0);
+	}
+	std::cout<<"x: "<<x.transpose()<<std::endl;
+	VecX x_tmp = x;
+	x.conservativeResize(CPARS+nFrames*8);
+	x.setZero();
+	x.head(CPARS) = x_tmp.head(CPARS);
+	for(int i=0;i < nFrames; i++)
+	{
+		x.segment<8>(CPARS+i*8) = x_tmp.segment<8>(frames[i]->reducedframepos);
+	}
+	std::cout<<"after x: "<<x.transpose()<<std::endl;
+	return x;
+}
+
+// from 17 to 11/8(biases are nor used for now)
+void EnergyFunctional::statereduce(MatXX &H, VecX &b)
+{
+	if(nFrames <=2 ){
+		std::cout<<"Do not call this function in vo model!"<<std::endl;
+		exit(0);
+	}
+
+	std::vector<int> sizearr;
+	sizearr.resize(nFrames,8);
+	std::vector<int> reducedsizearr;
+	reducedsizearr.resize(nFrames,8);
+	for(int i=1;i<nFrames;i++){
+		if(frames[i]->data->imufactorvalid)
+		{
+			sizearr[i] = 17;
+			sizearr[i-1] = 17;
+			reducedsizearr[i] = 11;
+			reducedsizearr[i-1] = 11;
+		}
+		frames[i-1]->reducedstatesize = reducedsizearr[i-1];
+		frames[i]->reducedstatesize = reducedsizearr[i];
+	}
+	std::vector<int> framepos;
+	std::vector<int> reducedframepos;
+	framepos.resize(nFrames);
+	reducedframepos.resize(nFrames);
+	framepos[0] = CPARS;
+	reducedframepos[0] = CPARS;
+	frames[0]->framepos = framepos[0];
+	frames[0]->reducedframepos = reducedframepos[0];
+	for(int i = 1 ; i < nFrames ; i++){
+		framepos[i] = framepos[i-1] + sizearr[i-1];
+		reducedframepos[i] = reducedframepos[i-1] + reducedsizearr[i-1];
+		frames[i]->framepos = framepos[i];
+		frames[i]->reducedframepos = reducedframepos[i];
+	}
+	reducedtotalsize = std::accumulate(reducedsizearr.begin(),reducedsizearr.end(),CPARS);
+
+	std::cout<<"H: "<<H.diagonal().transpose()<<std::endl;
+	std::cout<<"b: "<<b.transpose()<<std::endl;
+	MatXX H_tmp = H;
+	VecX b_tmp = b;
+
+	H.conservativeResize(reducedtotalsize,reducedtotalsize);
+	b.conservativeResize(reducedtotalsize);
+	H.setZero();
+	b.setZero();
+
+	b.head(CPARS) = b_tmp.head(CPARS);
+	H.topLeftCorner(CPARS,CPARS)=H_tmp.topLeftCorner(CPARS,CPARS);
+
+	int posi,posj,rposi,rposj,blocksize;
+	for(int i=0;i<nFrames;i++)
+	{
+
+		posi = framepos[i];
+		rposi = reducedframepos[i];
+		if(reducedsizearr[i] == 8) {
+			b.segment<8>(rposi) = b_tmp.segment<8>(posi);
+			H.block<CPARS, 8>(0, rposi) = H_tmp.block<CPARS, 8>(0, posi);
+			for (int j = 0; j < nFrames; j++) {
+				posj = framepos[j];
+				rposj = reducedframepos[j];
+				H.block<8, 8>(rposi, rposj)
+						= H_tmp.block<8, 8>(posi, posj);
+			}
+		}
+		else if(reducedsizearr[i] == 11)
+		{
+			b.segment<11>(rposi) = b_tmp.segment<11>(posi);
+			H.block<CPARS, 11>(0, rposi) = H_tmp.block<CPARS, 11>(0, posi);
+			for (int j = 0; j < nFrames; j++)
+			{
+				posj = framepos[j];
+				rposj = reducedframepos[j];
+				H.block<11, 11>(rposi, rposj)
+						= H_tmp.block<11, 11>(posi, posj);
+			}
+		}
+		else
+		{
+			assert(reducedsizearr[i] == 11|| reducedsizearr[i] == 8);
+		}
+	}
+
+
+	H.leftCols(CPARS) = H.topRows(CPARS).transpose();
+//	std::cout<<"after H: "<<H.diagonal().transpose()<<std::endl;
+//	std::cout<<"after b: "<<b.transpose()<<std::endl;
+}
+
+//// brief: add those Kinematics constarints
+void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
+{
+    if(nFrames <=2 ){
+        std::cout<<"Do not call this function in vo model!"<<std::endl;
+        exit(0);
+    }
+    std::vector<int> sizearr;
+    sizearr.resize(nFrames,8);
+    for(int i=1;i<nFrames;i++){
+		if(frames[i]->data->imufactorvalid)
+		{
+			sizearr[i] = 17;
+			sizearr[i-1] = 17;
+		}
+		frames[i]->statesize = sizearr[i];
+		frames[i-1]->statesize = sizearr[i-1];
+    }
+    totalsize = std::accumulate(sizearr.begin(),sizearr.end(),CPARS);
+
+    H = MatXX::Zero(totalsize, totalsize);
+    b = VecX::Zero(totalsize);
+    int currentpos = CPARS;
+    for(int indexi=1;indexi<frames.size();indexi++)
+    {
+        if(!frames[indexi]->data->imufactorvalid)
+        {
+            currentpos += frames[indexi-1]->statesize;
+            continue;
+        }
+        Mat3434 H_temp;
+        Vec34 b_temp;
+        Mat1515 information_imu;
+        Vec15 res_imu;
+
+        H_temp.setZero();
+        b_temp.setZero();
+
+        information_imu = frames[indexi]->data->shell->getIMUcovarianceBA().inverse();
+        res_imu = frames[indexi]->data->kfimures;
+
+        Mat1517 J_imu_travb_previous;
+        J_imu_travb_previous.setZero();
+        J_imu_travb_previous.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 3) * SCALE_XI_ROT;//J_imu_Rt_previous.block<15, 3>(0, 3);
+        J_imu_travb_previous.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_i.block<15, 3>(0, 0) * SCALE_XI_TRANS;//J_imu_Rt_previous.block<15, 3>(0, 0);
+        J_imu_travb_previous.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_i.block<15, 3>(0, 0) * SCALE_IMU_V;//J_imu_v_previous.block<15, 3>(0, 0);
+
+        // ------------------ don't ignore the cross terms in hessian between i and jth poses ------------------
+        Mat1517 J_imu_travb_current;
+        J_imu_travb_current.setZero();
+        J_imu_travb_current.block<15, 3>(0, 0) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 3)* SCALE_XI_ROT;//J_imu_Rt.block<15, 3>(0, 3);
+        J_imu_travb_current.block<15, 3>(0, 3) = frames[indexi]->data->J_imu_Rt_j.block<15, 3>(0, 0) * SCALE_XI_TRANS;//J_imu_Rt.block<15, 3>(0, 0);
+        J_imu_travb_current.block<15, 3>(0, 8) = frames[indexi]->data->J_imu_v_j.block<15, 3>(0, 0) * SCALE_IMU_V;//J_imu_v.block<15, 3>(0, 0);
+
+        Mat1534 J_imu_complete;
+        J_imu_complete.leftCols(17) = J_imu_travb_previous;
+        J_imu_complete.rightCols(17) = J_imu_travb_current;
+
+        H_temp.noalias() = J_imu_complete.transpose() * information_imu * J_imu_complete;
+        b_temp.noalias() = J_imu_complete.transpose() * information_imu * res_imu;
+
+        //// TODO: set the coressponding blocks in H_imu
+//        std::cout<<"H_imu is : "<< H.diagonal()<<std::endl;
+//        std::cout<<"b_imu is : "<< b<<std::endl;
+//        std::cout<<"b_temp is : "<< b_temp<<std::endl;
+        H.block<34,34>(currentpos,currentpos) += H_temp;
+        b.segment<34>(currentpos) += b_temp;
+        currentpos += frames[indexi-1]->statesize;
+    }
+    std::cout<<"H_imu is : "<< H.diagonal()<<std::endl;
+    std::cout<<"b_imu is : "<< b<<std::endl;
+}
+
+
+void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian* HCalib){
+	if(setting_solverMode & SOLVER_USE_GN) lambda=0;
+	if(setting_solverMode & SOLVER_FIX_LAMBDA) lambda = 1e-5;
+
+	std::cout<<"sloving VI ba"<<std::endl;
+
+	assert(EFDeltaValid);
+	assert(EFAdjointsValid);
+	assert(EFIndicesValid);
+
+	MatXX HL_top, HA_top, H_sc , H_imu;
+	VecX  bL_top, bA_top, bM_top, b_sc, b_imu;
+
+    MatXX HFinal_top_imu;
+    VecX bFinal_top_imu;
+
+	accumulateAF_MT(HA_top, bA_top,multiThreading);
+
+
+	accumulateLF_MT(HL_top, bL_top,multiThreading);
+
+
+	accumulateSCF_MT(H_sc, b_sc,multiThreading);
+
+	bM_top = (bM+ HM * getStitchedDeltaF());
+
+//	std::cout<<"vi model: bL_top:\n"<<bL_top<<std::endl;
+//	std::cout<<"vi model: bM_top:\n"<<bM_top<<std::endl;
+//	std::cout<<"vi model: bA_top:\n"<<bA_top<<std::endl;
+//	std::cout<<"vi model: b_sc:\n"<<b_sc<<std::endl;
+
+	accumulateIMU_ST(H_imu, b_imu);
+//	std::cout<<"vi model: b_imu:\n"<<b_imu<<std::endl;
+	MatXX HFinal_top;
+	VecX bFinal_top;
+	MatXX HMbak = HM;
+	VecX bM_topbak = bM_top;
+	stateexpand(HA_top, bA_top);
+	stateexpand(HL_top, bL_top);
+	stateexpand(H_sc, b_sc);
+	stateexpand(HMbak, bM_topbak);
+
+
+	HFinal_top = HL_top  + HA_top + HMbak;// + H_imu;
+	//std::cout<<bL_top.rows()<<" "<<bM_top.rows()<<" "<<bA_top.rows()<<" "<<b_sc.rows() <<std::endl;
+	bFinal_top = bL_top  + bA_top - b_sc + bM_topbak;// + b_imu;
+
+    HFinal_top_imu = HL_top  + HA_top + H_imu + HMbak;
+    bFinal_top_imu = bL_top  + bA_top - b_sc + b_imu + bM_topbak;
+
+	lastHS = HFinal_top - H_sc;
+	lastbS = bFinal_top;
+
+
+
+    for(int i=0;i<totalsize;i++) HFinal_top_imu(i,i) *= (1+lambda);
+    HFinal_top_imu -= H_sc * (1.0f/(1+lambda));
+
+	for(int i=0;i<totalsize;i++) HFinal_top(i,i) *= (1+lambda);
+	HFinal_top -= H_sc * (1.0f/(1+lambda));
+
+//    std::cout<<"HFinal_top:\n"<<HFinal_top.diagonal()<<std::endl;
+//    std::cout<<"H_imu:\n"<<H_imu.diagonal()<<std::endl;
+//    std::cout<<"bFinal_top:\n"<<bFinal_top<<std::endl;
+//    std::cout<<"b_imu:\n"<<b_imu<<std::endl;
+//    std::cout<<"HFinal_top_imu:\n"<<HFinal_top_imu.diagonal()<<std::endl;
+//    std::cout<<"bFinal_top_imu:\n"<<bFinal_top_imu<<std::endl;
+
+
+	VecX x,x_imu;
+	if(setting_solverMode & SOLVER_SVD)
+	{
+		VecX SVecI = HFinal_top.diagonal().cwiseSqrt().cwiseInverse();
+		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
+		VecX bFinalScaled  = SVecI.asDiagonal() * bFinal_top;
+		Eigen::JacobiSVD<MatXX> svd(HFinalScaled, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+		VecX S = svd.singularValues();
+		double minSv = 1e10, maxSv = 0;
+		for(int i=0;i<S.size();i++)
+		{
+			if(S[i] < minSv) minSv = S[i];
+			if(S[i] > maxSv) maxSv = S[i];
+		}
+
+		VecX Ub = svd.matrixU().transpose()*bFinalScaled;
+		int setZero=0;
+		for(int i=0;i<Ub.size();i++)
+		{
+			if(S[i] < setting_solverModeDelta*maxSv)
+			{ Ub[i] = 0; setZero++; }
+
+			if((setting_solverMode & SOLVER_SVD_CUT7) && (i >= Ub.size()-7))
+			{ Ub[i] = 0; setZero++; }
+
+			else Ub[i] /= S[i];
+		}
+		x = SVecI.asDiagonal() * svd.matrixV() * Ub;
+
+	}
+	else
+	{
+        statereduce(HFinal_top_imu,bFinal_top_imu);
+		statereduce(HFinal_top,bFinal_top);
+		VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
+        VecX SVecI_imu = (HFinal_top_imu.diagonal()+VecX::Constant(HFinal_top_imu.cols(), 10)).cwiseSqrt().cwiseInverse();
+		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
+        MatXX HFinalScaled_imu = SVecI_imu.asDiagonal() * HFinal_top_imu * SVecI_imu.asDiagonal();
+		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
+        x_imu = SVecI_imu.asDiagonal() * HFinalScaled_imu.ldlt().solve(SVecI_imu.asDiagonal() * bFinal_top_imu);
+	}
+
+	std::cout<<"The vo incremnt is :"<<x.transpose()<<std::endl;
+    std::cout<<"The vi incremnt is :"<<x_imu.transpose()<<std::endl;
+	//// Todo: reduce the state to 8 for orthogonalization and after this operation, change it back
+	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
+	{
+
+		lastX = VIorthogonalize(x_imu, 0);
+		std::cout << "before lastX: " << lastX.transpose() << std::endl;
+		std::cout << "x_imu: " << x_imu.transpose() << std::endl;
+		incrementreplace(lastX,&x_imu);
+//		for(int i=0;i<nFrames;i++)
+//		{
+//			x_imu.segment<8>(frames[i]->reducedframepos) = lastX.segment<8>(CPARS+i*8);
+//		}
+//		std::cout << "after lastX: " << lastX.transpose() << std::endl;
+//		std::cout << "x_imu: " << x_imu.transpose() << std::endl;
+	}
+//	else
+//	{
+//		lastX = x_imu;
+//	}
+
+	//resubstituteF(x, HCalib);
+	currentLambda= lambda;
+	VIresubstituteF_MT(x_imu, HCalib,multiThreading);
+	currentLambda=0;
+	std::cout<<"goes here!"<<std::endl;
+
+
+}
+
+void EnergyFunctional::VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT)
+{
+	//assert(x.size() == CPARS+nFrames*17);
+	// calculate velocity step
+	// calculate bias step
+	for(EFFrame* h : frames)
+	{
+		if(h->statesize != 8) {
+			h->data->vstep = -x.segment<3>(h->reducedframepos + 8);
+			// TODO: update this to optimize the bias
+			h->data->biasstep.setZero();
+			std::cout << "the velocity step of the frame" << h->frameID << " after:\n" << h->data->vstep << std::endl;
+		}
+		else
+		{
+			h->data->vstep.setZero();
+			h->data->biasstep.setZero();
+		}
+	}
+	// calculate pose, a, b steps
+	resubstituteF_MT(solutionreduce(x), HCalib, MT);
+	for(EFFrame* h : frames)
+	{
+		if(h->statesize != 8) {
+			std::cout << "the se3 step of the frame" << h->frameID << " after:\n" << h->data->step << std::endl;
+		}
+	}
+}
+
 void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 {
 
@@ -563,17 +976,29 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 	hpi = 0.5f*(hpi+hpi);
 
 	// schur-complement!
-	MatXX bli = HMScaled.bottomLeftCorner(8,ndim).transpose() * hpi;
+    MatXX bli = HMScaled.bottomLeftCorner(8,ndim).transpose() * hpi;
 	HMScaled.topLeftCorner(ndim,ndim).noalias() -= bli * HMScaled.bottomLeftCorner(8,ndim);
 	bMScaled.head(ndim).noalias() -= bli*bMScaled.tail<8>();
+
+    std::cout << "HMScaled: " << HMScaled.diagonal().transpose() << std::endl;
+    std::cout << "bMScaled: " << bMScaled.transpose() << std::endl;
 
 	//unscale!
 	HMScaled = SVec.asDiagonal() * HMScaled * SVec.asDiagonal();
 	bMScaled = SVec.asDiagonal() * bMScaled;
 
+    std::cout << "unscale HMScaled: " << HMScaled.diagonal().transpose() << std::endl;
+    std::cout << "unscale bMScaled: " << bMScaled.transpose() << std::endl;
+
+    std::cout << "before H: " << HM.diagonal().transpose() << std::endl;
+    std::cout << "before b: " << bM.transpose() << std::endl;
+
 	// set.
 	HM = 0.5*(HMScaled.topLeftCorner(ndim,ndim) + HMScaled.topLeftCorner(ndim,ndim).transpose());
 	bM = bMScaled.head(ndim);
+
+    std::cout << "after H: " << HM.diagonal().transpose() << std::endl;
+    std::cout << "after b: " << bM.transpose() << std::endl;
 
 	// remove from vector, without changing the order!
 	for(unsigned int i=fh->idx; i+1<frames.size();i++)
@@ -593,8 +1018,7 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 
 
-//	VecX eigenvaluesPost = HM.eigenvalues().real();
-//	std::sort(eigenvaluesPost.data(), eigenvaluesPost.data()+eigenvaluesPost.size());
+//	VecX eigenvalues
 
 //	std::cout << std::setprecision(16) << "HMPost:\n" << HM << "\n\n";
 
@@ -715,12 +1139,29 @@ void EnergyFunctional::removePoint(EFPoint* p)
 	delete p;
 }
 
+void EnergyFunctional::incrementreplace(VecX reducedstate,VecX * fullstate)
+{
+	for(int i=0;i<nFrames;i++)
+	{
+		(*fullstate).segment<8>(frames[i]->reducedframepos) = reducedstate.segment<8>(CPARS+i*8);
+	}
+}
+
+VecX EnergyFunctional::VIorthogonalize(VecX& b, MatXX* H)
+{
+	VecX newb(nFrames*8 + CPARS);
+	newb = solutionreduce(b);
+	std::cout<<"b:\n"<<b<<std::endl;
+	orthogonalize(&newb,0);
+	std::cout<<"newb:\n"<<newb<<std::endl;
+	return newb;
+}
+
 void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 {
 //	VecX eigenvaluesPre = H.eigenvalues().real();
 //	std::sort(eigenvaluesPre.data(), eigenvaluesPre.data()+eigenvaluesPre.size());
 //	std::cout << "EigPre:: " << eigenvaluesPre.transpose() << "\n";
-
 
 	// decide to which nullspaces to orthogonalize.
 	std::vector<VecX> ns;
@@ -781,8 +1222,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	assert(EFAdjointsValid);
 	assert(EFIndicesValid);
 
-	MatXX HL_top, HA_top, H_sc;
-	VecX  bL_top, bA_top, bM_top, b_sc;
+	MatXX HL_top, HA_top, H_sc , H_imu;
+	VecX  bL_top, bA_top, bM_top, b_sc, b_imu;
 
 	accumulateAF_MT(HA_top, bA_top,multiThreading);
 
@@ -797,10 +1238,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 	bM_top = (bM+ HM * getStitchedDeltaF());
 
-
-
-
-
+    std::cout << "HM: " << HM.diagonal().transpose() << std::endl;
+    std::cout << "bM_top" << bM_top.transpose() << std::endl;
 
 
 	MatXX HFinal_top;
@@ -810,7 +1249,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	{
 		// have a look if prior is there.
 		bool haveFirstFrame = false;
-		for(EFFrame* f : frames) if(f->frameID==0) haveFirstFrame=true;
+		for(EFFrame* f : frames)
+			if(f->frameID==0) haveFirstFrame=true;
 
 
 
@@ -821,7 +1261,6 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 		if(!haveFirstFrame)
 			orthogonalize(&bT_act, &HT_act);
-
 		HFinal_top = HT_act + HM;
 		bFinal_top = bT_act + bM_top;
 
@@ -841,6 +1280,11 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 		HFinal_top = HL_top + HM + HA_top;
 		bFinal_top = bL_top + bM_top + bA_top - b_sc;
+
+		std::cout<<"vo model: bL_top:\n"<<bL_top<<std::endl;
+		std::cout<<"vo model: bM_top:\n"<<bM_top<<std::endl;
+		std::cout<<"vo model: bA_top:\n"<<bA_top<<std::endl;
+		std::cout<<"vo model: b_sc:\n"<<b_sc<<std::endl;
 
 		lastHS = HFinal_top - H_sc;
 		lastbS = bFinal_top;
@@ -887,12 +1331,13 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	}
 	else
 	{
+		std::cout<<"vo model: bFinal_top:\n"<<bFinal_top<<std::endl;
 		VecX SVecI = (HFinal_top.diagonal()+VecX::Constant(HFinal_top.cols(), 10)).cwiseSqrt().cwiseInverse();
 		MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
 	}
 
-
+    std::cout << "x before: " << x.transpose() << std::endl;
 
 	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
 	{
@@ -900,6 +1345,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		orthogonalize(&x, 0);
 	}
 
+    std::cout << "x after: " << x.transpose() << std::endl;
 
 	lastX = x;
 

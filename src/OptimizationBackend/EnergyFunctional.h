@@ -85,8 +85,10 @@ public:
 	void marginalizePointsF();
 	void dropPointsF();
 	void solveSystemF(int iteration, double lambda, CalibHessian* HCalib);
+	void solveVISystemF(int iteration, double lambda, CalibHessian* HCalib);
 	double calcMEnergyF();
 	double calcLEnergyF_MT();
+
 
 
 	void makeIDX();
@@ -97,6 +99,9 @@ public:
 
 	std::vector<EFFrame*> frames;
 	int nPoints, nFrames, nResiduals;
+	int totalsize;
+	int reducedtotalsize;
+
 
 	MatXX HM;
 	VecX bM;
@@ -124,16 +129,23 @@ private:
 
 	VecX getStitchedDeltaF() const;
 
+	void VIresubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT);
 	void resubstituteF_MT(VecX x, CalibHessian* HCalib, bool MT);
     void resubstituteFPt(const VecCf &xc, Mat18f* xAd, int min, int max, Vec10* stats, int tid);
 
 	void accumulateAF_MT(MatXX &H, VecX &b, bool MT);
 	void accumulateLF_MT(MatXX &H, VecX &b, bool MT);
 	void accumulateSCF_MT(MatXX &H, VecX &b, bool MT);
+	void accumulateIMU_ST(MatXX &H, VecX &b);
+	void stateexpand(MatXX &H, VecX &b);
+	void statereduce(MatXX &H, VecX &b);
+	VecX solutionreduce(VecX x);
+	void incrementreplace(VecX reducedstate,VecX* fullstate);
 
 	void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
 
 	void orthogonalize(VecX* b, MatXX* H);
+	VecX VIorthogonalize(VecX& b, MatXX* H);
 	Mat18f* adHTdeltaF;
 
 	Mat88* adHost;

@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <unistd.h>
 #include "Eigen/Core"
 #include "sophus/sim3.hpp"
 #include "sophus/se3.hpp"
@@ -70,8 +71,11 @@ typedef Eigen::Matrix<double,15,17> Mat1517;
 typedef Eigen::Matrix<double,17,17> Mat1717;
 typedef Eigen::Matrix<double,15,32> Mat1532;
 typedef Eigen::Matrix<double,32,32> Mat3232;
+typedef Eigen::Matrix<double,15,34> Mat1534;
+typedef Eigen::Matrix<double,34,34> Mat3434;
 typedef Eigen::Matrix<double,17,1> Vec17;
 typedef Eigen::Matrix<double,32,1> Vec32;
+typedef Eigen::Matrix<double,34,1> Vec34;
 
 typedef Eigen::Matrix<double,8,10> Mat810;
 typedef Eigen::Matrix<double,8,3> Mat83;
@@ -81,6 +85,8 @@ typedef Eigen::Matrix<double,5,3> Mat53;
 typedef Eigen::Matrix<double,4,3> Mat43;
 typedef Eigen::Matrix<double,4,2> Mat42;
 typedef Eigen::Matrix<double,3,3> Mat33;
+typedef Eigen::Matrix<double,2,6> Mat26;
+typedef Eigen::Matrix<double,2,3> Mat23;
 typedef Eigen::Matrix<double,2,2> Mat22;
 typedef Eigen::Matrix<double,8,CPARS> Mat8C;
 typedef Eigen::Matrix<double,CPARS,8> MatC8;

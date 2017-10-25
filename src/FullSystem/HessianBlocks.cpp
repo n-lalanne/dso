@@ -73,37 +73,55 @@ void PointHessian::release()
 
 void FrameHessian::setStateZero(const Vec10 &state_zero)
 {
-	assert(state_zero.head<6>().squaredNorm() < 1e-20);
+    assert(state_zero.head<6>().squaredNorm() < 1e-20);
 
-	this->state_zero = state_zero;
-
-
-	for(int i=0;i<6;i++)
-	{
-		Vec6 eps; eps.setZero(); eps[i] = 1e-3;
-		SE3 EepsP = Sophus::SE3::exp(eps);
-		SE3 EepsM = Sophus::SE3::exp(-eps);
-		SE3 w2c_leftEps_P_x0 = (get_worldToCam_evalPT() * EepsP) * get_worldToCam_evalPT().inverse();
-		SE3 w2c_leftEps_M_x0 = (get_worldToCam_evalPT() * EepsM) * get_worldToCam_evalPT().inverse();
-		nullspaces_pose.col(i) = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log())/(2e-3);
-	}
-	//nullspaces_pose.topRows<3>() *= SCALE_XI_TRANS_INVERSE;
-	//nullspaces_pose.bottomRows<3>() *= SCALE_XI_ROT_INVERSE;
-
-	// scale change
-	SE3 w2c_leftEps_P_x0 = (get_worldToCam_evalPT());
-	w2c_leftEps_P_x0.translation() *= 1.00001;
-	w2c_leftEps_P_x0 = w2c_leftEps_P_x0 * get_worldToCam_evalPT().inverse();
-	SE3 w2c_leftEps_M_x0 = (get_worldToCam_evalPT());
-	w2c_leftEps_M_x0.translation() /= 1.00001;
-	w2c_leftEps_M_x0 = w2c_leftEps_M_x0 * get_worldToCam_evalPT().inverse();
-	nullspaces_scale = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log())/(2e-3);
+    this->state_zero = state_zero;
 
 
-	nullspaces_affine.setZero();
-	nullspaces_affine.topLeftCorner<2,1>()  = Vec2(1,0);
-	assert(ab_exposure > 0);
-	nullspaces_affine.topRightCorner<2,1>() = Vec2(0, expf(aff_g2l_0().a)*ab_exposure);
+    for(int i=0;i<6;i++)
+    {
+        Vec6 eps; eps.setZero(); eps[i] = 1e-3;
+        SE3 EepsP = Sophus::SE3::exp(eps);
+        SE3 EepsM = Sophus::SE3::exp(-eps);
+        SE3 w2c_leftEps_P_x0 = (get_worldToImu_evalPT() * EepsP) * get_worldToImu_evalPT().inverse();
+        SE3 w2c_leftEps_M_x0 = (get_worldToImu_evalPT() * EepsM) * get_worldToImu_evalPT().inverse();
+        nullspaces_pose.col(i) = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log())/(2e-3);
+    }
+
+//	for(int i=0;i<6;i++)
+//	{
+//		Vec6 eps; eps.setZero(); eps[i] = 1e-3;
+//		SE3 EepsP = Sophus::SE3::exp(eps);
+//		SE3 EepsM = Sophus::SE3::exp(-eps);
+//		SE3 w2c_leftEps_P_x0 = (get_worldToCam_evalPT() * EepsP) * get_worldToCam_evalPT().inverse();
+//		SE3 w2c_leftEps_M_x0 = (get_worldToCam_evalPT() * EepsM) * get_worldToCam_evalPT().inverse();
+//		nullspaces_pose.col(i) = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log())/(2e-3);
+//	}
+    //nullspaces_pose.topRows<3>() *= SCALE_XI_TRANS_INVERSE;
+    //nullspaces_pose.bottomRows<3>() *= SCALE_XI_ROT_INVERSE;
+
+//	 scale change
+//	SE3 w2c_leftEps_P_x0 = (get_worldToCam_evalPT());
+//	w2c_leftEps_P_x0.translation() *= 1.00001;
+//	w2c_leftEps_P_x0 = w2c_leftEps_P_x0 * get_worldToCam_evalPT().inverse();
+//	SE3 w2c_leftEps_M_x0 = (get_worldToCam_evalPT());
+//	w2c_leftEps_M_x0.translation() /= 1.00001;
+//	w2c_leftEps_M_x0 = w2c_leftEps_M_x0 * get_worldToCam_evalPT().inverse();
+//	nullspaces_scale = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log())/(2e-3);
+
+    SE3 w2c_leftEps_P_x0 = (get_worldToImu_evalPT());
+    w2c_leftEps_P_x0.translation() *= 1.00001;
+    w2c_leftEps_P_x0 = w2c_leftEps_P_x0 * get_worldToImu_evalPT().inverse();
+    SE3 w2c_leftEps_M_x0 = (get_worldToImu_evalPT());
+    w2c_leftEps_M_x0.translation() /= 1.00001;
+    w2c_leftEps_M_x0 = w2c_leftEps_M_x0 * get_worldToImu_evalPT().inverse();
+    nullspaces_scale = (w2c_leftEps_P_x0.log() - w2c_leftEps_M_x0.log())/(2e-3);
+
+
+    nullspaces_affine.setZero();
+    nullspaces_affine.topLeftCorner<2,1>()  = Vec2(1,0);
+    assert(ab_exposure > 0);
+    nullspaces_affine.topRightCorner<2,1>() = Vec2(0, expf(aff_g2l_0().a)*ab_exposure);
 };
 
 
@@ -124,103 +142,292 @@ void FrameHessian::release()
 	immaturePoints.clear();
 }
 
-
-void FrameHessian::makeImages(float* color, CalibHessian* HCalib, std::vector<dso_vi::IMUData>& vimuData)
+void FrameHessian::setnavEvalPT(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const Vec10 &state, const Vec3 &vstate, const Vec6 &biasstate )
 {
 
-	for(int i=0;i<pyrLevelsUsed;i++)
+    this->worldToCam_evalPT = worldToCam_evalPT;
+    this->velocity_evalPT = Velocity;
+    this->bias_evalPT = bias;
+
+    SE3 ImuToworld_evalPT = worldToCam_evalPT.inverse() * dso_vi::Tcb;
+    this->navstate_evalPT = gtsam::NavState(gtsam::Pose3(ImuToworld_evalPT.matrix()), velocity_evalPT);
+    setnavState(state, vstate, biasstate);
+    setStateZero(state);
+};
+
+void FrameHessian::setnavEvalPT_scaled(const SE3 &worldToCam_evalPT, const Vec3 &Velocity, const Vec6 &bias, const AffLight &aff_g2l)
+{
+    Vec10 initial_state = Vec10::Zero();
+    Vec3 initial_vstate = Vec3::Zero();
+    Vec6 initial_biasstate = Vec6::Zero();
+    initial_state[6] = aff_g2l.a;
+    initial_state[7] = aff_g2l.b;
+    this->worldToCam_evalPT = worldToCam_evalPT;
+    this->velocity_evalPT = Velocity;
+    this->bias_evalPT = bias;
+    SE3 ImuToworld_evalPT = worldToCam_evalPT.inverse() * dso_vi::Tcb;
+    this->navstate_evalPT = gtsam::NavState(gtsam::Pose3(ImuToworld_evalPT.matrix()), velocity_evalPT);
+    setnavStateScaled(initial_state,initial_vstate,initial_biasstate);
+    setStateZero(this->get_state());
+};
+
+void FrameHessian::setvbEvalPT()
+{
+    Vec3 initial_vstate = Vec3::Zero();
+    Vec6 initial_biasstate = Vec6::Zero();
+    velocity_evalPT = shell->navstate.velocity();
+    navstate_evalPT = shell->navstate;
+    bias_evalPT = shell->bias.vector();
+    //Vec10 initial_state = Vec10::Zero();
+//	vstate_zero.setZero();
+//	vstate_scaled.setZero();
+//	vstate.setZero();
+//	vstep.setZero();
+//	vstep_backup.setZero();
+//	vstate_backup.setZero();
+//
+//	biasstate_zero.setZero();
+//	biasstate_scaled.setZero();
+//	biasstate.setZero();	// [0-2 gyro, 3-5 acce]
+//	biasstep.setZero();
+//	biasstep_backup.setZero();
+//	biasstate_backup.setZero();
+    setnavStateScaled(get_state_scaled(), initial_vstate, initial_biasstate);
+    //setnavStateScaled(initial_state, initial_vstate, initial_biasstate);
+}
+
+double FrameHessian::getkfimufactor(FrameHessian * host){
+    assert(imufactorvalid);
+
+	if (imu_kf_buff.size() && fabs(host->shell->viTimestamp - imu_kf_buff.front()._t) > 0.01)
 	{
-		dIp[i] = new Eigen::Vector3f[wG[i]*hG[i]];
-		absSquaredGrad[i] = new float[wG[i]*hG[i]];
+		std::cerr << "host frame doesn't match imu measurements" << std::endl;
+		exit(1);
 	}
-	dI = dIp[0];
+	if 	(imu_kf_buff.size() && fabs(
+			(imu_kf_buff.back()._t - imu_kf_buff.front()._t) -
+			(shell->viTimestamp - host->shell->viTimestamp)
 
-
-	// make d0
-	int w=wG[0];
-	int h=hG[0];
-	for(int i=0;i<w*h;i++)
-		dI[i][0] = color[i];
-
-	for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
+		) > 0.01
+	)
 	{
-		int wl = wG[lvl], hl = hG[lvl];
-		Eigen::Vector3f* dI_l = dIp[lvl];
+		std::cerr << "imu measurements and keyframes don't match" << std::endl;
+		exit(1);
+	}
 
-		float* dabs_l = absSquaredGrad[lvl];
-		if(lvl>0)
+	if (!shell->imu_preintegrated_last_kf_)
+	{
+		std::cerr << "imu preintegrated NULL" << std::endl;
+		exit(1);
+	}
+	std::cout << "preinteg dt: " << shell->imu_preintegrated_last_kf_->deltaTij() << std::endl;
+	std::cout << "raw dt: " << (imu_kf_buff.back()._t - imu_kf_buff.front()._t) << std::endl;
+	if (imu_kf_buff.size() && fabs(
+			shell->imu_preintegrated_last_kf_->deltaTij() -
+			(imu_kf_buff.back()._t - imu_kf_buff.front()._t)
+		) > 0.01
+	)
+	{
+		std::cerr << "imu measurement not updated" << std::endl;
+		exit(1);
+	}
+
+    double imuenergy;
+    if(needrelin)
+    {
+        gtsam::NavState previous_navstate_evalPT;
+        gtsam::NavState current_navstate_evalPT;
+        gtsam::imuBias::ConstantBias previous_bias_evalPT = gtsam::imuBias::ConstantBias(host->bias_evalPT);
+        gtsam::imuBias::ConstantBias current_bias_evalPT = gtsam::imuBias::ConstantBias(bias_evalPT);
+        previous_navstate_evalPT = host->navstate_evalPT;
+        current_navstate_evalPT = navstate_evalPT;
+		std::cout<<"previous_navstate_evalPT:"<<previous_navstate_evalPT<<std::endl;
+		std::cout<<"current_navstate_evalPT:"<<current_navstate_evalPT<<std::endl;
+		std::cout<<"previous_bias_evalPT"<<previous_bias_evalPT<<std::endl;
+		std::cout<<"current_bias_evalPT"<<current_bias_evalPT<<std::endl;
+        shell->linearizeImuFactorLastKeyFrame(previous_navstate_evalPT,current_navstate_evalPT,previous_bias_evalPT,current_bias_evalPT);
+
+		if (!shell->imu_factor_last_kf_)
 		{
-			int lvlm1 = lvl-1;
-			int wlm1 = wG[lvlm1];
-			Eigen::Vector3f* dI_lm = dIp[lvlm1];
-
-
-
-			for(int y=0;y<hl;y++)
-				for(int x=0;x<wl;x++)
-				{
-					dI_l[x + y*wl][0] = 0.25f * (dI_lm[2*x   + 2*y*wlm1][0] +
-												dI_lm[2*x+1 + 2*y*wlm1][0] +
-												dI_lm[2*x   + 2*y*wlm1+wlm1][0] +
-												dI_lm[2*x+1 + 2*y*wlm1+wlm1][0]);
-				}
+			std::cerr << "imu factor NULL" << std::endl;
+			exit(1);
 		}
 
-		for(int idx=wl;idx < wl*(hl-1);idx++)
+		if (fabs(
+				shell->imu_factor_last_kf_->preintegratedMeasurements().deltaTij() -
+				(imu_kf_buff.back()._t - imu_kf_buff.front()._t)
+			) > 0.01
+		)
 		{
-			float dx = 0.5f*(dI_l[idx+1][0] - dI_l[idx-1][0]);
-			float dy = 0.5f*(dI_l[idx+wl][0] - dI_l[idx-wl][0]);
+			std::cerr << "imu factor not updated" << std::endl;
+			exit(1);
+		}
 
-
-			if(!std::isfinite(dx)) dx=0;
-			if(!std::isfinite(dy)) dy=0;
-
-			dI_l[idx][1] = dx;
-			dI_l[idx][2] = dy;
-
-
-			dabs_l[idx] = dx*dx+dy*dy;
-
-			if(setting_gammaWeightsPixelSelect==1 && HCalib!=0)
+		if (!setting_debugout_runquiet)
+		{
+			gtsam::Matrix _J_imu_Rt_i;
+			gtsam::Matrix _J_imu_v_i;
+			gtsam::Matrix _J_imu_Rt_j;
+			gtsam::Matrix _J_imu_v_j;
+			gtsam::Matrix _J_imu_bias_i;
+			gtsam::Matrix _J_imu_bias_j;
+			Vec15 res = shell->evaluateIMUerrorsBA(
+					host->PRE_navstate,
+					PRE_navstate,
+					host->shell->bias,
+					shell->bias,
+					_J_imu_Rt_i,
+					_J_imu_v_i,
+					_J_imu_Rt_j,
+					_J_imu_v_j,
+					_J_imu_bias_i,
+					_J_imu_bias_j
+			);
+			if (res.norm() > 0.3)
 			{
-				float gw = HCalib->getBGradOnly((float)(dI_l[idx][0]));
-				dabs_l[idx] *= gw*gw;	// convert to gradient of original color space (before removing response).
+				std::cerr << "IMU factor resulted high error before optimization" << std::endl;
+			}
+		}
+        needrelin = false;
+    }
+    gtsam::NavState PRE_previous_navstate = host->PRE_navstate;
+    gtsam::NavState PRE_current_navstate = PRE_navstate;
+    gtsam::imuBias::ConstantBias PRE_previous_bias = gtsam::imuBias::ConstantBias(host->PRE_bias);
+    gtsam::imuBias::ConstantBias PRE_current_bias = gtsam::imuBias::ConstantBias(PRE_bias);
+    kfimures  = shell->evaluateIMUerrorsBA(PRE_previous_navstate, PRE_current_navstate, PRE_previous_bias, PRE_current_bias, J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j);
+    kfimuinfo = shell->getIMUcovarianceBA().inverse();
+	kfimuinfo.rightCols(6).setZero();
+	kfimuinfo.bottomRows(6).setZero();
+	std::cout<<"kfimures:"<<kfimures.transpose()<<std::endl;
+	std::cout<<"kfimuinfo:"<<kfimuinfo.diagonal().transpose()<<std::endl;
+
+	imuenergy = kfimures.transpose() * kfimuinfo * kfimures;
+	std::cout<<"imuenergy:"<<imuenergy<<std::endl;
+    return imuenergy;
+}
+
+
+void FrameHessian::updateimufactor(double sviTimestamp) {
+	shell->imu_preintegrated_last_kf_->resetIntegrationAndSetBias(shell->bias);
+	for (size_t i = 0; i < imu_kf_buff.size(); i++) {
+		dso_vi::IMUData imudata = imu_kf_buff[i];
+
+		Mat61 rawimudata;
+		rawimudata << imudata._a(0), imudata._a(1), imudata._a(2),
+				imudata._g(0), imudata._g(1), imudata._g(2);
+		if (imudata._t < sviTimestamp)continue;
+		double dt = 0;
+		// interpolate readings
+		if (i == imu_kf_buff.size() - 1) {
+			dt = shell->viTimestamp - imudata._t;
+		} else {
+			dt = imu_kf_buff[i + 1]._t - imudata._t;
+		}
+
+		if (i == 0) {
+			// assuming the missing imu reading between the previous frame and first IMU
+			dt += (imudata._t - sviTimestamp);
+		}
+
+		assert(dt >= 0);
+
+		shell->imu_preintegrated_last_kf_->integrateMeasurement(
+				rawimudata.block<3, 1>(0, 0),
+				rawimudata.block<3, 1>(3, 0),
+				dt
+		);
+		needrelin = true;
+	}
+}
+
+	void FrameHessian::makeImages(float *color, CalibHessian *HCalib, std::vector<dso_vi::IMUData> &vimuData) {
+
+		for (int i = 0; i < pyrLevelsUsed; i++) {
+			dIp[i] = new Eigen::Vector3f[wG[i] * hG[i]];
+			absSquaredGrad[i] = new float[wG[i] * hG[i]];
+		}
+		dI = dIp[0];
+
+
+		// make d0
+		int w = wG[0];
+		int h = hG[0];
+		for (int i = 0; i < w * h; i++)
+			dI[i][0] = color[i];
+
+		for (int lvl = 0; lvl < pyrLevelsUsed; lvl++) {
+			int wl = wG[lvl], hl = hG[lvl];
+			Eigen::Vector3f *dI_l = dIp[lvl];
+
+			float *dabs_l = absSquaredGrad[lvl];
+			if (lvl > 0) {
+				int lvlm1 = lvl - 1;
+				int wlm1 = wG[lvlm1];
+				Eigen::Vector3f *dI_lm = dIp[lvlm1];
+
+
+				for (int y = 0; y < hl; y++)
+					for (int x = 0; x < wl; x++) {
+						dI_l[x + y * wl][0] = 0.25f * (dI_lm[2 * x + 2 * y * wlm1][0] +
+													   dI_lm[2 * x + 1 + 2 * y * wlm1][0] +
+													   dI_lm[2 * x + 2 * y * wlm1 + wlm1][0] +
+													   dI_lm[2 * x + 1 + 2 * y * wlm1 + wlm1][0]);
+					}
+			}
+
+			for (int idx = wl; idx < wl * (hl - 1); idx++) {
+				float dx = 0.5f * (dI_l[idx + 1][0] - dI_l[idx - 1][0]);
+				float dy = 0.5f * (dI_l[idx + wl][0] - dI_l[idx - wl][0]);
+
+
+				if (!std::isfinite(dx)) dx = 0;
+				if (!std::isfinite(dy)) dy = 0;
+
+				dI_l[idx][1] = dx;
+				dI_l[idx][2] = dy;
+
+
+				dabs_l[idx] = dx * dx + dy * dy;
+
+				if (setting_gammaWeightsPixelSelect == 1 && HCalib != 0) {
+					float gw = HCalib->getBGradOnly((float) (dI_l[idx][0]));
+					dabs_l[idx] *=
+							gw * gw;    // convert to gradient of original color space (before removing response).
+				}
 			}
 		}
 	}
+
+	void FrameFramePrecalc::set(FrameHessian *host, FrameHessian *target, CalibHessian *HCalib) {
+		this->host = host;
+		this->target = target;
+
+		SE3 leftToLeft_0 = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
+		PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();
+		PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
+
+
+		SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
+		PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
+		PRE_tTll = (leftToLeft.translation()).cast<float>();
+		distanceLL = leftToLeft.translation().norm();
+
+
+		Mat33f K = Mat33f::Zero();
+		K(0, 0) = HCalib->fxl();
+		K(1, 1) = HCalib->fyl();
+		K(0, 2) = HCalib->cxl();
+		K(1, 2) = HCalib->cyl();
+		K(2, 2) = 1;
+		PRE_KRKiTll = K * PRE_RTll * K.inverse();
+		PRE_RKiTll = PRE_RTll * K.inverse();
+		PRE_KtTll = K * PRE_tTll;
+
+
+		PRE_aff_mode = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l(),
+												   target->aff_g2l()).cast<float>();
+		PRE_b0_mode = host->aff_g2l_0().b;
+	}
+
+
 }
-
-void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )
-{
-	this->host = host;
-	this->target = target;
-
-	SE3 leftToLeft_0 = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
-	PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();
-	PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
-
-
-
-	SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
-	PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
-	PRE_tTll = (leftToLeft.translation()).cast<float>();
-	distanceLL = leftToLeft.translation().norm();
-
-
-	Mat33f K = Mat33f::Zero();
-	K(0,0) = HCalib->fxl();
-	K(1,1) = HCalib->fyl();
-	K(0,2) = HCalib->cxl();
-	K(1,2) = HCalib->cyl();
-	K(2,2) = 1;
-	PRE_KRKiTll = K * PRE_RTll * K.inverse();
-	PRE_RKiTll = PRE_RTll * K.inverse();
-	PRE_KtTll = K * PRE_tTll;
-
-
-	PRE_aff_mode = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l(), target->aff_g2l()).cast<float>();
-	PRE_b0_mode = host->aff_g2l_0().b;
-}
-
-}
-

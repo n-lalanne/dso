@@ -33,6 +33,7 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
 
+#include <unistd.h>
 #include "Eigen/Core"
 #include "sophus/sim3.hpp"
 #include "sophus/se3.hpp"
@@ -74,7 +75,8 @@ namespace dso
 #define PYR_LEVELS 6
 extern int pyrLevelsUsed;
 
-
+extern float setting_priorFactorWeight;
+extern float setting_visionFactorWeight;
 
 extern float setting_keyframesPerSecond;
 extern bool setting_realTimeMaxKF;

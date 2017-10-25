@@ -20,6 +20,13 @@ cv::Mat ConfigParam::_MatAccBias = cv::Mat::zeros(3, 1, CV_32F);
 Eigen::Vector3d ConfigParam::_EigGyroBias = Eigen::Vector3d::Zero();
 cv::Mat ConfigParam::_MatGyroBias = cv::Mat::zeros(3, 1, CV_32F);
 
+bool ConfigParam::addprior = true;
+bool ConfigParam::addimu = true;
+double ConfigParam::accel_noise_sigma = 2.0e-2;
+double ConfigParam::gyro_noise_sigma = 2.0e-4;
+double ConfigParam::accel_bias_rw_sigma = 5e-3;
+double ConfigParam::gyro_bias_rw_sigma = 2e-4;
+
 ConfigParam::ConfigParam(std::string configfile)
 {
     cv::FileStorage fSettings(configfile, cv::FileStorage::READ);
@@ -43,6 +50,15 @@ ConfigParam::ConfigParam(std::string configfile)
 
     _ImageDelayToIMU = fSettings["Camera.delaytoimu"];
     std::cout<<"timestamp image delay to imu: "<<_ImageDelayToIMU<<std::endl;
+
+
+
+    accel_noise_sigma = fSettings["accel_noise_sigma"];
+    gyro_noise_sigma = fSettings["gyro_noise_sigma"];
+    accel_bias_rw_sigma = fSettings["accel_bias_rw_sigma"];
+    gyro_bias_rw_sigma = fSettings["gyro_bias_rw_sigma"];
+
+
 
     {
         cv::FileNode Tbc_ = fSettings["Camera.Tbc"];
@@ -79,6 +95,22 @@ ConfigParam::ConfigParam(std::string configfile)
         _bAccMultiply9p8 = (tmpBool != 0);
         std::cout<<"whether acc*9.8? 0/1: "<<_bAccMultiply9p8<<std::endl;
     }
+
+    {
+        int tmpBool = fSettings["addprior"];
+        addprior = (tmpBool != 0);
+        std::cout<<"whether add prior? 0/1: "<<addprior<<std::endl;
+    }
+
+    {
+        int tmpBool = fSettings["addimu"];
+        addimu = (tmpBool != 0);
+        if (addprior == true) {
+            addimu = true;
+        }
+        std::cout<<"whether add imu? 0/1: "<<addimu<<std::endl;
+    }
+
 
     // acc bias
     cv::FileNode accBias_ = fSettings["IMU.accBias"];
@@ -155,6 +187,33 @@ double ConfigParam::GetImageDelayToIMU()
 bool ConfigParam::GetAccMultiply9p8()
 {
     return _bAccMultiply9p8;
+}
+
+double ConfigParam::Getaccel_noise_sigma()
+{
+    return accel_noise_sigma;
+}
+
+double ConfigParam::Getgyro_noise_sigma(){
+    return gyro_noise_sigma;
+}
+
+double ConfigParam::Getaccel_bias_rw_sigma()
+{
+    return accel_bias_rw_sigma;
+}
+
+double ConfigParam::Getgyro_bias_rw_sigma(){
+    return gyro_bias_rw_sigma;
+}
+
+bool ConfigParam::Getaddprior()
+{
+    return addprior;
+}
+
+bool ConfigParam::Getaddimu(){
+    return addimu;
 }
 
 cv::Mat ConfigParam::GetMatAccBias()

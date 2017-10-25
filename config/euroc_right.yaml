@@ -1,0 +1,136 @@
+%YAML:1.0
+
+# 1: realtime, 0: non-realtime
+test.RealTime: 1
+# Time for visual-inertial initialization
+test.VINSInitTime: 15.0
+
+# Modify test.InitVIOTmpPath and bagfile to the correct path
+# Path to save tmp files/results
+test.InitVIOTmpPath: "/home/jp/opensourcecode/OpenSourceORBVIO/tmp/"
+
+## For good initialization (no movement at the beginning for some bag)
+test.DiscardTime: 0
+#bagfile: "/home/jp/TimeV1_01_easy.bag"
+## bad: V1_03_difficult(wrong), V2_03_difficult(lost)
+## not so good(cant close loop without loopclosure): V1_02_medium, V2_02_medium, MH_05_difficult
+## good: V1_01_easy, V2_01_easy, MH_01_easy, MH_02_easy, MH_03_medium, MH_04_difficult
+
+#test.DiscardTime: 18
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/MH_03_medium.bag"
+
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/MH_04_difficult.bag"
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/MH_05_difficult.bag"
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/MH_02_easy.bag"
+bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/MH_01_easy.bag"
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/V2_02_medium.bag"
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/V2_01_easy.bag"
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/V1_02_medium.bag"
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/V1_01_easy.bag"
+
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/V1_03_difficult.bag"
+#bagfile: "/media/jp/JingpangPassport/3dataset/EuRoC-VIO/un_restamped/V2_03_difficult.bag"
+
+
+#######################################
+
+imutopic: "/imu0"
+imagetopic: "/cam1/image_raw"
+
+#if withprior(1: with prior 0: without prior)
+addprior: 1
+
+#if withimu(1: with imu 0: without imu)
+addimu: 1
+
+# Timestamp shift. Timage = Timu + image_delay
+Camera.delaytoimu: 0
+
+# acc=acc*9.8, if below is 1
+IMU.multiplyG: 0
+
+# camera-imu frame transformation, Pi = Tic * Pc
+Camera.Tbc:
+ [0.0125552670891, -0.999755099723, 0.0182237714554, -0.0198435579556,
+  0.999598781151, 0.0130119051815, 0.0251588363115, 0.0453689425024,
+  -0.0253898008918, 0.0179005838253, 0.999517347078, 0.00786212447038,
+  0.0, 0.0, 0.0, 1.0]
+
+IMU.accBias: [-0.013337, 0.103464, 0.093086]
+IMU.gyroBias: [-0.002153, 0.020744, 0.075806]
+
+# Local Window size
+LocalMapping.LocalWindowSize: 20
+
+accel_noise_sigma: 0.003
+gyro_noise_sigma: 0.0002
+accel_bias_rw_sigma: 0.0008
+gyro_bias_rw_sigma: 0.00002
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+
+# Camera calibration and distortion parameters (OpenCV)
+Camera.fx: 457.587
+Camera.fy: 456.134
+Camera.cx: 379.999
+Camera.cy: 255.238
+
+Camera.k1: -0.28368365
+Camera.k2: 0.07451284
+Camera.p1: -0.00010473
+Camera.p2: -3.55590700e-05
+
+Camera.width: 752
+Camera.height: 480
+
+# Camera frames per second
+Camera.fps: 20.0
+
+# IR projector baseline times fx (aprox.)
+Camera.bf: 40.0
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+# Close/Far threshold. Baseline times.
+ThDepth: 40.0
+
+# Deptmap values factor
+DepthMapFactor: 1.0
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1000
+
+# ORB Extractor: Scale factor between levels in the scale pyramid
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize:2
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500
+

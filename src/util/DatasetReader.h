@@ -229,6 +229,11 @@ public:
 		return getImage_internal(id, 0);
 	}
 
+	std::vector<std::string> getImageFiles()
+	{
+		return files;
+	}
+
 
 	inline float* getPhotometricGamma()
 	{
