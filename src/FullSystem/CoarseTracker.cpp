@@ -2024,27 +2024,27 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
             }
             else
             {
-				// remove the bias blocks
-				Eigen::Matrix<double, 20, 20> H_no_bias;
-				// diagonals
-				H_no_bias.topLeftCorner<11, 11>() = Hl.topLeftCorner<11, 11>();
-				H_no_bias.bottomRightCorner<9, 9>() = Hl.block<9, 9>(17, 17);
-				// off-diagonals
-				H_no_bias.topRightCorner<11, 9>() =Hl.block<11, 9>(0, 17);
-				H_no_bias.bottomLeftCorner<9, 11>() = Hl.block<9, 11>(17, 0);
-
-				Eigen::Matrix<double, 20, 1> b_no_bias;
-				b_no_bias.head(11) = b.head(11);
-				b_no_bias.tail(9) = b.segment<9>(17);
-
-				Eigen::Matrix<double, 20, 1> inc_temp = H_no_bias.ldlt().solve(-b_no_bias);
-
-				inc.head(11) = inc_temp.head(11);
-				inc.segment<9>(17) = inc_temp.tail(9);
+//				// remove the bias blocks
+//				Eigen::Matrix<double, 20, 20> H_no_bias;
+//				// diagonals
+//				H_no_bias.topLeftCorner<11, 11>() = Hl.topLeftCorner<11, 11>();
+//				H_no_bias.bottomRightCorner<9, 9>() = Hl.block<9, 9>(17, 17);
+//				// off-diagonals
+//				H_no_bias.topRightCorner<11, 9>() =Hl.block<11, 9>(0, 17);
+//				H_no_bias.bottomLeftCorner<9, 11>() = Hl.block<9, 11>(17, 0);
+//
+//				Eigen::Matrix<double, 20, 1> b_no_bias;
+//				b_no_bias.head(11) = b.head(11);
+//				b_no_bias.tail(9) = b.segment<9>(17);
+//
+//				Eigen::Matrix<double, 20, 1> inc_temp = H_no_bias.ldlt().solve(-b_no_bias);
+//
+//				inc.head(11) = inc_temp.head(11);
+//				inc.segment<9>(17) = inc_temp.tail(9);
 
 				//std::cout << "Initial increment: " << inc_temp.transpose() << std::endl;
 
-//                inc = Hl.ldlt().solve(-b);
+                inc = Hl.ldlt().solve(-b);
             }
 
             float extrapFac = 1;
@@ -2101,12 +2101,12 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			Vec6 pbiases_new;
 			Vec6 biases_new;
 			//biases_new.setZero();
-			std::cout<<"Bias increment is:"<<incScaled.segment<6>(11).transpose()<<std::endl;
-			if(isOptimizeSingle) biases_new = biases_current + incScaled.segment<6>(11);//incScaled.tail<6>();
-			//if(!isOptimizeSingle)Vec6 pbiases_new = pbiases_current + incScaled.segment<6>(11);
-			else biases_new = biases_current;
+			//std::cout<<"Bias increment is:"<<incScaled.segment<6>(11).transpose()<<std::endl;
+			biases_new = biases_current + incScaled.segment<6>(11);//incScaled.tail<6>();
+			if(!isOptimizeSingle)Vec6 pbiases_new = pbiases_current + incScaled.segment<6>(11);
+			//else biases_new = biases_current;
 
-			pbiases_new.setZero();
+			//pbiases_new.setZero();
 			AffLight aff_g2l_new = aff_g2l_current;
 			aff_g2l_new.a += incScaled[6];
 			aff_g2l_new.b += incScaled[7];
@@ -2140,7 +2140,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				aff_g2l_current = aff_g2l_new;
 				biases_current = biases_new;
 				std::cout<<"Current bias is :"<<biases_current.transpose()<<std::endl;
-				//if(!isOptimizeSingle)pbiases_current = pbiases_new;
+                biases_current = biases_new;
+				if(!isOptimizeSingle)pbiases_current = pbiases_new;
 				navstate_j_current = navstate_j_new;
                 navstate_i_current = navstate_i_new;
 				biases_current_estimate = gtsam::imuBias::ConstantBias(biases_current.head(3),biases_current.tail(3));

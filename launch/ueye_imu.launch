@@ -1,0 +1,6 @@
+<launch>
+    <include file="$(find ueye_cam)/launch/rgb8.launch" />
+    <!--<include file="$(find imu_3dm_gx3)/launch/test.launch" />-->
+    <include file="$(find vicon_bridge)/launch/vicon.launch" />
+    <node pkg="rviz" type="rviz" name="rviz" />
+</launch>
