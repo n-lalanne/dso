@@ -1,5 +1,6 @@
 #include <GroundTruthIterator/GroundTruthIterator.h>
 #include "FrameShell.h"
+#include "FullSystem/FullSystem.h"
 
 Mat1515 FrameShell::getIMUcovariance()
 {
@@ -588,4 +589,19 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
 //    }
 
     return predicted_pose_imu;
+}
+
+FrameShell::GroundtruthError FrameShell::getGroundtruthError(NavState eval_navstate, Vec6 eval_bias)
+{
+    GroundtruthError groundtruth_error;
+    Vec3 velocity_gt = fullSystem->T_dsoworld_eurocworld.block<3,3>(0,0) * groundtruth.velocity;
+    gtsam::Pose3 pose_gt = gtsam::Pose3(fullSystem->T_dsoworld_eurocworld).compose(groundtruth.pose);
+
+    groundtruth_error.velocity_direction = acos(
+            velocity_gt.dot(eval_navstate.velocity()) / (velocity_gt.norm() * eval_navstate.velocity().norm())
+    ) * 180 / M_PI;
+
+    groundtruth_error.velocity_magnitude = fabs(eval_navstate.velocity().norm() - velocity_gt.norm());
+    groundtruth_error.pose = gtsam::Pose3::Logmap(pose_gt.inverse().compose(eval_navstate.pose()));
+    groundtruth_error.bias = eval_bias - (Vec6() << groundtruth.acceleroBias, groundtruth.gyroBias).finished();
 }

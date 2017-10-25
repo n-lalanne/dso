@@ -1056,17 +1056,8 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState previous_navstate, gtsam::NavSta
 			curr_bias,
 			J_imu_Rt_previous, J_imu_v_previous, J_imu_Rt, J_imu_v, J_imu_bias_previous, this->J_imu_bias
 	);
-//    std::cout<<"J_imu_Rt_i:\n"<<J_imu_Rt_i<<std::endl;
-//    std::cout<<"J_imu_v_i:\n"<<J_imu_v_i<<std::endl;
-//    std::cout<<"J_imu_Rt:\n"<<J_imu_Rt<<std::endl;
-//    std::cout<<"J_imu_v:\n"<<J_imu_v<<std::endl;
-//    std::cout<<"J_imu_bias_i:\n"<<J_imu_bias_i<<std::endl;
-//    std::cout<<"J_imu_bias:\n"<<J_imu_bias<<std::endl;
 
-	// in gtsam the error in Rtv due to bias is calcuated with respect to bias_i (of previous frame)
-//	this->J_imu_bias.block<9, 6>(0, 0) = J_imu_bias_i.block<9, 6>(0, 0);
-
-	return res_imu;
+    return res_imu;
 }
 
 Vec15 CoarseTracker::calcPriorRes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate)
@@ -2116,7 +2107,13 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			bool accept = resNew[0] < resOld[0];
 					//= (resNew[0] / resNew[1]) < (resOld[0] / resOld[1]);
 
-			if(accept)
+            FrameShell::GroundtruthError previous_gt_error = newFrame->shell->last_frame->getGroundtruthError(navstate_i_new, pbiases_new);
+            FrameShell::GroundtruthError current_gt_error = newFrame->shell->getGroundtruthError(navstate_j_new, biases_new);
+
+            std::cout << "Previous state error: \n" << previous_gt_error << std::endl;
+            std::cout << "Current state error: \n"  << current_gt_error << std::endl;
+
+            if(accept)
 			{
 				//std::cout<<"resNew[0] : resOld[0] "<<resNew[0] <<" : " <<resOld[0]<<" ,accept this incre"<<std::endl;
 //				if(!fullSystem->addimu)
@@ -2140,8 +2137,9 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				aff_g2l_current = aff_g2l_new;
 				biases_current = biases_new;
 				std::cout<<"Current bias is :"<<biases_current.transpose()<<std::endl;
+
                 biases_current = biases_new;
-				if(!isOptimizeSingle)pbiases_current = pbiases_new;
+				if (!isOptimizeSingle) pbiases_current = pbiases_new;
 				navstate_j_current = navstate_j_new;
                 navstate_i_current = navstate_i_new;
 				biases_current_estimate = gtsam::imuBias::ConstantBias(biases_current.head(3),biases_current.tail(3));

@@ -24,6 +24,7 @@
 
 #pragma once
 
+
 #include "util/NumType.h"
 #include "algorithm"
 #include "util/settings.h"
@@ -201,6 +202,33 @@ public:
 	 * @param lastTimestamp timestamp of the last frame from which we want the IMU factor to be (for interpolation)
 	 */
 	void updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLastF, std::vector<dso_vi::IMUData> mvIMUSinceLastKF);
+
+	/**
+	 * data structure for groundtruth error (pose, velocity direction and magnitude, bias)
+	 */
+	class GroundtruthError
+	{
+	public:
+		friend std::ostream &operator<<( std::ostream &output, const GroundtruthError &gt_error ) {
+			output 	<< "Pose: "					<< gt_error.pose.transpose() 	<< std::endl
+					<< "Velocity direction: " 	<< gt_error.velocity_direction	<< std::endl
+					<< "Velocity magnitude: " 	<< gt_error.velocity_magnitude	<< std::endl
+					<< "Bias: " 				<< gt_error.bias 				<< std::endl;
+			return output;
+		}
+		friend class FrameShell;
+	protected:
+		Vec6 pose;
+		Vec6 bias;
+		double velocity_direction;
+		double velocity_magnitude;
+	};
+
+	/**
+	 *
+	 * @return groundtruth error groundtruth_error_t type
+	 */
+	GroundtruthError getGroundtruthError(NavState eval_navstate, Vec6 eval_bias);
 
 	inline Mat33 RWC()
 	{
