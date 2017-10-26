@@ -320,6 +320,7 @@ private:
 	void deliverTrackedFrame(FrameHessian* fh, bool needKF);
 	void mappingLoop();
     void solveGyroscopeBiasbyGTSAM();
+	void solveAcceleroBias();
     bool SolveScale(Vec3 &g, Eigen::VectorXd &x);
     void RefineGravity(Vec3 &g, VecX &x);
     void UpdateState(Vec3 &g, VecX &x);

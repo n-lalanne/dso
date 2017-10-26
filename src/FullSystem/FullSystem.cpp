@@ -1510,6 +1510,95 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 	}
 }
 
+void FullSystem::solveAcceleroBias()
+{
+	assert(allKeyFramesHistory.size());
+	gtsam::imuBias::ConstantBias biasEstimate(accBiasEstimate, gyroBiasEstimate);
+	for (int iter_idx = 0; iter_idx < 4; iter_idx++)
+	{
+		Mat33 A;
+		Vec3 b;
+		Vec3 delta_ba;
+		A.setZero();
+		b.setZero();
+		for (int index_i = allKeyFramesHistory.size() - 1;
+			 index_i >= 1; index_i--)
+		{
+			Mat33 resR;
+			FrameShell *frame_i = allKeyFramesHistory[index_i - 1];
+			FrameShell *frame_j = allKeyFramesHistory[index_i];
+
+			if (!frame_i || !frame_j)
+			{
+				continue;
+			}
+
+			//============================================for the jacobian of rotation=================================================
+			PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<PreintegratedCombinedMeasurements *>(frame_j->imu_preintegrated_last_kf_);
+			CombinedImuFactor imu_factor(X(0), V(0),
+										 X(1), V(1),
+										 B(0), B(1),
+										 *preint_imu);
+
+//			gtsam::Pose3 pose_i = frame_i->navstate.pose();
+//			gtsam::Pose3 pose_j = frame_j->navstate.pose();
+//			Vec3 vel_i = frame_i->navstate.velocity();
+//			Vec3 vel_j = frame_j->navstate.velocity();
+
+			gtsam::Pose3 pose_i = frame_i->groundtruth.pose;
+			gtsam::Pose3 pose_j = frame_j->groundtruth.pose;
+			Vec3 vel_i = frame_i->groundtruth.velocity;
+			Vec3 vel_j = frame_j->groundtruth.velocity;
+
+			Values initial_values;
+			initial_values.insert(X(0), pose_i);
+			initial_values.insert(V(0), vel_i);
+			initial_values.insert(B(0), biasEstimate);
+			initial_values.insert(B(1), biasEstimate);
+			initial_values.insert(X(1), pose_j);
+			initial_values.insert(V(1), vel_j);
+
+			//boost::shared_ptr<GaussianFactor> linearFactor =
+			imu_factor.linearize(initial_values);
+			gtsam::Matrix J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias_i, J_imu_bias_j;
+			Vector9 res_imu = imu_factor.evaluateError(
+					pose_i, vel_i, pose_j, vel_j, biasEstimate, biasEstimate,
+					J_imu_Rt_i, J_imu_v_i, J_imu_Rt, J_imu_v, J_imu_bias_i, J_imu_bias_j
+			);
+			//=======================================================================================================================
+			Eigen::Matrix<double, 9, 3> tmp_A;
+			Vec9 tmp_b;
+
+			tmp_A = J_imu_bias_i.topLeftCorner<9,3>();
+			tmp_A = tmp_A;
+//			std::cout << "J_imu_bias bg =  \n" << J_imu_bias << std::endl;
+//			std::cout << "J_imu_bias bg =  " << std::endl << tmp_A << std::endl;
+			tmp_b = res_imu.head<9>();
+//			std::cout << "the realtive rotation se3 is :\n" << tmp_b << std::endl;
+			A += tmp_A.transpose() * tmp_A;
+			b -= tmp_A.transpose() * tmp_b;
+
+		}
+
+		Vec6 agbias = Vec6::Zero();
+		agbias.head<3>() = A.ldlt().solve(b);
+
+		biasEstimate = biasEstimate + agbias;
+		accBiasEstimate = biasEstimate.accelerometer();
+
+		for (int index_i = allKeyFramesHistory.size() - 1;
+			 index_i >= 0; index_i--)
+		{
+			FrameShell *frame_i = allKeyFramesHistory[index_i];
+			frame_i->bias = biasEstimate;
+			frame_i->imu_preintegrated_last_kf_->biasCorrectedDelta(biasEstimate);
+		}
+
+//		std::cout << "\"gyroscope bias initial calibration::::::; " << delta_bg.transpose() << std::endl;
+		std::cout << "\"acc bias initial calibration::::::; " << accBiasEstimate.transpose() << std::endl;
+	}
+}
+
 void FullSystem::UpdateState(Vec3 &g, VecX &x)
 {
 
@@ -1998,6 +2087,8 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
         if(SolveScale(g, initialstates))
 		{
 			UpdateState(g,initialstates);
+			// accelero bias need to be solved after getting scale, velocity and gravity direction
+			//solveAcceleroBias();
 			IMUinitialized = true;
 
 			// reset the visualizer
