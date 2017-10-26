@@ -1050,10 +1050,7 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState previous_navstate, gtsam::NavSta
 	gtsam::imuBias::ConstantBias last_bias((Vec3()<<prev_bias.head<3>()).finished(),(Vec3()<<prev_bias.tail<3>()).finished());
 	gtsam::imuBias::ConstantBias curr_bias((Vec3()<<bias.head<3>()).finished(),(Vec3()<<bias.tail<3>()).finished());
 
-    std::cout << "last_bias: " << last_bias << std::endl;
-    std::cout << "curr bias: " << curr_bias << std::endl;
-
-	res_imu = newFrame->shell->evaluateIMUerrors(
+    res_imu = newFrame->shell->evaluateIMUerrors(
 			previous_navstate,
 			current_navstate,
 			last_bias,
@@ -2016,8 +2013,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
             if(isOptimizeSingle)
             {
 				// remove the bias blocks
-				inc.head<11>() = Hl.topLeftCorner<11, 11>().ldlt().solve(-b.head<11>());
-                // inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
+				// inc.head<11>() = Hl.topLeftCorner<11, 11>().ldlt().solve(-b.head<11>());
+                inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
             }
             else
             {
@@ -2311,7 +2308,8 @@ void CoarseTracker::updatePriors()
 		fullSystem->Hprior.setIdentity();
 		fullSystem->Hprior.diagonal().head<6>() *= 1e2;
 		fullSystem->Hprior.diagonal().segment<3>(6) *= 1;
-		fullSystem->Hprior.diagonal().segment<6>(9) *= 1e1;
+		fullSystem->Hprior.diagonal().segment<3>(9) *= 1e-6;
+		fullSystem->Hprior.diagonal().segment<3>(12) *= 1e1;
 
 //		cv::Mat Hmm_cv(2, 2, CV_64F), Hmm_cv_inv(2, 2, CV_64F);
 //		Mat22 Hmm_relevant = Hmm.topLeftCorner(2, 2);
@@ -2428,6 +2426,11 @@ void CoarseTracker::updatePriors()
 
 		fullSystem->Hprior = Prior_inv;
 		fullSystem->bprior = bb - Hbm * Hmm_inv * bm.tail(9);
+
+		// debug: set the priors associated with bias to zero
+//		fullSystem->Hprior.rightCols(6).setZero();
+//		fullSystem->Hprior.bottomRows(6).setZero();
+//		fullSystem->bprior.tail(6).setZero();
 #endif
 
 

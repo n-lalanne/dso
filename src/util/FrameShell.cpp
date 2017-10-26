@@ -76,9 +76,6 @@ void FrameShell::linearizeImuFactorLastFrame(
         gtsam::imuBias::ConstantBias current_bias
 )
 {
-    std::cout << "Previous bias: "  << previous_bias    << std::endl;
-    std::cout << "Current bias: "   << current_bias     << std::endl;
-
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
 
     if (!imu_factor_last_frame_)

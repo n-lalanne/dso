@@ -694,8 +694,12 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 				navstate_current = navstate_this;
 				slast_navstate = slast_trynavstate;
 				std::cout << "The bias of the current frame is :" << trybiases_this.transpose() << std::endl;
-				biases_current = gtsam::imuBias::ConstantBias(trybiases_this.head(3), trybiases_this.tail(3));
-				pbiases_current = gtsam::imuBias::ConstantBias(trybiases_prev.head(3), trybiases_prev.tail(3));
+				biases_current	= gtsam::imuBias::ConstantBias(trybiases_this.head<3>(), trybiases_this.tail<3>());
+				pbiases_current = gtsam::imuBias::ConstantBias(trybiases_prev.head<3>(), trybiases_prev.tail<3>());
+
+				// the most recent estimate is the optimized bias of the current frame
+				accBiasEstimate = trybiases_this.head<3>();
+				gyroBiasEstimate = trybiases_this.tail<3>();
 			}
 			haveOneGood = true;
         }
@@ -1496,7 +1500,6 @@ void FullSystem::solveGyroscopeBiasbyGTSAM()
 		}
 
         gyroBiasEstimate = allKeyFramesHistory.back()->bias.gyroscope();
-		accBiasEstimate << -0.015406, 0.083464, 0.036466; //-0.013337, 0.103464, 0.093086;
 
 //		std::cout << "\"gyroscope bias initial calibration::::::; " << delta_bg.transpose() << std::endl;
 		std::cout << "\"gyroscope bias initial calibration::::::; " << gyroBiasEstimate.transpose() << std::endl;
