@@ -412,6 +412,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 			prop_navstate = fh->shell->PredictPose(slast_navstate, slast_timestamp);
 			navstatePrior = fh->shell->last_frame->navstate;
+            biasPrior     = fh->shell->last_frame->bias.vector();
 			slast_navstate = navstatePrior;
 
 			//std::cout<<"last pose(from SE3):\n"<<slast->navstate.pose().matrix()<<std::endl;

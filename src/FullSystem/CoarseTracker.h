@@ -135,7 +135,7 @@ private:
 
     // for imu errors
     Vec15 calcIMURes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate,Vec6 prevbias, Vec6 bias);
-	Vec15 calcPriorRes(gtsam::NavState previous_navstate, gtsam::NavState current_navstate);
+	Vec15 calcPriorRes(gtsam::NavState previous_navstate, Vec6 previous_bias);
     gtsam::Matrix  J_imu_Rt, J_imu_bias, J_imu_v;
     gtsam::Matrix  J_imu_Rt_previous, J_imu_bias_previous, J_imu_v_previous;
 	Mat1515 J_prior;

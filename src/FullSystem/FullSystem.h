@@ -367,6 +367,7 @@ public:
 	Mat1515 Hprior;
 	Vec15 bprior;
 	gtsam::NavState navstatePrior;
+	Vec6 biasPrior;
 
 	Mat44 T_dsoworld_eurocworld;
 };

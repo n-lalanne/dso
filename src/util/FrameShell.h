@@ -213,7 +213,7 @@ public:
 			output 	<< "Pose: "					<< gt_error.pose.transpose() 	<< std::endl
 					<< "Velocity direction: " 	<< gt_error.velocity_direction	<< std::endl
 					<< "Velocity magnitude: " 	<< gt_error.velocity_magnitude	<< std::endl
-					<< "Bias: " 				<< gt_error.bias 				<< std::endl;
+					<< "Bias: " 				<< gt_error.bias.transpose() 	<< std::endl;
 			return output;
 		}
 		friend class FrameShell;
