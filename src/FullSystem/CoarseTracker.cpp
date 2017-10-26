@@ -1047,8 +1047,12 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState previous_navstate, gtsam::NavSta
 	// useless Jacobians of reference frame (cuz we're not optimizing reference frame)
 	gtsam::Matrix  J_imu_Rt_i, J_imu_v_i, J_imu_bias_i;
 	//newFrame->shell->velocity << 1, 1, 1;
-	gtsam::imuBias::ConstantBias last_bias = gtsam::imuBias::ConstantBias(prev_bias.head(3),prev_bias.tail(3));
-	gtsam::imuBias::ConstantBias curr_bias = gtsam::imuBias::ConstantBias(bias.head(3),bias.tail(3));
+	gtsam::imuBias::ConstantBias last_bias((Vec3()<<prev_bias.head<3>()).finished(),(Vec3()<<prev_bias.tail<3>()).finished());
+	gtsam::imuBias::ConstantBias curr_bias((Vec3()<<bias.head<3>()).finished(),(Vec3()<<bias.tail<3>()).finished());
+
+    std::cout << "last_bias: " << last_bias << std::endl;
+    std::cout << "curr bias: " << curr_bias << std::endl;
+
 	res_imu = newFrame->shell->evaluateIMUerrors(
 			previous_navstate,
 			current_navstate,
@@ -1522,7 +1526,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 	//std::cout << "imu_error: " << imu_error.transpose() << std::endl;
     // TODO: make threshold a setting
-	float imu_huberTH = 500;//21.66;
+	float imu_huberTH = 50;//21.66;
 	//std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
 	//std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
 
@@ -1567,7 +1571,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	std::cout<<"er "<<priorr<<" et "<<priort<<" priorv "<<priorv<<std::endl;
 	if(priorEnergy<0.0)std::cout<<"priorEnergy is negative!!!"<<std::endl;
 	// TODO: make threshold a setting
-	float prior_huberTH = 500;//50;
+	float prior_huberTH = 50;//50;
 	std::cout<<"information(uncut): "<<information_prior.diagonal().transpose()<<std::endl;
 	std::cout<<"res_prior: "<<res_prior<<std::endl;
 	std::cout<<"priorEnergy(uncut): "<<priorEnergy<<std::endl;
@@ -1911,8 +1915,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	std::cout<<"The bias before tracking"<<biases_out<<std::endl;
 	Vec6 biases_current = biases_out;
 	Vec6 pbiases_current = pbiases_out;
-	gtsam::imuBias::ConstantBias pbiases_first_estimate = gtsam::imuBias::ConstantBias(pbiases_out.head(3),pbiases_out.tail(3));
-	gtsam::imuBias::ConstantBias biases_current_estimate = gtsam::imuBias::ConstantBias(biases_out.head(3),biases_out.tail(3));
+	gtsam::imuBias::ConstantBias pbiases_first_estimate( (Vec3()<<pbiases_out.head<3>()).finished(), (Vec3()<<pbiases_out.tail<3>()).finished() );
+	gtsam::imuBias::ConstantBias biases_current_estimate( (Vec3()<<biases_out.head<3>()).finished(), (Vec3()<<biases_out.tail<3>()).finished() );
 
 	gtsam::NavState navstate_j_current_bak = navstate_out;
 	gtsam::NavState navstate_i_current_bak = navstate_i_out;
@@ -2012,8 +2016,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
             if(isOptimizeSingle)
             {
 				// remove the bias blocks
-				//inc.head<11>() = Hl.topLeftCorner<11, 11>().ldlt().solve(-b.head<11>());
-                inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
+				inc.head<11>() = Hl.topLeftCorner<11, 11>().ldlt().solve(-b.head<11>());
+                // inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
             }
             else
             {
@@ -2091,13 +2095,10 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			//std::cout << "ref2new optimized: \n" << refToNew_new.matrix() << std::endl;
 
 			//std::cout<<"increment of biases: "<<incScaled.tail<6>().transpose()<<std::endl;
-			Vec6 pbiases_new;
-			Vec6 biases_new;
+			Vec6 pbiases_new = pbiases_current + incScaled.tail<6>();
+			Vec6 biases_new = biases_current + incScaled.segment<6>(11);
 			//biases_new.setZero();
 			//std::cout<<"Bias increment is:"<<incScaled.segment<6>(11).transpose()<<std::endl;
-			biases_new = biases_current + incScaled.segment<6>(11);//incScaled.tail<6>();
-			if(!isOptimizeSingle)Vec6 pbiases_new = pbiases_current + incScaled.tail<6>();
-			//else biases_new = biases_current;
 
 			//pbiases_new.setZero();
 			AffLight aff_g2l_new = aff_g2l_current;

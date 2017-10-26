@@ -76,6 +76,9 @@ void FrameShell::linearizeImuFactorLastFrame(
         gtsam::imuBias::ConstantBias current_bias
 )
 {
+    std::cout << "Previous bias: "  << previous_bias    << std::endl;
+    std::cout << "Current bias: "   << current_bias     << std::endl;
+
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
 
     if (!imu_factor_last_frame_)
@@ -604,4 +607,6 @@ FrameShell::GroundtruthError FrameShell::getGroundtruthError(NavState eval_navst
     groundtruth_error.velocity_magnitude = fabs(eval_navstate.velocity().norm() - velocity_gt.norm());
     groundtruth_error.pose = gtsam::Pose3::Logmap(pose_gt.inverse().compose(eval_navstate.pose()));
     groundtruth_error.bias = eval_bias - (Vec6() << groundtruth.acceleroBias, groundtruth.gyroBias).finished();
+
+    return groundtruth_error;
 }
