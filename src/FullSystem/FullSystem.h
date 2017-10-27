@@ -333,6 +333,7 @@ private:
 	bool RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale, Vec3 &_biasAcc);
     void RefineGravity(Vec3 &g, VecX &x);
     void UpdateState(Vec3 &g, VecX &x);
+    bool SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAcc, VecX & Vstates);
 
 	// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
 	boost::mutex trackMapSyncMutex;

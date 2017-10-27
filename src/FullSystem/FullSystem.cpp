@@ -1275,6 +1275,206 @@ bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
 	return true;
 }
 
+bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAcc, VecX & Vstates)
+{
+        cv::Mat pcb = dso_vi::toCvMat(dso_vi::Tcb.translation());
+        cv::Mat Rcb = dso_vi::toCvMat(dso_vi::Tcb.rotationMatrix());
+        cv::Mat dbiasa_ = dso_vi::toCvMat(biasAcc);
+        cv::Mat gw = dso_vi::toCvMat(g);
+
+
+        int cnt=0;
+        for(int i=0; i<allKeyFramesHistory.size()-1;i++)
+        {
+            FrameShell* pKF = allKeyFramesHistory[i];
+            //if(pKF->isBad()) continue;
+            //if(pKF!=vScaleGravityKF[cnt]) cerr<<"pKF!=vScaleGravityKF[cnt], id: "<<pKF->mnId<<" != "<<vScaleGravityKF[cnt]->mnId<<endl;
+            // Position and rotation of visual SLAM
+            cv::Mat wPc = dso_vi::toCvMat(pKF->camToWorld.translation()); //pKF->GetPoseInverse().rowRange(0,3).col(3);                   // wPc
+            cv::Mat Rwc = dso_vi::toCvMat(pKF->camToWorld.rotationMatrix());    //pKF->GetPoseInverse().rowRange(0,3).colRange(0,3);            // Rwc
+            // Set position and rotation of navstate
+            cv::Mat wPb = scale*wPc + Rwc*pcb;
+            Mat33 wRb = dso_vi::toMatrix3d(Rwc*Rcb);
+
+            Mat44 wTb;
+            wTb.Identity();
+            wTb.block<3,3>(0,0) = wRb;
+            wTb.block<3,3>(0,3) = dso_vi::toVector3d(wPb);
+
+            //pKF->navstate = gtsam::NavState(gtsam::Rot3(wRb),gtsam::Point3(dso_vi::toVector3d(wPb)),dummy_v);
+                    //SetNavStatePos(Converter::toVector3d(wPb));
+            //pKF->SetNavStateRot(Converter::toMatrix3d(Rwc*Rcb));
+            // Update bias of Gyr & Acc
+            //pKF->SetNavStateBiasGyr(bgest);
+            //pKF->SetNavStateBiasAcc(dbiasa_eig);
+
+
+            // Set delta_bias to zero. (only updated during optimization)
+            //pKF->SetNavStateDeltaBg(Eigen::Vector3d::Zero());
+            //pKF->SetNavStateDeltaBa(Eigen::Vector3d::Zero());
+            // Step 4.
+            // compute velocity
+            if(pKF != allKeyFramesHistory.back())
+            {
+                FrameShell* pKFnext = allKeyFramesHistory[i+1];
+                //if(!pKFnext) std:cerr<<"pKFnext is NULL, cnt="<<cnt<<", pKFnext:"<<pKFnext<<endl;
+                //if(pKFnext!=vScaleGravityKF[cnt+1]) cerr<<"pKFnext!=vScaleGravityKF[cnt+1], cnt="<<cnt<<", id: "<<pKFnext->mnId<<" != "<<vScaleGravityKF[cnt+1]->mnId<<endl;
+                // IMU pre-int between pKF ~ pKFnext
+                //const IMUPreintegrator& imupreint = pKFnext->GetIMUPreInt();
+                // Time from this(pKF) to next(pKFnext)
+                double dt = pKFnext->imu_preintegrated_last_kf_->deltaTij();//   imupreint.getDeltaTime();                                       // deltaTime
+                cv::Mat dp = dso_vi::toCvMat(pKFnext->imu_preintegrated_last_kf_->deltaPij());//Converter::toCvMat(imupreint.getDeltaP());       // deltaP
+                cv::Mat Jpba = dso_vi::toCvMat(dso_vi::getJPBiasa(pKFnext->imu_preintegrated_last_kf_));//onverter::toCvMat(imupreint.getJPBiasa());    // J_deltaP_biasa
+                cv::Mat wPcnext = dso_vi::toCvMat(pKFnext->camToWorld.translation());//pKFnext->GetPoseInverse().rowRange(0,3).col(3);           // wPc next
+                cv::Mat Rwcnext = dso_vi::toCvMat(pKFnext->camToWorld.rotationMatrix());//pKFnext->GetPoseInverse().rowRange(0,3).colRange(0,3);    // Rwc next
+
+                cv::Mat vel = - 1./dt*( scale*(wPc - wPcnext) + (Rwc - Rwcnext)*pcb + Rwc*Rcb*(dp + Jpba*dbiasa_) + 0.5*gw*dt*dt );
+                Eigen::Vector3d veleig = dso_vi::toVector3d(vel);
+                pKF->navstate = gtsam::NavState(gtsam::Pose3(wTb),veleig);
+                //pKF->SetNavStateVel(veleig);
+            }
+            else
+            {
+                std::cerr<<"-----------here is the last KF in vScaleGravityKF------------"<<std::endl;
+                // If this is the last KeyFrame, no 'next' KeyFrame exists
+                FrameShell* pKFprev = allKeyFramesHistory[i-1];
+                //if(!pKFprev) cerr<<"pKFprev is NULL, cnt="<<cnt<<endl;
+                //if(pKFprev!=vScaleGravityKF[cnt-1]) cerr<<"pKFprev!=vScaleGravityKF[cnt-1], cnt="<<cnt<<", id: "<<pKFprev->mnId<<" != "<<vScaleGravityKF[cnt-1]->mnId<<endl;
+                //const IMUPreintegrator& imupreint_prev_cur = pKF->GetIMUPreInt();
+                //double dt = imupreint_prev_cur.getDeltaTime();
+                //Eigen::Matrix3d Jvba = imupreint_prev_cur.getJVBiasa();
+                //Eigen::Vector3d dv = imupreint_prev_cur.getDeltaV();
+
+                double dt = pKFprev->imu_preintegrated_last_kf_->deltaTij();//   imupreint.getDeltaTime();                                       // deltaTime
+                Mat33 Jvba = dso_vi::getJVBiasa(pKFprev->imu_preintegrated_last_kf_);//pKFprev->imu_preintegrated_last_kf_->.getJVBiasa();
+                Vec3 Jpba = dso_vi::getJPBiasa(pKFprev->imu_preintegrated_last_kf_);        //onverter::toCvMat(imupreint.getJPBiasa());    // J_deltaP_biasa
+                Vec3 dv = pKFprev->imu_preintegrated_last_kf_->deltaVij();                           //imupreint_prev_cur.getDeltaV();
+
+
+                //cv::Mat wPcnext = dso_vi::toCvMat(pKFnext->camToWorld.translation());//pKFnext->GetPoseInverse().rowRange(0,3).col(3);           // wPc next
+                //cv::Mat Rwcnext = dso_vi::toCvMat(pKFnext->camToWorld.rotationMatrix());//pKFnext->GetPoseInverse().rowRange(0,3).colRange(0,3);    // Rwc next
+
+                //
+                Eigen::Vector3d velpre = pKFprev->navstate.v();
+                Eigen::Matrix3d rotpre = pKFprev->navstate.pose().rotation().matrix();
+                Eigen::Vector3d veleig = velpre + g*dt + rotpre*( dv + Jvba*biasAcc );
+                pKF->navstate = gtsam::NavState(gtsam::Pose3(wTb),veleig);
+            }
+        }
+
+
+
+
+//        // Re-compute IMU pre-integration at last. Should after usage of pre-int measurements.
+//        for(vector<KeyFrame*>::const_iterator vit=vScaleGravityKF.begin(), vend=vScaleGravityKF.end(); vit!=vend; vit++)
+//        {
+//            KeyFrame* pKF = *vit;
+//            if(pKF->isBad()) continue;
+//            pKF->ComputePreInt();
+//        }
+//
+//        // Update poses (multiply metric scale)
+//        vector<KeyFrame*> mspKeyFrames = mpMap->GetAllKeyFrames();
+//        for(std::vector<KeyFrame*>::iterator sit=mspKeyFrames.begin(), send=mspKeyFrames.end(); sit!=send; sit++)
+//        {
+//            KeyFrame* pKF = *sit;
+//            cv::Mat Tcw = pKF->GetPose();
+//            cv::Mat tcw = Tcw.rowRange(0,3).col(3)*scale;
+//            tcw.copyTo(Tcw.rowRange(0,3).col(3));
+//            pKF->SetPose(Tcw);
+//        }
+//        vector<MapPoint*> mspMapPoints = mpMap->GetAllMapPoints();
+//        for(std::vector<MapPoint*>::iterator sit=mspMapPoints.begin(), send=mspMapPoints.end(); sit!=send; sit++)
+//        {
+//            MapPoint* pMP = *sit;
+//            //pMP->SetWorldPos(pMP->GetWorldPos()*scale);
+//            pMP->UpdateScale(scale);
+//        }
+//        std::cout<<std::endl<<"... Map scale updated ..."<<std::endl<<std::endl;
+//
+//        // Update NavStates
+//        if(pNewestKF!=mpCurrentKeyFrame)
+//        {
+//            KeyFrame* pKF;
+//
+//            // step1. bias&d_bias
+//            pKF = pNewestKF;
+//            do
+//            {
+//                pKF = pKF->GetNextKeyFrame();
+//
+//                // Update bias of Gyr & Acc
+//                pKF->SetNavStateBiasGyr(bgest);
+//                pKF->SetNavStateBiasAcc(dbiasa_eig);
+//                // Set delta_bias to zero. (only updated during optimization)
+//                pKF->SetNavStateDeltaBg(Eigen::Vector3d::Zero());
+//                pKF->SetNavStateDeltaBa(Eigen::Vector3d::Zero());
+//            }while(pKF!=mpCurrentKeyFrame);
+//
+//            // step2. re-compute pre-integration
+//            pKF = pNewestKF;
+//            do
+//            {
+//                pKF = pKF->GetNextKeyFrame();
+//
+//                pKF->ComputePreInt();
+//            }while(pKF!=mpCurrentKeyFrame);
+//
+//            // step3. update pos/rot
+//            pKF = pNewestKF;
+//            do
+//            {
+//                pKF = pKF->GetNextKeyFrame();
+//
+//                // Update rot/pos
+//                // Position and rotation of visual SLAM
+//                cv::Mat wPc = pKF->GetPoseInverse().rowRange(0,3).col(3);                   // wPc
+//                cv::Mat Rwc = pKF->GetPoseInverse().rowRange(0,3).colRange(0,3);            // Rwc
+//                cv::Mat wPb = wPc + Rwc*pcb;
+//                pKF->SetNavStatePos(Converter::toVector3d(wPb));
+//                pKF->SetNavStateRot(Converter::toMatrix3d(Rwc*Rcb));
+//
+//                //pKF->SetNavState();
+//
+//                if(pKF != mpCurrentKeyFrame)
+//                {
+//                    KeyFrame* pKFnext = pKF->GetNextKeyFrame();
+//                    // IMU pre-int between pKF ~ pKFnext
+//                    const IMUPreintegrator& imupreint = pKFnext->GetIMUPreInt();
+//                    // Time from this(pKF) to next(pKFnext)
+//                    double dt = imupreint.getDeltaTime();                                       // deltaTime
+//                    cv::Mat dp = Converter::toCvMat(imupreint.getDeltaP());       // deltaP
+//                    cv::Mat Jpba = Converter::toCvMat(imupreint.getJPBiasa());    // J_deltaP_biasa
+//                    cv::Mat wPcnext = pKFnext->GetPoseInverse().rowRange(0,3).col(3);           // wPc next
+//                    cv::Mat Rwcnext = pKFnext->GetPoseInverse().rowRange(0,3).colRange(0,3);    // Rwc next
+//
+//                    cv::Mat vel = - 1./dt*( (wPc - wPcnext) + (Rwc - Rwcnext)*pcb + Rwc*Rcb*(dp + Jpba*dbiasa_) + 0.5*gw*dt*dt );
+//                    Eigen::Vector3d veleig = Converter::toVector3d(vel);
+//                    pKF->SetNavStateVel(veleig);
+//                }
+//                else
+//                {
+//                    // If this is the last KeyFrame, no 'next' KeyFrame exists
+//                    KeyFrame* pKFprev = pKF->GetPrevKeyFrame();
+//                    const IMUPreintegrator& imupreint_prev_cur = pKF->GetIMUPreInt();
+//                    double dt = imupreint_prev_cur.getDeltaTime();
+//                    Eigen::Matrix3d Jvba = imupreint_prev_cur.getJVBiasa();
+//                    Eigen::Vector3d dv = imupreint_prev_cur.getDeltaV();
+//                    //
+//                    Eigen::Vector3d velpre = pKFprev->GetNavState().Get_V();
+//                    Eigen::Matrix3d rotpre = pKFprev->GetNavState().Get_RotMatrix();
+//                    Eigen::Vector3d veleig = velpre + gweig*dt + rotpre*( dv + Jvba*dbiasa_eig );
+//                    pKF->SetNavStateVel(veleig);
+//                }
+//
+//            }while(pKF!=mpCurrentKeyFrame);
+//
+//        }
+
+        std::cout<<std::endl<<"... Map NavState updated ..."<<std::endl<<std::endl;
+
+}
+
 bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale, Vec3 &_biasAcc)
 {
 	int skip_first_n_frames = 2;
@@ -1404,6 +1604,7 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 			fs->imu_preintegrated_last_kf_->biasCorrectedDelta(gtsam::imuBias::ConstantBias(
 					(Vec6() << _biasAcc, gyroBiasEstimate).finished()
 			));
+            fs->bias = gtsam::imuBias::ConstantBias(_biasAcc,gyroBiasEstimate);
 		}
 
 		// debug
@@ -2426,9 +2627,11 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
         Vec3 g, biasAcc;
 		double scale;
         Eigen::VectorXd initialstates;
+        VecX Vstates;
 		solveGyroscopeBiasbyGTSAM();
 		SolveScaleGravity(g, scale);
 		RefineScaleGravityAndSolveAccBias(g, scale, biasAcc);
+        SolveVelocity(g,scale,biasAcc,Vstates);
 
         if(SolveScale(g, initialstates))
 		{
