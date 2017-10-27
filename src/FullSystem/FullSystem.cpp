@@ -1161,6 +1161,7 @@ void FullSystem::flagPointsForRemoval()
 
 bool FullSystem::SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x)
 {
+    int N = allKeyFramesHistory.size();
     // Solve A*x=B for x=[s,gw] 4x1 vector
     cv::Mat A = cv::Mat::zeros(3*(N-2),4,CV_32F);
     cv::Mat B = cv::Mat::zeros(3*(N-2),1,CV_32F);
@@ -1168,7 +1169,7 @@ bool FullSystem::SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x)
 
     // Step 2.
     // Approx Scale and Gravity vector in 'world' frame (first KF's camera frame)
-    for(int i=0; i<allKeyFramesHistory.size()-2; i++)
+    for(int i=0; i<N-2; i++)
     {
         //KeyFrameInit* pKF1 = vKFInit[i];//vScaleGravityKF[i];
         FrameShell* pKF1 = allKeyFramesHistory[i];
@@ -1195,12 +1196,42 @@ bool FullSystem::SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x)
         cv::Mat Rc2 = Twc2.rowRange(0,3).colRange(0,3);
         cv::Mat Rc3 = Twc3.rowRange(0,3).colRange(0,3);
 
+		std::cout<<"dt12 :"<<dt12<<std::endl;
+		std::cout<<"dt23 :"<<dt23<<std::endl;
+
+
+		std::cout<<"pc1 :\n"<<pc1<<std::endl;
+		std::cout<<"pc2 :\n"<<pc2<<std::endl;
+		std::cout<<"pc3 :\n"<<pc3<<std::endl;
+
+		std::cout<<"Rc1 :\n"<<Rc1<<std::endl;
+		std::cout<<"Rc2 :\n"<<Rc2<<std::endl;
+		std::cout<<"Rc3 :\n"<<Rc3<<std::endl;
+
+		std::cout<<"dp12 :\n"<<dp12<<std::endl;
+		std::cout<<"dv12 :\n"<<dv12<<std::endl;
+		std::cout<<"dp23 :\n"<<dp23<<std::endl;
+
+		std::cout<<"Twc1 :\n"<<Twc1<<std::endl;
+		std::cout<<"Twc2 :\n"<<Twc2<<std::endl;
+		std::cout<<"Twc3 :\n"<<Twc3<<std::endl;
+
+
         // Stack to A/B matrix
         // lambda*s + beta*g = gamma
+		Vec3 pcbeigen = dso_vi::Tcb.translation();
         cv::Mat pcb = dso_vi::toCvMat(dso_vi::Tcb.translation());
         cv::Mat Rcb = dso_vi::toCvMat(dso_vi::Tcb.rotationMatrix());
+
+		std::cout<<"pcb:\n"<<pcb<<std::endl;
+		std::cout<<"Rcb:\n"<<Rcb<<std::endl;
         cv::Mat lambda = (pc2-pc1)*dt23 + (pc2-pc3)*dt12;
         cv::Mat beta = 0.5*I3*(dt12*dt12*dt23 + dt12*dt23*dt23);
+		cv::Mat testa = (Rc3-Rc2)*pcb*dt12;
+		cv::Mat testb = (Rc1-Rc2)*pcb*dt23;
+		cv::Mat testc = Rc1*Rcb*dp12*dt23;
+		cv::Mat testd = Rc1*Rcb*dv12*dt12*dt23;
+
         cv::Mat gamma = (Rc3-Rc2)*pcb*dt12 + (Rc1-Rc2)*pcb*dt23 + Rc1*Rcb*dp12*dt23 - Rc2*Rcb*dp23*dt12 - Rc1*Rcb*dv12*dt12*dt23;
         lambda.copyTo(A.rowRange(3*i+0,3*i+3).col(0));
         beta.copyTo(A.rowRange(3*i+0,3*i+3).colRange(1,4));
@@ -1236,11 +1267,11 @@ bool FullSystem::SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x)
         winv.at<float>(i,i) = 1./w.at<float>(i);
     }
     // Then x = vt'*winv*u'*B
-    cv::Mat x = vt.t()*winv*u.t()*B;
+    cv::Mat xx = vt.t()*winv*u.t()*B;
 
     // x=[s,gw] 4x1 vector
-    double sstar = x.at<float>(0);    // scale should be positive
-    cv::Mat gwstar = x.rowRange(1,4);   // gravity should be about ~9.8
+    double sstar = xx.at<float>(0);    // scale should be positive
+    cv::Mat gwstar = xx.rowRange(1,4);   // gravity should be about ~9.8
 
     // Debug log
     std::cout<<"scale sstar: "<<sstar<<std::endl;
@@ -1380,9 +1411,12 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 	}
 
 
-
+	std::cout<<"before refinement,g is "<<g<<std::endl;
 	RefineGravity(g, x);
 	s = (x.tail<1>())(0) / 100.0;
+	std::cout<<"scale is "<<s<<std::endl;
+	std::cout<<"g is "<<g<<std::endl;
+	std::cout<<"g Norm is "<<g.norm()<<std::endl;
 	(x.tail<1>())(0) = s;
 
 	for (int i = 0; i < allKeyFramesHistory.size()-1; i++)
@@ -2240,6 +2274,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
         Vec3 g;
         Eigen::VectorXd initialstates;
 		solveGyroscopeBiasbyGTSAM();
+		SolveScaleGravity(g, initialstates);
         if(SolveScale(g, initialstates))
 		{
 			UpdateState(g,initialstates);

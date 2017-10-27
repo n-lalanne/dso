@@ -39,7 +39,6 @@
 #include "sophus/sim3.hpp"
 #include "sophus/se3.hpp"
 #include "util/NumType.h"
-#include ""
 
 
 namespace  dso_vi
