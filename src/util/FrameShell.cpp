@@ -40,6 +40,7 @@ void FrameShell::linearizeImuFactorLastKeyFrame(
 )
 {
     if(!fh->needrelin) return;
+    imu_preintegrated_last_kf_->biasCorrectedDelta(previouskf_bias);
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_kf_);
     if (!imu_factor_last_kf_)
     {
@@ -76,6 +77,7 @@ void FrameShell::linearizeImuFactorLastFrame(
         gtsam::imuBias::ConstantBias current_bias
 )
 {
+    imu_preintegrated_last_frame_->biasCorrectedDelta(previous_bias);
     PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<gtsam::PreintegratedCombinedMeasurements*>(imu_preintegrated_last_frame_);
 
     if (!imu_factor_last_frame_)
@@ -103,7 +105,7 @@ void FrameShell::linearizeImuFactorLastFrame(
     initial_values.insert(V(0), previous_navstate.velocity());
     initial_values.insert(V(1), current_navstate.velocity());
     initial_values.insert(B(0), previous_bias);
-    initial_values.insert(B(1), current_bias);
+    initial_values.insert(B(1), previous_bias); //current_bias);
 
     imu_factor_last_frame_->linearize(initial_values);
 }
@@ -144,7 +146,7 @@ Vec15 FrameShell::evaluateIMUerrors(
 {
     Vec15 resreturn = imu_factor_last_frame_->evaluateError(
             previous_navstate.pose(), previous_navstate.velocity(), current_navstate.pose(), current_navstate.velocity(),
-            last_bias, curr_bias,
+            last_bias, last_bias, //curr_bias,
             J_imu_Rt_i, J_imu_v_i, J_imu_Rt_j, J_imu_v_j, J_imu_bias_i, J_imu_bias_j
     );
 //    std::cout<<"by gtsam: "<<std::endl;

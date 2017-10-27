@@ -405,8 +405,8 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 
 	H_out.setZero();
 	b_out.setZero();
-	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
-	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>();// * (1.0f/n);
+	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>();// * (1.0f/n);
 
 
 
@@ -420,7 +420,7 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     J_imu_travb_previous.block<15, 3>(0, 6) = J_imu_v_previous.block<15, 3>(0, 0);
 	J_imu_travb_previous.block<15, 6>(0, 9) = J_imu_bias_previous;
 
-    // ------------------ don't ignore the cross terms in hessian between i and jth poses ------------------
+	// ------------------ don't ignore the cross terms in hessian between i and jth poses ------------------
     Mat1517 J_imu_travb_current;
     J_imu_travb_current.setZero();
     J_imu_travb_current.block<15, 3>(0, 0) = J_imu_Rt.block<15, 3>(0, 3);
@@ -437,6 +437,13 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 
     H_out += J_imu_complete.transpose() * information_imu * J_imu_complete;
     b_out += J_imu_complete.transpose() * information_imu * res_imu;
+
+    std::cout << "J_imu_bias_previous\n" << J_imu_bias_previous << std::endl;
+    std::cout << "information_bias_previous\n" << information_imu.bottomRightCorner<6, 6>() << std::endl;
+    std::cout << "hessian_bias_previous: \n" << H_out.rightCols<6>() << std::endl;
+
+    std::cout << "J_imu_bias\n" << J_imu_bias << std::endl;
+    std::cout << "hessian_bias: \n" << H_out.block<32, 6>(0, 11) << std::endl;
 
 	// ----------- Prior factor ----------- //
 	Mat1515 H_prior = J_prior.transpose() * information_prior * J_prior;
@@ -596,8 +603,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 
     H_out.setZero();
     b_out.setZero();
-	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
-	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>();// * (1.0f/n);
+	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>();// * (1.0f/n);
 	//std::cout<<"H_out:\n"<<H_out.block<8,8>(0,0)<<std::endl;
 	//std::cout<<"b_out:\n"<<b_out.segment<8>(0)<<std::endl;
 	// here rtvab means rotation, translation, affine, velocity and biases
@@ -614,7 +621,7 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	J_imu_travb.block<15, 3>(0, 0) = J_imu_Rt.block<15, 3>(0, 3);
 	J_imu_travb.block<15, 3>(0, 3) = J_imu_Rt.block<15, 3>(0, 0);
     J_imu_travb.block<15, 3>(0, 8) = J_imu_v.block<15, 3>(0, 0);
-	J_imu_travb.block<15, 6>(0, 11) = J_imu_bias;
+	J_imu_travb.block<15, 6>(0, 11) = J_imu_bias_previous; // J_imu_bias;
 
 //	// delta t/ navstate j trv
 //	J_imu_travb.block<3, 3>(3, 0) = J_imu_Rt.block<3, 3>(3, 3);
@@ -706,8 +713,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 	b_out.segment<3>(14) *= SCALE_IMU_GYRO;
 
 
-//	std::cout << "H_out: \n" << H_out.topLeftCorner<11,11>() << std::endl;
-//	std::cout << "b_out: \n" << b_out.segment<11>(0).transpose() << std::endl;
+	std::cout << "H_out: \n" << H_out << std::endl;
+	std::cout << "b_out: \n" << b_out.transpose() << std::endl;
 
 
 //	H_out += H_imu_travb;
@@ -1047,8 +1054,8 @@ Vec15 CoarseTracker::calcIMURes(gtsam::NavState previous_navstate, gtsam::NavSta
 	// useless Jacobians of reference frame (cuz we're not optimizing reference frame)
 	gtsam::Matrix  J_imu_Rt_i, J_imu_v_i, J_imu_bias_i;
 	//newFrame->shell->velocity << 1, 1, 1;
-	gtsam::imuBias::ConstantBias last_bias((Vec3()<<prev_bias.head<3>()).finished(),(Vec3()<<prev_bias.tail<3>()).finished());
-	gtsam::imuBias::ConstantBias curr_bias((Vec3()<<bias.head<3>()).finished(),(Vec3()<<bias.tail<3>()).finished());
+	gtsam::imuBias::ConstantBias last_bias(prev_bias);
+	gtsam::imuBias::ConstantBias curr_bias(bias);
 
     res_imu = newFrame->shell->evaluateIMUerrors(
 			previous_navstate,
@@ -1596,7 +1603,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 
 //	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
-    E/=numTermsInE;
+    //E/=numTermsInE;
 	//std::cout<<nl<<"pixels with depth avaliable :"<<numTermsInE<<" inliers, vision error is "<< E << std::endl;
 	//IMUenergy/=SCALE_IMU_T;
 
@@ -1912,8 +1919,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	std::cout<<"The bias before tracking"<<biases_out<<std::endl;
 	Vec6 biases_current = biases_out;
 	Vec6 pbiases_current = pbiases_out;
-	gtsam::imuBias::ConstantBias pbiases_first_estimate( (Vec3()<<pbiases_out.head<3>()).finished(), (Vec3()<<pbiases_out.tail<3>()).finished() );
-	gtsam::imuBias::ConstantBias biases_current_estimate( (Vec3()<<biases_out.head<3>()).finished(), (Vec3()<<biases_out.tail<3>()).finished() );
+	gtsam::imuBias::ConstantBias pbiases_first_estimate(pbiases_out);
+	gtsam::imuBias::ConstantBias biases_current_estimate(biases_out);
 
 	gtsam::NavState navstate_j_current_bak = navstate_out;
 	gtsam::NavState navstate_i_current_bak = navstate_i_out;
@@ -1957,13 +1964,12 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 	{
 //		std::cout<<"level: "<<lvl<<std::endl;
 		// linearize the imu factor (for first estimate jacobian)
-        newFrame->shell->linearizeImuFactorLastFrame(
-                navstate_i_first_estimate,
-                navstate_j_current,
+		newFrame->shell->linearizeImuFactorLastFrame(
+				navstate_i_first_estimate,
+				navstate_j_current,
 				pbiases_first_estimate,
 				biases_current_estimate
-        );
-
+		);
         H.setZero(); b.setZero();
 
 		float levelCutoffRepeat=1;
@@ -2013,8 +2019,8 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
             if(isOptimizeSingle)
             {
 				// remove the bias blocks
-				// inc.head<11>() = Hl.topLeftCorner<11, 11>().ldlt().solve(-b.head<11>());
-                inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
+				inc.head<11>() = Hl.topLeftCorner<11, 11>().ldlt().solve(-b.head<11>());
+                // inc.head<17>() = Hl.topLeftCorner<17, 17>().ldlt().solve(-b.head<17>());
             }
             else
             {
@@ -2093,7 +2099,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 			//std::cout<<"increment of biases: "<<incScaled.tail<6>().transpose()<<std::endl;
 			Vec6 pbiases_new = pbiases_current + incScaled.tail<6>();
-			Vec6 biases_new = biases_current + incScaled.segment<6>(11);
+			Vec6 biases_new = pbiases_new; // = biases_current + incScaled.segment<6>(11);
 			//biases_new.setZero();
 			//std::cout<<"Bias increment is:"<<incScaled.segment<6>(11).transpose()<<std::endl;
 
@@ -2102,6 +2108,14 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 			aff_g2l_new.a += incScaled[6];
 			aff_g2l_new.b += incScaled[7];
 
+
+			// linearize the imu factor (for first estimate jacobian)
+			newFrame->shell->linearizeImuFactorLastFrame(
+					navstate_i_first_estimate,
+					navstate_j_new,
+					pbiases_first_estimate,
+					gtsam::imuBias::ConstantBias(biases_new)
+			);
 			Vec6 resNew = calcResIMU(lvl, navstate_i_new, navstate_j_new, aff_g2l_new, pbiases_new, biases_new, setting_coarseCutoffTH*levelCutoffRepeat);
 
 			bool accept = resNew[0] < resOld[0];
@@ -2127,10 +2141,11 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				aff_g2l_current = aff_g2l_new;
 				biases_current = biases_new;
 				std::cout<<"Current bias is :"<<biases_current.transpose()<<std::endl;
+				// TODO: don't update this for single pose optimization
+				pbiases_current = pbiases_new;
 
 				if (!isOptimizeSingle)
                 {
-                    pbiases_current = pbiases_new;
                     navstate_i_current = navstate_i_new;
                 }
 				navstate_j_current = navstate_j_new;
@@ -2147,9 +2162,9 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 					calcGSSSEDoubleIMU(lvl, H, b, navstate_i_current, navstate_j_current, aff_g2l_current);
 				}
 
-				biases_current_estimate = gtsam::imuBias::ConstantBias(biases_current.head(3),biases_current.tail(3));
-				//pbiases_current_estimate = gtsam::imuBias::ConstantBias(biases_current.head(3),biases_current.tail(3));
+				biases_current_estimate = gtsam::imuBias::ConstantBias(biases_current);
 				lambda *= 0.5;
+
 
 //				refToNew_current = refToNew_new;
 //				ImuTow_current = IMUTow_j_new;
@@ -2160,8 +2175,17 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				std::cout<<"resNew[0] : resOld[0] "<<resNew[0] <<" : " <<resOld[0]<<" ,reject this incre"<<std::endl;
 				lambda *= 4;
 				if(lambda < lambdaExtrapolationLimit) lambda = lambdaExtrapolationLimit;
+
+				// rollback to last good estimate if not accepted
+				newFrame->shell->linearizeImuFactorLastFrame(
+						navstate_i_first_estimate,
+						navstate_j_current,
+						pbiases_first_estimate,
+						biases_current_estimate
+				);
 			}
 
+			// linearize the imu factor (for first estimate jacobian)
 			if(!(inc.norm() > 1e-3))
 			{
 				if(debugPrint)
@@ -2398,7 +2422,7 @@ void CoarseTracker::updatePriors()
 		Mat99 Hbb_no_bias = Hbb.topLeftCorner<9, 9>();
 		Eigen::Matrix<double, 9, 11> Hbm_no_bias = Hbm.topLeftCorner<9, 11>();
 
-		Mat99 Prior_cov = Hbb_no_bias - Hbm_no_bias * Hmm_inv * Hbm_no_bias.transpose();
+		Mat99 Prior_cov = Hbb_no_bias - Hbm_no_bias * Hmm_inv.topLeftCorner<11, 11>() * Hbm_no_bias.transpose();
 		Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Prior_cov);
 		Eigen::MatrixXd Prior_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > 1e-6).select(saes.eigenvalues().array(), 0)).asDiagonal() * saes.eigenvectors().transpose();
 
@@ -2409,8 +2433,8 @@ void CoarseTracker::updatePriors()
 			std::cout<<"Possibly non semi-positive definitie information matrix!"<<std::endl;
 		}
 
-		fullSystem->Hprior.topLeftCorner(9, 9) = Prior_inv;
-		fullSystem->bprior.head(9) = bb.head(9) - Hbm_no_bias * Hmm_inv * bm.tail(9);
+		fullSystem->Hprior.topLeftCorner<9, 9>() = Prior_inv;
+		fullSystem->bprior.head<9>() = bb.head<9>() - Hbm_no_bias * Hmm_inv.topLeftCorner<11, 11>() * bm.tail<11>();
 #else
         // include bias in the computation
 		Mat1515 Prior_cov = Hbb - Hbm * Hmm_inv * Hbm.transpose();
@@ -2428,9 +2452,9 @@ void CoarseTracker::updatePriors()
 		fullSystem->bprior = bb - Hbm * Hmm_inv * bm.tail(9);
 
 		// debug: set the priors associated with bias to zero
-		fullSystem->Hprior.rightCols(6).setZero();
-		fullSystem->Hprior.bottomRows(6).setZero();
-		fullSystem->bprior.tail(6).setZero();
+//		fullSystem->Hprior.rightCols(6).setZero();
+//		fullSystem->Hprior.bottomRows(6).setZero();
+//		fullSystem->bprior.tail(6).setZero();
 #endif
 
 

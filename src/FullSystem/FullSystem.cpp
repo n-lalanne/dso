@@ -696,10 +696,6 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 				std::cout << "The bias of the current frame is :" << trybiases_this.transpose() << std::endl;
 				biases_current	= gtsam::imuBias::ConstantBias(trybiases_this.head<3>(), trybiases_this.tail<3>());
 				pbiases_current = gtsam::imuBias::ConstantBias(trybiases_prev.head<3>(), trybiases_prev.tail<3>());
-
-				// the most recent estimate is the optimized bias of the current frame
-				accBiasEstimate = trybiases_this.head<3>();
-				gyroBiasEstimate = trybiases_this.tail<3>();
 			}
 			haveOneGood = true;
         }
@@ -785,7 +781,12 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 		fh->shell->aff_g2l = aff_g2l;
 //		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef; // already done in updateNavState
 
-		fh->shell->last_frame->updateNavState(slast_trynavstate);
+		fh->shell->last_frame->updateNavState(slast_navstate);
+
+		// the most recent estimate is the optimized bias of the current frame
+		accBiasEstimate = biases_current.accelerometer();
+		gyroBiasEstimate = pbiases_current.gyroscope();
+
 //		fh->shell->last_frame->bias = gtsam::imuBias::ConstantBias(pbiases_this);
 		//std::cout << "camToWorld imu: \n" << fh->shell->camToWorld.matrix() << std::endl;
     }
