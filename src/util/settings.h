@@ -57,6 +57,12 @@ namespace  dso_vi
     cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m);
     cv::Mat toCvMat(const Eigen::Matrix<double,4,4> &m);
     cv::Mat toCvMat(const Eigen::Matrix3d &m);
+
+    Eigen::Matrix<double,3,1> toVector3d(const cv::Mat &cvVector);
+    Eigen::Matrix<double,3,1> toVector3d(const cv::Point3f &cvPoint);
+    Eigen::Matrix<double,3,3> toMatrix3d(const cv::Mat &cvMat3);
+
+    cv::Mat SkewSymmetricMatrix(const cv::Mat &v);
 } // namespace dso_vi
 
 namespace dso

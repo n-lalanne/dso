@@ -433,7 +433,7 @@ int main( int argc, char** argv )
     fullSystem->setBiasEstimate(config.GetEigAccBias(), config.GetEigGyroBias());
     fullSystem->addprior = config.Getaddprior();
     fullSystem->addimu = config.Getaddimu();
-    fullSystem->WINDOW_SIZE = 7;
+    fullSystem->WINDOW_SIZE = 40;
 
 
     if(!disableAllDisplay)
