@@ -33,11 +33,13 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
 
+#include <opencv2/core/core.hpp>
 #include <unistd.h>
 #include "Eigen/Core"
 #include "sophus/sim3.hpp"
 #include "sophus/se3.hpp"
 #include "util/NumType.h"
+#include ""
 
 
 namespace  dso_vi
@@ -53,6 +55,9 @@ namespace  dso_vi
     boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getIMUParams();
     void initializeIMUParams();
     void setTbc(dso::Mat44 _Tbc);
+    cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m);
+    cv::Mat toCvMat(const Eigen::Matrix<double,4,4> &m);
+    cv::Mat toCvMat(const Eigen::Matrix3d &m);
 } // namespace dso_vi
 
 namespace dso
@@ -223,7 +228,6 @@ extern float freeDebugParam5;
 
 
 void handleKey(char k);
-
 
 
 

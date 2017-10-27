@@ -297,6 +297,7 @@ void track(const sensor_msgs::ImageConstPtr img, std::vector<dso_vi::IMUData> vi
                         << std::endl;
 
     delete undistImg;
+    delete imu_preintegrated;
 
 }
 
@@ -432,7 +433,7 @@ int main( int argc, char** argv )
     fullSystem->setBiasEstimate(config.GetEigAccBias(), config.GetEigGyroBias());
     fullSystem->addprior = config.Getaddprior();
     fullSystem->addimu = config.Getaddimu();
-    fullSystem->WINDOW_SIZE = 40;
+    fullSystem->WINDOW_SIZE = 7;
 
 
     if(!disableAllDisplay)

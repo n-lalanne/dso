@@ -71,6 +71,8 @@ public:
 	double movedByOpt;
 
 	//===========================================IMU data ==========================================================
+	std::vector<dso_vi::IMUData> vIMUSinceLastF_;
+
 	// data for imu integration
 	PreintegrationType *imu_preintegrated_last_frame_;
 	PreintegrationType *imu_preintegrated_last_kf_;

@@ -222,6 +222,13 @@ private:
 	void printOptRes(const Vec3 &res, double resL, double resM, double resPrior, double LExact, float a, float b);
 
 	void updateimufactors(FrameHessian* Frame);
+	/**
+	 *
+	 * @param i_idx index of starting frameshell
+	 * @param j_idx index of last frameshell
+	 * @return preintegrated measurements between
+	 */
+	boost::shared_ptr<PreintegrationType> preintegrateImuBetweenFrames(size_t i_idx, size_t j_idx);
 
 	void debugPlotTracking();
 
@@ -322,6 +329,7 @@ private:
     void solveGyroscopeBiasbyGTSAM();
 	void solveAcceleroBias();
     bool SolveScale(Vec3 &g, Eigen::VectorXd &x);
+    bool SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x);
     void RefineGravity(Vec3 &g, VecX &x);
     void UpdateState(Vec3 &g, VecX &x);
 

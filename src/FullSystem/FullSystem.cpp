@@ -35,10 +35,12 @@
 #include "util/globalFuncs.h"
 #include <Eigen/LU>
 #include <algorithm>
+#include <exception>
 #include "IOWrapper/ImageDisplay.h"
 #include "util/globalCalib.h"
 #include <Eigen/SVD>
 #include <Eigen/Eigenvalues>
+#include <opencv2/opencv.hpp>
 #include "FullSystem/PixelSelector.h"
 #include "FullSystem/PixelSelector2.h"
 #include "FullSystem/ResidualProjections.h"
@@ -1155,8 +1157,101 @@ void FullSystem::flagPointsForRemoval()
 			}
 		}
 	}
-
 }
+
+bool FullSystem::SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x)
+{
+    // Solve A*x=B for x=[s,gw] 4x1 vector
+    cv::Mat A = cv::Mat::zeros(3*(N-2),4,CV_32F);
+    cv::Mat B = cv::Mat::zeros(3*(N-2),1,CV_32F);
+    cv::Mat I3 = cv::Mat::eye(3,3,CV_32F);
+
+    // Step 2.
+    // Approx Scale and Gravity vector in 'world' frame (first KF's camera frame)
+    for(int i=0; i<allKeyFramesHistory.size()-2; i++)
+    {
+        //KeyFrameInit* pKF1 = vKFInit[i];//vScaleGravityKF[i];
+        FrameShell* pKF1 = allKeyFramesHistory[i];
+        FrameShell* pKF2 = allKeyFramesHistory[i+1];
+        FrameShell* pKF3 = allKeyFramesHistory[i+2];
+        // Delta time between frames
+        double dt12 = pKF2->imu_preintegrated_last_kf_->deltaTij();//  mIMUPreInt.getDeltaTime();
+        double dt23 = pKF3->imu_preintegrated_last_kf_->deltaTij();//  mIMUPreInt.getDeltaTime();
+        // Pre-integrated measurements
+        cv::Mat dp12 = dso_vi::toCvMat(pKF2->imu_preintegrated_last_kf_->deltaPij());
+        cv::Mat dv12 = dso_vi::toCvMat(pKF2->imu_preintegrated_last_kf_->deltaVij());
+        cv::Mat dp23 = dso_vi::toCvMat(pKF3->imu_preintegrated_last_kf_->deltaPij());
+
+        // Pose of camera in world frame
+        cv::Mat Twc1 = dso_vi::toCvMat(pKF1->camToWorld.matrix());   //vTwc[i].clone();//pKF1->GetPoseInverse();
+        cv::Mat Twc2 = dso_vi::toCvMat(pKF2->camToWorld.matrix());   //vTwc[i+1].clone();//pKF2->GetPoseInverse();
+        cv::Mat Twc3 = dso_vi::toCvMat(pKF3->camToWorld.matrix());   //vTwc[i+2].clone();//pKF3->GetPoseInverse();
+        // Position of camera center
+        cv::Mat pc1 = Twc1.rowRange(0,3).col(3);
+        cv::Mat pc2 = Twc2.rowRange(0,3).col(3);
+        cv::Mat pc3 = Twc3.rowRange(0,3).col(3);
+        // Rotation of camera, Rwc
+        cv::Mat Rc1 = Twc1.rowRange(0,3).colRange(0,3);
+        cv::Mat Rc2 = Twc2.rowRange(0,3).colRange(0,3);
+        cv::Mat Rc3 = Twc3.rowRange(0,3).colRange(0,3);
+
+        // Stack to A/B matrix
+        // lambda*s + beta*g = gamma
+        cv::Mat pcb = dso_vi::toCvMat(dso_vi::Tcb.translation());
+        cv::Mat Rcb = dso_vi::toCvMat(dso_vi::Tcb.rotationMatrix());
+        cv::Mat lambda = (pc2-pc1)*dt23 + (pc2-pc3)*dt12;
+        cv::Mat beta = 0.5*I3*(dt12*dt12*dt23 + dt12*dt23*dt23);
+        cv::Mat gamma = (Rc3-Rc2)*pcb*dt12 + (Rc1-Rc2)*pcb*dt23 + Rc1*Rcb*dp12*dt23 - Rc2*Rcb*dp23*dt12 - Rc1*Rcb*dv12*dt12*dt23;
+        lambda.copyTo(A.rowRange(3*i+0,3*i+3).col(0));
+        beta.copyTo(A.rowRange(3*i+0,3*i+3).colRange(1,4));
+        gamma.copyTo(B.rowRange(3*i+0,3*i+3));
+        // Tested the formulation in paper, -gamma. Then the scale and gravity vector is -xx
+
+        // Debug log
+        //cout<<"iter "<<i<<endl;
+    }
+    // Use svd to compute A*x=B, x=[s,gw] 4x1 vector
+    // A = u*w*vt, u*w*vt*x=B
+    // Then x = vt'*winv*u'*B
+    cv::Mat w,u,vt;
+    // Note w is 4x1 vector by SVDecomp()
+    // A is changed in SVDecomp() with cv::SVD::MODIFY_A for speed
+    cv::SVDecomp(A,w,u,vt,cv::SVD::MODIFY_A);
+    // Debug log
+    //cout<<"u:"<<endl<<u<<endl;
+    //cout<<"vt:"<<endl<<vt<<endl;
+    //cout<<"w:"<<endl<<w<<endl;
+
+    // Compute winv
+    cv::Mat winv=cv::Mat::eye(4,4,CV_32F);
+    for(int i=0;i<4;i++)
+    {
+        if(fabs(w.at<float>(i))<1e-10)
+        {
+            w.at<float>(i) += 1e-10;
+            // Test log
+            std::cerr<<"w(i) < 1e-10, w="<<std::endl<<w<<std::endl;
+        }
+
+        winv.at<float>(i,i) = 1./w.at<float>(i);
+    }
+    // Then x = vt'*winv*u'*B
+    cv::Mat x = vt.t()*winv*u.t()*B;
+
+    // x=[s,gw] 4x1 vector
+    double sstar = x.at<float>(0);    // scale should be positive
+    cv::Mat gwstar = x.rowRange(1,4);   // gravity should be about ~9.8
+
+    // Debug log
+    std::cout<<"scale sstar: "<<sstar<<std::endl;
+    std::cout<<"gwstar: "<<gwstar.t()<<", |gwstar|="<<cv::norm(gwstar)<<std::endl;
+
+    // Test log
+    if(w.type()!=I3.type() || u.type()!=I3.type() || vt.type()!=I3.type())
+        std::cerr<<"different mat type, I3,w,u,vt: "<<I3.type()<<","<<w.type()<<","<<u.type()<<","<<vt.type()<<std::endl;
+}
+
+
 
 bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 {
@@ -1175,6 +1270,14 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 	{
 		FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
 		FrameShell *frame_j = allKeyFramesHistory[i+firstindex+1];
+
+        if (!frame_i
+            || !frame_j
+            || (frame_j->viTimestamp - frame_i->viTimestamp) > 1.5
+            || frame_j->trackingRef != frame_i)
+        {
+            continue;
+        }
 
 		Eigen::MatrixXd tmp_A(6, 10);
 		tmp_A.setZero();
@@ -1238,7 +1341,17 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 	}
 //    A = A * 1000.0;
 //    b = b * 1000.0;
-	x = A.ldlt().solve(b);
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(A);
+    double cond = svd.singularValues()(0) / svd.singularValues()(svd.singularValues().size()-1);
+    std::cout << "Cond: " << cond << std::endl;
+//    if (cond > 100)
+//    {
+//        std::cout << "Bad condition number, need more excitation" << std::endl;
+//        return false;
+//    }
+
+
+    x = A.ldlt().solve(b);
 	double s = x(n_state - 1) / 100.0;
 	std::cout<<"estimated scale:"<<s<<std::endl;
 	g = x.segment<3>(n_state - 4);
@@ -1333,6 +1446,14 @@ void FullSystem::RefineGravity(Vec3 &g, VecX &x)
 
 			FrameShell *frame_i = allKeyFramesHistory[i+firstindex];
 			FrameShell *frame_j = allKeyFramesHistory[i+firstindex+1];
+
+            if (!frame_i
+                || !frame_j
+                || (frame_j->viTimestamp - frame_i->viTimestamp) > 1.5
+                || frame_j->trackingRef != frame_i)
+            {
+                continue;
+            }
 
 			tmp_A.setZero();
 
@@ -1515,6 +1636,24 @@ void FullSystem::solveAcceleroBias()
 {
 	assert(allKeyFramesHistory.size());
 	gtsam::imuBias::ConstantBias biasEstimate(accBiasEstimate, gyroBiasEstimate);
+
+    // precompute index in allFrameHistory
+    std::vector<size_t> frame_history_idx(allKeyFramesHistory.size(), 0);
+    size_t i = 0;
+    for (size_t fs_idx = 0; fs_idx < allKeyFramesHistory.size(); fs_idx++)
+    {
+        for (; i < allFrameHistory.size(); i++)
+        {
+            if (allFrameHistory[i] == allKeyFramesHistory[fs_idx])
+            {
+                frame_history_idx[fs_idx] = i;
+                std::cout << fs_idx << "= " << i << std::endl;
+                break;
+            }
+        }
+
+    }
+
 	for (int iter_idx = 0; iter_idx < 4; iter_idx++)
 	{
 		Mat33 A;
@@ -1522,6 +1661,11 @@ void FullSystem::solveAcceleroBias()
 		Vec3 delta_ba;
 		A.setZero();
 		b.setZero();
+
+        if (!setting_debugout_runquiet)
+        {
+            std::cout << "acc init GN iter " << iter_idx << std::endl;
+        }
 		for (int index_i = allKeyFramesHistory.size() - 1;
 			 index_i >= 1; index_i--)
 		{
@@ -1529,27 +1673,38 @@ void FullSystem::solveAcceleroBias()
 			FrameShell *frame_i = allKeyFramesHistory[index_i - 1];
 			FrameShell *frame_j = allKeyFramesHistory[index_i];
 
-			if (!frame_i || !frame_j)
+			if (!frame_i
+                || !frame_j
+                || (frame_j->viTimestamp - frame_i->viTimestamp) > 1.5
+                || frame_j->trackingRef != frame_i)
 			{
 				continue;
 			}
 
-			//============================================for the jacobian of rotation=================================================
-			PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<PreintegratedCombinedMeasurements *>(frame_j->imu_preintegrated_last_kf_);
+            if (!setting_debugout_runquiet)
+            {
+                std::cout << "considering frames with dt " << frame_j->viTimestamp - frame_i->viTimestamp << std::endl;
+            }
+
+			//============================================for the jacobians=================================================
+//            boost::shared_ptr<PreintegrationType> preintegrated_measurement = preintegrateImuBetweenFrames(frame_history_idx[index_i-1], frame_history_idx[index_i]);
+//            PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<PreintegratedCombinedMeasurements *>(preintegrated_measurement.get());
+            PreintegratedCombinedMeasurements *preint_imu = dynamic_cast<PreintegratedCombinedMeasurements *>(frame_j->imu_preintegrated_last_kf_);
+
 			CombinedImuFactor imu_factor(X(0), V(0),
 										 X(1), V(1),
 										 B(0), B(1),
 										 *preint_imu);
 
-//			gtsam::Pose3 pose_i = frame_i->navstate.pose();
-//			gtsam::Pose3 pose_j = frame_j->navstate.pose();
-//			Vec3 vel_i = frame_i->navstate.velocity();
-//			Vec3 vel_j = frame_j->navstate.velocity();
+			gtsam::Pose3 pose_i = frame_i->navstate.pose();
+			gtsam::Pose3 pose_j = frame_j->navstate.pose();
+			Vec3 vel_i = frame_i->navstate.velocity();
+			Vec3 vel_j = frame_j->navstate.velocity();
 
-			gtsam::Pose3 pose_i = frame_i->groundtruth.pose;
-			gtsam::Pose3 pose_j = frame_j->groundtruth.pose;
-			Vec3 vel_i = frame_i->groundtruth.velocity;
-			Vec3 vel_j = frame_j->groundtruth.velocity;
+//			gtsam::Pose3 pose_i = frame_i->groundtruth.pose;
+//			gtsam::Pose3 pose_j = frame_j->groundtruth.pose;
+//			Vec3 vel_i = frame_i->groundtruth.velocity;
+//			Vec3 vel_j = frame_j->groundtruth.velocity;
 
 			Values initial_values;
 			initial_values.insert(X(0), pose_i);
@@ -2089,7 +2244,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		{
 			UpdateState(g,initialstates);
 			// accelero bias need to be solved after getting scale, velocity and gravity direction
-			//solveAcceleroBias();
+			solveAcceleroBias();
 			IMUinitialized = true;
 
 			// reset the visualizer
@@ -2104,8 +2259,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		}
 		else
 		{
-			std::cout << "Failed to solve scale!!!" << std::endl;
-			exit(1);
+			std::cout << "Failed to solve scale. Waiting for more keyframes!!!" << std::endl;
 		}
     }
 
@@ -2601,6 +2755,65 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	}
 }
 
+boost::shared_ptr<PreintegrationType> FullSystem::preintegrateImuBetweenFrames(size_t i_idx, size_t j_idx)
+{
+    if (i_idx >= allFrameHistory.size() || j_idx >= allFrameHistory.size())
+    {
+        std::cerr << "Bad frame idx" << std::endl;
+        throw std::exception();
+    }
+    FrameShell *frame_i = allFrameHistory[i_idx];
+    FrameShell *frame_j = allFrameHistory[j_idx];
+    if (!frame_i || !frame_j || frame_i->id >= frame_j->id || frame_i->viTimestamp >= frame_j->viTimestamp)
+    {
+        std::cerr << "Bad frame idx" << std::endl;
+        throw std::exception();
+    }
+
+    double dt = frame_j->viTimestamp - frame_i->viTimestamp;
+
+    std::vector<dso_vi::IMUData> imuDataBetween;
+    imuDataBetween.reserve(dt*200);
+    for (size_t i = i_idx; i <= j_idx; i++)
+    {
+        imuDataBetween.insert(imuDataBetween.end(), allFrameHistory[i]->vIMUSinceLastF_.begin(), allFrameHistory[i]->vIMUSinceLastF_.end());
+    }
+
+    boost::shared_ptr<PreintegrationType> preintegrated_measurement(new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), frame_i->bias));
+
+    double sviTimestamp = frame_i->viTimestamp;
+    double eviTimestamp = frame_j->viTimestamp;
+    for (size_t i = 0; i < imuDataBetween.size(); i++) {
+        dso_vi::IMUData imudata = imuDataBetween[i];
+
+        Mat61 rawimudata;
+        rawimudata << imudata._a(0), imudata._a(1), imudata._a(2),
+                imudata._g(0), imudata._g(1), imudata._g(2);
+        if (imudata._t < frame_i->viTimestamp)continue;
+        double dt = 0;
+        // interpolate readings
+        if (i == imuDataBetween.size() - 1) {
+            dt = eviTimestamp - imudata._t;
+        } else {
+            dt = imuDataBetween[i + 1]._t - imuDataBetween[i]._t;
+        }
+
+        if (i == 0) {
+            // assuming the missing imu reading between the previous frame and first IMU
+            dt += (imudata._t - sviTimestamp);
+        }
+
+        assert(dt >= 0);
+
+        preintegrated_measurement->integrateMeasurement(
+                rawimudata.block<3, 1>(0, 0),
+                rawimudata.block<3, 1>(3, 0),
+                dt
+        );
+    }
+    return preintegrated_measurement;
+}
+
 void FullSystem::updateimufactors(FrameHessian* Frame){
     if(Frame->idx == 0) return;         // if we marginalize the first frame, we do not need to update anything
     int idxj = Frame->idx - 1;          // the frame before marginalized one
@@ -2626,7 +2839,7 @@ void FullSystem::updateimufactors(FrameHessian* Frame){
 
 	if(isIMUinitialized())
 	{
-		Framenext->shell->imu_preintegrated_last_kf_ = new PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), Framenext->shell->bias);
+		*(Framenext->shell->imu_preintegrated_last_kf_) = PreintegratedCombinedMeasurements(dso_vi::getIMUParams(), Framenext->shell->bias);
 		for (size_t i = 0; i < Framenext->imu_kf_buff.size(); i++) {
 			dso_vi::IMUData imudata = Framenext->imu_kf_buff[i];
 

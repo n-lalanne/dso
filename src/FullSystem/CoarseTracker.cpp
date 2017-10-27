@@ -426,7 +426,7 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
     J_imu_travb_current.block<15, 3>(0, 0) = J_imu_Rt.block<15, 3>(0, 3);
     J_imu_travb_current.block<15, 3>(0, 3) = J_imu_Rt.block<15, 3>(0, 0);
     J_imu_travb_current.block<15, 3>(0, 8) = J_imu_v.block<15, 3>(0, 0);
-	J_imu_travb_previous.block<15, 6>(0, 11) = J_imu_bias;
+	J_imu_travb_current.block<15, 6>(0, 11) = J_imu_bias;
 
     Mat1532 J_imu_complete;
     J_imu_complete.leftCols(17) = J_imu_travb_current;
@@ -2099,7 +2099,7 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 			//std::cout<<"increment of biases: "<<incScaled.tail<6>().transpose()<<std::endl;
 			Vec6 pbiases_new = pbiases_current + incScaled.tail<6>();
-			Vec6 biases_new = pbiases_new; // = biases_current + incScaled.segment<6>(11);
+			Vec6 biases_new = biases_current + incScaled.segment<6>(11);
 			//biases_new.setZero();
 			//std::cout<<"Bias increment is:"<<incScaled.segment<6>(11).transpose()<<std::endl;
 
