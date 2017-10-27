@@ -53,6 +53,11 @@ namespace  dso_vi
     extern boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> imuParams;
     boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getIMUParams();
     void initializeIMUParams();
+
+    dso::Mat33 getJPBiasa(gtsam::PreintegrationType *imu_preintegrated);
+    dso::Mat33 getJVBiasa(gtsam::PreintegrationType *imu_preintegrated);
+    dso::Mat33 getJRBiasa(gtsam::PreintegrationType *imu_preintegrated);
+
     void setTbc(dso::Mat44 _Tbc);
     cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m);
     cv::Mat toCvMat(const Eigen::Matrix<double,4,4> &m);

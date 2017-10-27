@@ -67,6 +67,24 @@ namespace dso_vi
 		return boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params>(imuParams);
 	}
 
+	dso::Mat33 getJPBiasa(gtsam::PreintegrationType *imu_preintegrated)
+	{
+		gtsam::Matrix93 J = imu_preintegrated->preintegrated_H_biasAcc();
+		return J.block<3, 3>(3, 0);
+	}
+
+	dso::Mat33 getJVBiasa(gtsam::PreintegrationType *imu_preintegrated)
+	{
+		gtsam::Matrix93 J = imu_preintegrated->preintegrated_H_biasAcc();
+		return J.bottomRows(3);
+	}
+
+	dso::Mat33 getJRBiasa(gtsam::PreintegrationType *imu_preintegrated)
+	{
+		gtsam::Matrix93 J = imu_preintegrated->preintegrated_H_biasAcc();
+		return J.topRows(3);
+	}
+
 	void setTbc(dso::Mat44 _Tbc)
 	{
 		Tbc = SE3(_Tbc);

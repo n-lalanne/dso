@@ -329,7 +329,8 @@ private:
     void solveGyroscopeBiasbyGTSAM();
 	void solveAcceleroBias();
     bool SolveScale(Vec3 &g, Eigen::VectorXd &x);
-    bool SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x);
+    bool SolveScaleGravity(Vec3 &gEigen, double &scale);
+	bool RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale, Vec3 &_biasAcc);
     void RefineGravity(Vec3 &g, VecX &x);
     void UpdateState(Vec3 &g, VecX &x);
 

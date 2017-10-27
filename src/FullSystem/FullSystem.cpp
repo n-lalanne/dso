@@ -41,6 +41,7 @@
 #include <Eigen/SVD>
 #include <Eigen/Eigenvalues>
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/eigen.hpp>
 #include "FullSystem/PixelSelector.h"
 #include "FullSystem/PixelSelector2.h"
 #include "FullSystem/ResidualProjections.h"
@@ -1159,9 +1160,10 @@ void FullSystem::flagPointsForRemoval()
 	}
 }
 
-bool FullSystem::SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x)
+bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
 {
-    int N = allKeyFramesHistory.size();
+	int skip_first_n_frames = 2;
+    int N = allKeyFramesHistory.size() - skip_first_n_frames;
     // Solve A*x=B for x=[s,gw] 4x1 vector
     cv::Mat A = cv::Mat::zeros(3*(N-2),4,CV_32F);
     cv::Mat B = cv::Mat::zeros(3*(N-2),1,CV_32F);
@@ -1173,7 +1175,7 @@ bool FullSystem::SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x)
 
     // Step 2.
     // Approx Scale and Gravity vector in 'world' frame (first KF's camera frame)
-    for(int i=0; i<N-2; i++)
+    for(int i=skip_first_n_frames; i<N-2; i++)
     {
         //KeyFrameInit* pKF1 = vKFInit[i];//vScaleGravityKF[i];
         FrameShell* pKF1 = allKeyFramesHistory[i];
@@ -1241,6 +1243,7 @@ bool FullSystem::SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x)
             w.at<float>(i) += 1e-10;
             // Test log
             std::cerr<<"w(i) < 1e-10, w="<<std::endl<<w<<std::endl;
+			return false;
         }
 
         winv.at<float>(i,i) = 1./w.at<float>(i);
@@ -1257,122 +1260,180 @@ bool FullSystem::SolveScaleGravity(Vec3 &g, Eigen::VectorXd &x)
     std::cout<<"gwstar: "<<gwstar.t()<<", |gwstar|="<<cv::norm(gwstar)<<std::endl;
 
     // Test log
-    if(w.type()!=I3.type() || u.type()!=I3.type() || vt.type()!=I3.type())
-        std::cerr<<"different mat type, I3,w,u,vt: "<<I3.type()<<","<<w.type()<<","<<u.type()<<","<<vt.type()<<std::endl;
-
-
-
-	cv::Mat gI = cv::Mat::zeros(3,1,CV_32F);
-	gI.at<float>(2) = 1;
-	// Normalized approx. gravity vecotr in world frame
-	cv::Mat gwn = gwstar/cv::norm(gwstar);
-	// Debug log
-	//cout<<"gw normalized: "<<gwn<<endl;
-
-	// vhat = (gI x gw) / |gI x gw|
-	cv::Mat gIxgwn = gI.cross(gwn);
-	double normgIxgwn = cv::norm(gIxgwn);
-	cv::Mat vhat = gIxgwn/normgIxgwn;
-	double theta = std::atan2(normgIxgwn,gI.dot(gwn));
-	// Debug log
-	//cout<<"vhat: "<<vhat<<", theta: "<<theta*180.0/M_PI<<endl;
-
-	Eigen::Vector3d vhateig = dso_vi::toVector3d(vhat);
-	Eigen::Matrix3d RWIeig = Sophus::SO3::exp(vhateig*theta).matrix();
-	cv::Mat Rwi = dso_vi::toCvMat(RWIeig);
-	cv::Mat GI = gI*9.8012;//9.8012;
-	// Solve C*x=D for x=[s,dthetaxy,ba] (1+2+3)x1 vector
-	cv::Mat C = cv::Mat::zeros(3*(N-2),6,CV_32F);
-	cv::Mat D = cv::Mat::zeros(3*(N-2),1,CV_32F);
-
-	for(int i=0; i<N-2; i++)
-	{
-		FrameShell* pKF1 = allKeyFramesHistory[i];//vScaleGravityKF[i];
-		FrameShell* pKF2 = allKeyFramesHistory[i+1];
-		FrameShell* pKF3 = allKeyFramesHistory[i+2];
-		// Delta time between frames
-		double dt12 = pKF2->imu_preintegrated_last_kf_->deltaTij();//.getDeltaTime();
-		double dt23 = pKF3->imu_preintegrated_last_kf_->deltaTij();//getDeltaTime();
-		// Pre-integrated measurements
-		cv::Mat dp12 = dso_vi::toCvMat(pKF2->imu_preintegrated_last_kf_->deltaPij());//.getDeltaP());
-		cv::Mat dv12 = dso_vi::toCvMat(pKF2->imu_preintegrated_last_kf_->deltaVij());//.getDeltaV());
-		cv::Mat dp23 = dso_vi::toCvMat(pKF3->imu_preintegrated_last_kf_->deltaPij());//.getDeltaP());
-		cv::Mat Jpba12 = dso_vi::toCvMat(pKF2->imu_preintegrated_last_kf_.getJPBiasa());
-		cv::Mat Jvba12 = dso_vi::toCvMat(pKF2->imu_preintegrated_last_kf_.getJVBiasa());
-		cv::Mat Jpba23 = dso_vi::toCvMat(pKF3->imu_preintegrated_last_kf_.getJPBiasa());
-		// Pose of camera in world frame
-		cv::Mat Twc1 = dso_vi::toCvMat(pKF1->camToWorld.matrix());//vTwc[i].clone();//pKF1->GetPoseInverse();
-		cv::Mat Twc2 = dso_vi::toCvMat(pKF2->camToWorld.matrix());//pKF2->GetPoseInverse();
-		cv::Mat Twc3 = dso_vi::toCvMat(pKF3->camToWorld.matrix());//pKF3->GetPoseInverse();
-		// Position of camera center
-		cv::Mat pc1 = Twc1.rowRange(0,3).col(3);
-		cv::Mat pc2 = Twc2.rowRange(0,3).col(3);
-		cv::Mat pc3 = Twc3.rowRange(0,3).col(3);
-		// Rotation of camera, Rwc
-		cv::Mat Rc1 = Twc1.rowRange(0,3).colRange(0,3);
-		cv::Mat Rc2 = Twc2.rowRange(0,3).colRange(0,3);
-		cv::Mat Rc3 = Twc3.rowRange(0,3).colRange(0,3);
-		// Stack to C/D matrix
-		// lambda*s + phi*dthetaxy + zeta*ba = psi
-		cv::Mat lambda = (pc2-pc1)*dt23 + (pc2-pc3)*dt12;
-
-
-		cv::Mat phi = - 0.5*(dt12*dt12*dt23 + dt12*dt23*dt23)*Rwi* dso_vi::SkewSymmetricMatrix(GI);  // note: this has a '-', different to paper
-		cv::Mat zeta = Rc2*Rcb*Jpba23*dt12 + Rc1*Rcb*Jvba12*dt12*dt23 - Rc1*Rcb*Jpba12*dt23;
-		cv::Mat psi = (Rc1-Rc2)*pcb*dt23 + Rc1*Rcb*dp12*dt23 - (Rc2-Rc3)*pcb*dt12
-					  - Rc2*Rcb*dp23*dt12 - Rc1*Rcb*dv12*dt23*dt12 - 0.5*Rwi*GI*(dt12*dt12*dt23 + dt12*dt23*dt23); // note:  - paper
-		lambda.copyTo(C.rowRange(3*i+0,3*i+3).col(0));
-		phi.colRange(0,2).copyTo(C.rowRange(3*i+0,3*i+3).colRange(1,3)); //only the first 2 columns, third term in dtheta is zero, here compute dthetaxy 2x1.
-		zeta.copyTo(C.rowRange(3*i+0,3*i+3).colRange(3,6));
-		psi.copyTo(D.rowRange(3*i+0,3*i+3));
-
-		// Debug log
-		//cout<<"iter "<<i<<endl;
+    if(w.type()!=I3.type() || u.type()!=I3.type() || vt.type()!=I3.type()) {
+		std::cerr << "different mat type, I3,w,u,vt: " << I3.type() << "," << w.type() << "," << u.type() << ","
+				  << vt.type() << std::endl;
+		return false;
 	}
-
-	// Use svd to compute C*x=D, x=[s,dthetaxy,ba] 6x1 vector
-	// C = u*w*vt, u*w*vt*x=D
-	// Then x = vt'*winv*u'*D
-	cv::Mat w2,u2,vt2;
-	// Note w2 is 6x1 vector by SVDecomp()
-	// C is changed in SVDecomp() with cv::SVD::MODIFY_A for speed
-	cv::SVDecomp(C,w2,u2,vt2,cv::SVD::MODIFY_A);
-	// Debug log
-	//cout<<"u2:"<<endl<<u2<<endl;
-	//cout<<"vt2:"<<endl<<vt2<<endl;
-	//cout<<"w2:"<<endl<<w2<<endl;
-
-	// Compute winv
-	cv::Mat w2inv=cv::Mat::eye(6,6,CV_32F);
-	for(int i=0;i<6;i++)
+	if ( sstar <= 0
+		 || fabs(cv::norm(gwstar)-9.8)>1 )
 	{
-		if(fabs(w2.at<float>(i))<1e-10)
-		{
-			w2.at<float>(i) += 1e-10;
-			// Test log
-			std::cerr<<"w2(i) < 1e-10, w="<<std::endl<<w2<<std::endl;
+		return false;
+	}
+	_scale = sstar;
+	cv::cv2eigen(gwstar, _gEigen);
+	return true;
+}
+
+bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale, Vec3 &_biasAcc)
+{
+	int skip_first_n_frames = 2;
+	int N = allKeyFramesHistory.size() - skip_first_n_frames;
+	double G = 9.801;
+	for (size_t refine_idx = 0; refine_idx < 5; refine_idx++)
+	{
+		cv::Mat gwstar = dso_vi::toCvMat(_gEigen);
+		cv::Mat gI = cv::Mat::zeros(3, 1, CV_32F);
+		gI.at<float>(2) = 1;
+		// Normalized approx. gravity vecotr in world frame
+		cv::Mat gwn = gwstar / cv::norm(gwstar);
+		// Debug log
+		//cout<<"gw normalized: "<<gwn<<endl;
+
+		// vhat = (gI x gw) / |gI x gw|
+		cv::Mat gIxgwn = gI.cross(gwn);
+		double normgIxgwn = cv::norm(gIxgwn);
+		cv::Mat vhat = gIxgwn / normgIxgwn;
+		double theta = std::atan2(normgIxgwn, gI.dot(gwn));
+		// Debug log
+		//cout<<"vhat: "<<vhat<<", theta: "<<theta*180.0/M_PI<<endl;
+
+		Eigen::Vector3d vhateig = dso_vi::toVector3d(vhat);
+		Eigen::Matrix3d RWIeig = Sophus::SO3::exp(vhateig * theta).matrix();
+		cv::Mat Rwi = dso_vi::toCvMat(RWIeig);
+		cv::Mat GI = gI * G;//9.8012;
+		// Solve C*x=D for x=[s,dthetaxy,ba] (1+2+3)x1 vector
+		cv::Mat C = cv::Mat::zeros(3 * (N - 2), 6, CV_32F);
+		cv::Mat D = cv::Mat::zeros(3 * (N - 2), 1, CV_32F);
+
+		Vec3 pcbeigen = dso_vi::Tcb.translation();
+		cv::Mat pcb = dso_vi::toCvMat(dso_vi::Tcb.translation());
+		cv::Mat Rcb = dso_vi::toCvMat(dso_vi::Tcb.rotationMatrix());
+
+		for (int i = skip_first_n_frames; i < N - 2; i++) {
+			FrameShell *pKF1 = allKeyFramesHistory[i];//vScaleGravityKF[i];
+			FrameShell *pKF2 = allKeyFramesHistory[i + 1];
+			FrameShell *pKF3 = allKeyFramesHistory[i + 2];
+			// Delta time between frames
+			double dt12 = pKF2->imu_preintegrated_last_kf_->deltaTij();//.getDeltaTime();
+			double dt23 = pKF3->imu_preintegrated_last_kf_->deltaTij();//getDeltaTime();
+			// Pre-integrated measurements
+			cv::Mat dp12 = dso_vi::toCvMat(pKF2->imu_preintegrated_last_kf_->deltaPij());//.getDeltaP());
+			cv::Mat dv12 = dso_vi::toCvMat(pKF2->imu_preintegrated_last_kf_->deltaVij());//.getDeltaV());
+			cv::Mat dp23 = dso_vi::toCvMat(pKF3->imu_preintegrated_last_kf_->deltaPij());//.getDeltaP());
+
+			cv::Mat Jpba12 = dso_vi::toCvMat(dso_vi::getJPBiasa(pKF2->imu_preintegrated_last_kf_));
+			cv::Mat Jvba12 = dso_vi::toCvMat(dso_vi::getJVBiasa(pKF2->imu_preintegrated_last_kf_));
+			cv::Mat Jpba23 = dso_vi::toCvMat(dso_vi::getJPBiasa(pKF2->imu_preintegrated_last_kf_));
+			// Pose of camera in world frame
+			cv::Mat Twc1 = dso_vi::toCvMat(pKF1->camToWorld.matrix());//vTwc[i].clone();//pKF1->GetPoseInverse();
+			cv::Mat Twc2 = dso_vi::toCvMat(pKF2->camToWorld.matrix());//pKF2->GetPoseInverse();
+			cv::Mat Twc3 = dso_vi::toCvMat(pKF3->camToWorld.matrix());//pKF3->GetPoseInverse();
+			// Position of camera center
+			cv::Mat pc1 = Twc1.rowRange(0, 3).col(3);
+			cv::Mat pc2 = Twc2.rowRange(0, 3).col(3);
+			cv::Mat pc3 = Twc3.rowRange(0, 3).col(3);
+			// Rotation of camera, Rwc
+			cv::Mat Rc1 = Twc1.rowRange(0, 3).colRange(0, 3);
+			cv::Mat Rc2 = Twc2.rowRange(0, 3).colRange(0, 3);
+			cv::Mat Rc3 = Twc3.rowRange(0, 3).colRange(0, 3);
+			// Stack to C/D matrix
+			// lambda*s + phi*dthetaxy + zeta*ba = psi
+			cv::Mat lambda = (pc2 - pc1) * dt23 + (pc2 - pc3) * dt12;
+
+
+			cv::Mat phi = -0.5 * (dt12 * dt12 * dt23 + dt12 * dt23 * dt23) * Rwi *
+						  dso_vi::SkewSymmetricMatrix(GI);  // note: this has a '-', different to paper
+			cv::Mat zeta = Rc2 * Rcb * Jpba23 * dt12 + Rc1 * Rcb * Jvba12 * dt12 * dt23 - Rc1 * Rcb * Jpba12 * dt23;
+			cv::Mat psi = (Rc1 - Rc2) * pcb * dt23 + Rc1 * Rcb * dp12 * dt23 - (Rc2 - Rc3) * pcb * dt12
+						  - Rc2 * Rcb * dp23 * dt12 - Rc1 * Rcb * dv12 * dt23 * dt12 -
+						  0.5 * Rwi * GI * (dt12 * dt12 * dt23 + dt12 * dt23 * dt23); // note:  - paper
+			lambda.copyTo(C.rowRange(3 * i + 0, 3 * i + 3).col(0));
+			phi.colRange(0, 2).copyTo(C.rowRange(3 * i + 0, 3 * i + 3).colRange(1,
+																				3)); //only the first 2 columns, third term in dtheta is zero, here compute dthetaxy 2x1.
+			zeta.copyTo(C.rowRange(3 * i + 0, 3 * i + 3).colRange(3, 6));
+			psi.copyTo(D.rowRange(3 * i + 0, 3 * i + 3));
+
+			// Debug log
+			//cout<<"iter "<<i<<endl;
 		}
 
-		w2inv.at<float>(i,i) = 1./w2.at<float>(i);
+		// Use svd to compute C*x=D, x=[s,dthetaxy,ba] 6x1 vector
+		// C = u*w*vt, u*w*vt*x=D
+		// Then x = vt'*winv*u'*D
+		cv::Mat w2, u2, vt2;
+		// Note w2 is 6x1 vector by SVDecomp()
+		// C is changed in SVDecomp() with cv::SVD::MODIFY_A for speed
+		cv::SVDecomp(C, w2, u2, vt2, cv::SVD::MODIFY_A);
+		// Debug log
+		//cout<<"u2:"<<endl<<u2<<endl;
+		//cout<<"vt2:"<<endl<<vt2<<endl;
+		//cout<<"w2:"<<endl<<w2<<endl;
+
+		// Compute winv
+		cv::Mat w2inv = cv::Mat::eye(6, 6, CV_32F);
+		for (int i = 0; i < 6; i++) {
+			if (fabs(w2.at<float>(i)) < 1e-10) {
+				w2.at<float>(i) += 1e-10;
+				// Test log
+				std::cerr << "w2(i) < 1e-10, w=" << std::endl << w2 << std::endl;
+			}
+
+			w2inv.at<float>(i, i) = 1. / w2.at<float>(i);
+		}
+		// Then y = vt'*winv*u'*D
+		cv::Mat y = vt2.t() * w2inv * u2.t() * D;
+
+		_scale = y.at<float>(0);
+		cv::Mat dthetaxy = y.rowRange(1, 3);
+
+		cv::Mat dbiasa_ = y.rowRange(3, 6);
+		_biasAcc = dso_vi::toVector3d(dbiasa_);
+
+		// dtheta = [dx;dy;0]
+		cv::Mat dtheta = cv::Mat::zeros(3, 1, CV_32F);
+		dthetaxy.copyTo(dtheta.rowRange(0, 2));
+		Eigen::Vector3d dthetaeig = dso_vi::toVector3d(dtheta);
+		// Rwi_ = Rwi*exp(dtheta)
+		Eigen::Matrix3d Rwieig_ = RWIeig * Sophus::SO3::exp(dthetaeig).matrix();
+		_gEigen = Rwieig_ * (Vec3() << 0, 0, 1).finished() * G;
+
+		// apply the bias
+		for (FrameShell *fs: allKeyFramesHistory)
+		{
+			fs->imu_preintegrated_last_kf_->biasCorrectedDelta(gtsam::imuBias::ConstantBias(
+					(Vec6() << _biasAcc, gyroBiasEstimate).finished()
+			));
+		}
+
+		// debug
+		std::cout << "Refined: " << std::endl;
+		std::cout << "scale: " << _scale << std::endl;
+		std::cout << "bias: " << _biasAcc.transpose() << std::endl;
+		std::cout << "gravity: " << _gEigen.transpose() << std::endl;
+		std::cout << "cond num:" << w2.at<float>(0) / w2.at<float>(5) << std::endl;
+		std::cout << "SVs:" << w2.t() << std::endl;
+
+		// checking gravity wrt groundtruth
+		Mat33 R_ix = allKeyFramesHistory[0]->groundtruth.pose.rotation().matrix();
+		Mat33 R_wx = allKeyFramesHistory[0]->camToWorld.rotationMatrix() * getRbc().transpose();
+		Mat33 R_iw = R_ix * R_wx.transpose();
+		std::cout << "inertial gravity: " << (R_iw * _gEigen).transpose() << std::endl;
+		std::cout << std::endl << std::endl;
 	}
-	// Then y = vt'*winv*u'*D
-	cv::Mat y = vt2.t()*w2inv*u2.t()*D;
-
-	double s_ = y.at<float>(0);
-	cv::Mat dthetaxy = y.rowRange(1,3);
-	cv::Mat dbiasa_ = y.rowRange(3,6);
-	Vec3 dbiasa_eig = dso_vi::toVector3d(dbiasa_);
-
-	// dtheta = [dx;dy;0]
-	cv::Mat dtheta = cv::Mat::zeros(3,1,CV_32F);
-	dthetaxy.copyTo(dtheta.rowRange(0,2));
-	Eigen::Vector3d dthetaeig = dso_vi::toVector3d(dtheta);
-	// Rwi_ = Rwi*exp(dtheta)
-	Eigen::Matrix3d Rwieig_ = RWIeig*Sophus::SO3::exp(dthetaeig).matrix();
-	cv::Mat Rwi_ = Converter::toCvMat(Rwieig_);
 
 
+	if ( _scale <= 0)
+	{
+		return false;
+	}
+	else
+	{
+		return true;
+	}
 }
+
+
 
 
 
@@ -1408,7 +1469,7 @@ bool FullSystem::SolveScale(Vec3 &g, Eigen::VectorXd &x)
 		tmp_b.setZero();
 
 		double dt = frame_j->imu_preintegrated_last_kf_->deltaTij();
-		std::cout << "Frame ID: " << frame_j->id << " to " << frame_i->id <<", estimated dt: "<<dt<<" groundtruth dt: "<<frame_j->viTimestamp-frame_i->viTimestamp<<std::endl;
+//		std::cout << "Frame ID: " << frame_j->id << " to " << frame_i->id <<", estimated dt: "<<dt<<" groundtruth dt: "<<frame_j->viTimestamp-frame_i->viTimestamp<<std::endl;
 
 		tmp_A.block<3, 3>(0, 0) = -dt * Mat33::Identity();
 		tmp_A.block<3, 3>(0, 6) = frame_i->RBW() * dt * dt / 2 * Mat33::Identity();
@@ -1773,7 +1834,6 @@ void FullSystem::solveAcceleroBias()
             if (allFrameHistory[i] == allKeyFramesHistory[fs_idx])
             {
                 frame_history_idx[fs_idx] = i;
-                std::cout << fs_idx << "= " << i << std::endl;
                 break;
             }
         }
@@ -1809,7 +1869,7 @@ void FullSystem::solveAcceleroBias()
 
             if (!setting_debugout_runquiet)
             {
-                std::cout << "considering frames with dt " << frame_j->viTimestamp - frame_i->viTimestamp << std::endl;
+//                std::cout << "considering frames with dt " << frame_j->viTimestamp - frame_i->viTimestamp << std::endl;
             }
 
 			//============================================for the jacobians=================================================
@@ -2363,10 +2423,13 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		boost::unique_lock<boost::mutex> lockTrackMap(trackMapSyncMutex);
 		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 
-        Vec3 g;
+        Vec3 g, biasAcc;
+		double scale;
         Eigen::VectorXd initialstates;
 		solveGyroscopeBiasbyGTSAM();
-		SolveScaleGravity(g, initialstates);
+		SolveScaleGravity(g, scale);
+		RefineScaleGravityAndSolveAccBias(g, scale, biasAcc);
+
         if(SolveScale(g, initialstates))
 		{
 			UpdateState(g,initialstates);
