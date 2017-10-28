@@ -405,8 +405,8 @@ void CoarseTracker::calcGSSSEDoubleIMU(int lvl, Mat3232 &H_out, Vec32 &b_out, co
 
 	H_out.setZero();
 	b_out.setZero();
-	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>();// * (1.0f/n);
-	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>();// * (1.0f/n);
+	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
+	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
 
 
 
@@ -603,8 +603,8 @@ void CoarseTracker::calcGSSSESingleIMU(int lvl, Mat1717 &H_out, Vec17 &b_out, co
 
     H_out.setZero();
     b_out.setZero();
-	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>();// * (1.0f/n);
-	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>();// * (1.0f/n);
+	H_out.block<8,8>(0,0) = acc.H.topLeftCorner<8,8>().cast<double>(); // * (1.0f/n);
+	b_out.segment<8>(0) = acc.H.topRightCorner<8,1>().cast<double>(); // * (1.0f/n);
 	//std::cout<<"H_out:\n"<<H_out.block<8,8>(0,0)<<std::endl;
 	//std::cout<<"b_out:\n"<<b_out.segment<8>(0)<<std::endl;
 	// here rtvab means rotation, translation, affine, velocity and biases
@@ -805,8 +805,8 @@ void CoarseTracker::calcGSSSESingle(int lvl, Mat88 &H_out, Vec8 &b_out, const SE
 
         acc.finish();
 
-        H_out = acc.H.topLeftCorner<8,8>().cast<double>() * (1.0f/n);
-        b_out = acc.H.topRightCorner<8,1>().cast<double>() * (1.0f/n);
+        H_out = acc.H.topLeftCorner<8,8>().cast<double>(); // * (1.0f/n);
+        b_out = acc.H.topRightCorner<8,1>().cast<double>(); // * (1.0f/n);
 //		std::cout<<"H_out: \n"<<H_out<<std::endl;
 //	    std::cout<<"b_out: \n"<<b_out<<std::endl;
 
@@ -1744,7 +1744,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 
 //	std::cout << "Normalized Residue: " << E / numTermsInE <<" numTermsInE:" <<numTermsInE<<" nl: " <<nl<<" IMUerror: "<<IMUenergy<< std::endl;
 	// -------------------------------------------------- Prior factor -------------------------------------------------- //
-    //E/=numTermsInE;
+//    E/=numTermsInE;
 	//std::cout<<nl<<"pixels with depth avaliable :"<<numTermsInE<<" inliers, vision error is "<< E << std::endl;
 	//IMUenergy/=SCALE_IMU_T;
 

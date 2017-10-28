@@ -1248,10 +1248,13 @@ bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
 	cv::cv2eigen(gwstar, _gEigen);
 
 	// checking gravity wrt groundtruth
+	// checking gravity wrt groundtruth
 	Mat33 R_ix = allKeyFramesHistory[skip_first_n_frames]->groundtruth.pose.rotation().matrix();
 	Mat33 R_wx = allKeyFramesHistory[skip_first_n_frames]->camToWorld.rotationMatrix() * getRbc().transpose();
 	Mat33 R_iw = R_ix * R_wx.transpose();
-	std::cout << "inertial gravity: " << (R_iw * _gEigen).transpose() << std::endl;
+	Vec3 g_i = (R_iw * _gEigen);
+	std::cout << "inertial gravity: " <<g_i.transpose()  << std::endl;
+	std::cout << "gravity direction error: " << acos( (g_i/g_i.norm()).transpose() * (Vec3() << 0, 0, -1).finished() ) * 180 / M_PI << std::endl;
 	std::cout << std::endl << std::endl;
 
 	return true;
@@ -1271,8 +1274,9 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
 	Vstates = VecX(n_state);
 	Vstates.tail<1>()(0) = scale;
 
+	gtsam::NavState last_navstate;
 	int cnt=0;
-	for(int i=0; i<allKeyFramesHistory.size()-1;i++)
+	for(int i=0; i<allKeyFramesHistory.size();i++)
 	{
 		FrameShell* pKF = allKeyFramesHistory[i];
 		//if(pKF->isBad()) continue;
@@ -1288,6 +1292,8 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
 		wTb.Identity();
 		wTb.block<3,3>(0,0) = wRb;
 		wTb.block<3,1>(0,3) = dso_vi::toVector3d(wPb);
+
+		Eigen::Vector3d veleig;
 
 		// Step 4.
 		// compute velocity
@@ -1306,9 +1312,10 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
 			cv::Mat Rwcnext = dso_vi::toCvMat(pKFnext->camToWorld.rotationMatrix());//pKFnext->GetPoseInverse().rowRange(0,3).colRange(0,3);    // Rwc next
 
 			cv::Mat vel = - 1./dt*( scale*(wPc - wPcnext) + (Rwc - Rwcnext)*pcb + Rwc*Rcb*(dp + Jpba*dbiasa_) + 0.5*gw*dt*dt );
-			Eigen::Vector3d veleig = dso_vi::toVector3d(vel);
-//			pKF->navstate = gtsam::NavState(gtsam::Pose3(wTb),veleig);
-			Vstates.segment<3>(i*3) = veleig;
+			veleig = dso_vi::toVector3d(vel);
+			last_navstate = gtsam::NavState(gtsam::Pose3(wTb),veleig);
+			// the velocity in local frame (for consistency with VINS initialization)
+			Vstates.segment<3>(i*3) = getRbc() * pKF->camToWorld.rotationMatrix().transpose() *  veleig;
 			//pKF->SetNavStateVel(veleig);
 		}
 		else
@@ -1332,15 +1339,15 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
 			//cv::Mat Rwcnext = dso_vi::toCvMat(pKFnext->camToWorld.rotationMatrix());//pKFnext->GetPoseInverse().rowRange(0,3).colRange(0,3);    // Rwc next
 
 			//
-			Eigen::Vector3d velpre = pKFprev->navstate.v();
-			Eigen::Matrix3d rotpre = pKFprev->navstate.pose().rotation().matrix();
-			Eigen::Vector3d veleig = velpre + g*dt + rotpre*( dv + Jvba*biasAcc );
+			Eigen::Vector3d velpre = last_navstate.v();
+			Eigen::Matrix3d rotpre = last_navstate.pose().rotation().matrix();
+			veleig = velpre + g*dt + rotpre*( dv + Jvba*biasAcc );
 			// pKF->navstate = gtsam::NavState(gtsam::Pose3(wTb),veleig);
-			Vstates.segment<3>(i*3) = veleig;
+			Vstates.segment<3>(i*3) = getRbc() * pKF->camToWorld.rotationMatrix().transpose() * veleig;
 		}
-		std::cout<<"The GTV:"<<pKF->groundtruth.velocity.norm()<<"estimated velocity:"<<pKF->navstate.v().norm()<<std::endl;
+		std::cout<<"The GTV:"<<pKF->groundtruth.velocity.norm()<<" estimated velocity: "<< veleig.norm() <<std::endl;
 	}
-	std::cout<<std::endl<<"... Map NavState updated ..."<<std::endl<<std::endl;
+	std::cout<<std::endl<<"... Map velocities estimated ..."<<std::endl<<std::endl;
 	return true;
 }
 
@@ -1349,7 +1356,7 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 	int skip_first_n_frames = 1;
 	int N = allKeyFramesHistory.size() - skip_first_n_frames;
 	double G = 9.801;
-	for (size_t refine_idx = 0; refine_idx < 5; refine_idx++)
+	for (size_t refine_idx = 0; refine_idx < 2; refine_idx++)
 	{
 		cv::Mat gwstar = dso_vi::toCvMat(_gEigen);
 		cv::Mat gI = cv::Mat::zeros(3, 1, CV_32F);
@@ -1488,10 +1495,11 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 		Mat33 R_ix = allKeyFramesHistory[skip_first_n_frames]->groundtruth.pose.rotation().matrix();
 		Mat33 R_wx = allKeyFramesHistory[skip_first_n_frames]->camToWorld.rotationMatrix() * getRbc().transpose();
 		Mat33 R_iw = R_ix * R_wx.transpose();
-		std::cout << "inertial gravity: " << (R_iw * _gEigen).transpose() << std::endl;
+		Vec3 g_i = (R_iw * _gEigen);
+		std::cout << "inertial gravity: " <<g_i.transpose()  << std::endl;
+		std::cout << "gravity direction error: " << acos( (g_i/g_i.norm()).transpose() * (Vec3() << 0, 0, -1).finished() ) * 180 / M_PI << std::endl;
 		std::cout << std::endl << std::endl;
 	}
-
 
 	if (_scale <= 0)
 	{
@@ -2551,7 +2559,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 	if	(
 			!IMUinitialized &&
 			allKeyFramesHistory.size() >= WINDOW_SIZE &&
-			ftimestamp - allKeyFramesHistory[0]->viTimestamp > 15.0 &&
+//			ftimestamp - allKeyFramesHistory[0]->viTimestamp > 12.0 &&
 			// we want the last KF to come from the previous frame
 			// TODO: this may not be a good idea, maybe this never happens !!!
 			allKeyFramesHistory.back()->id == allFrameHistory.back()->id
@@ -2604,7 +2612,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		{
 			UpdateState(g,initialstates);
 			// accelero bias need to be solved after getting scale, velocity and gravity direction
-			solveAcceleroBias();
+//			solveAcceleroBias();
 			IMUinitialized = true;
 
 			// reset the visualizer
