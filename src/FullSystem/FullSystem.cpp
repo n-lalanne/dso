@@ -345,6 +345,8 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	AffLight aff_last_2_l = AffLight(0,0);
 
 	std::vector<SE3,Eigen::aligned_allocator<SE3>> lastF_2_fh_tries;
+
+
 	SE3 slast_2_sprelast;
 	SE3 lastF_2_slast;
 	SE3 const_vel_lastF_2_fh;
@@ -380,38 +382,22 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
                 slast_2_sprelast = sprelast->camToWorld.inverse() * slast->camToWorld;
                 lastF_2_slast = slast->camToWorld.inverse() * lastF->shell->camToWorld;
                 aff_last_2_l = slast->aff_g2l;
+
+				//in VIO model
                 lastF_2_world = lastF->shell->camToWorld;
                 slast_2_world = slast->camToWorld;
 				slast_navstate = slast->navstate;
                 slast_velocity = slast->navstate.velocity();
                 slast_timestamp = slast->viTimestamp;
             }
-//			std::cout<<"sprelast->id: "<<sprelast->id<<std::endl;
-//			std::cout<<"sprelast->camToWorld:\n "<<sprelast->camToWorld.matrix()<<std::endl;
-//			std::cout<<"slast->id: "<<slast->id<<std::endl;
-//			std::cout<<"slast->camToWorld:\n "<<slast->camToWorld.matrix()<<std::endl;
+
             fh_2_slast = slast_2_sprelast;// assumed to be the same as fh_2_slast.
             const_vel_lastF_2_fh = fh_2_slast.inverse() * lastF_2_slast;
-//			std::cout<<"lastF_2_slast:\n"<<lastF_2_slast.matrix()<<std::endl;
-//			std::cout<<"nav : fh_2_slast:\n"<<lastF->shell->navstate.pose().matrix()<<std::endl;
-//			std::cout<<"from SE3: fh_2_slast:\n"<<(lastF->shell->camToWorld * SE3(getTbc()).inverse()).matrix()<<std::endl;
-
 
             groundtruth_lastF_2_fh = SE3(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
                     fh->shell->groundtruth.pose.inverse().compose(lastF->shell->groundtruth.pose).matrix()
             ));
 
-            //just use the initial pose from IMU
-            //when we determine the last key frame, we will propagate the pose by using the preintegration measurement and the pose of the last key frame
-			// TODO: don't use groundtruth velocity
-//			slast_navstate = gtsam::NavState(
-//					fh->shell->last_frame->navstate.pose(),
-//					T_dsoworld_eurocworld.topLeftCorner(3, 3) * fh->shell->last_frame->groundtruth.velocity
-//			);
-//            navstatePrior = gtsam::NavState(
-//              navstatePrior.pose(),
-//              T_dsoworld_eurocworld.topLeftCorner(3, 3) * fh->shell->last_frame->groundtruth.velocity
-//            );
 
 			prop_navstate = fh->shell->PredictPose(slast_navstate, slast_timestamp);
 			navstatePrior = fh->shell->last_frame->navstate;
@@ -509,24 +495,12 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
                 SE3 prop_lastF_2_fh(
                         prop_lastF_2_fh_r.rotationMatrix(),
                         -prop_lastF_2_fh_r.rotationMatrix() * const_vel_translation
-                        // Vec3::Zero()
-                        // const_vel_lastF_2_fh.matrix().block<3, 1>(0, 3)
                 );
 
 
                 lastF_2_fh_tries.push_back(prop_lastF_2_fh);
 
-//				std::cout<<"slast->id = "<<slast->id<<"\n pose:\n"<< slast->camToWorld.matrix() <<std::endl;
-//				std::cout<<"prelast->id = "<< sprelast->id<<"\n pose:\n"<< sprelast->camToWorld.matrix() <<std::endl;
-//				std::cout<<"KF->id = "<<lastF->shell->id << "\n pose:\n" << lastF->shell->camToWorld.matrix() << std::endl;
-//                std::cout<<"Predicted pose: "<<prop_lastF_2_fh.matrix()<<std::endl;
-//				std::cout<< " GT/prediction = \n"<<groundtruth_lastF_2_fh.matrix() * prop_lastF_2_fh.inverse().matrix()<<std::endl;
-//                Vec3 groundtruth_translation = groundtruth_lastF_2_fh.inverse().matrix().block<3, 1>(0, 3);
-//                SE3 groundtruth_slast_2_sprelast(dso_vi::IMUData::convertRelativeIMUFrame2RelativeCamFrame(
-//                        sprelast->groundtruth.pose.inverse().compose(slast->groundtruth.pose).matrix(),
-//                        getTbc()
-//                ));
-
+//
 				lastF_2_fh_tries.push_back(
                         prop_slast_2_fh * prop_slast_2_fh * lastF_2_slast);    // assume double motion (frame skipped)
                 lastF_2_fh_tries.push_back(
@@ -658,7 +632,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
         }
 		else{
 			trackingIsGood = coarseTracker->trackNewestCoarse(
-					fh, lastF_2_fh_this, slast_2_fh_this, aff_g2l_this,
+					fh, lastF_2_fh_this, aff_g2l_this,
 					pyrLevelsUsed - 1,
 					achievedRes);// in each level has to be at least as good as the last try.
 		}
@@ -1162,7 +1136,7 @@ void FullSystem::flagPointsForRemoval()
 
 bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
 {
-	int skip_first_n_frames = 0;
+	int skip_first_n_frames = 1;
     int N = allKeyFramesHistory.size() - skip_first_n_frames;
     // Solve A*x=B for x=[s,gw] 4x1 vector
     cv::Mat A = cv::Mat::zeros(3*(N-2),4,CV_32F);
@@ -1282,9 +1256,9 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
         cv::Mat dbiasa_ = dso_vi::toCvMat(biasAcc);
         cv::Mat gw = dso_vi::toCvMat(g);
 
-
+		int skipped_frame = 1;
         int cnt=0;
-        for(int i=0; i<allKeyFramesHistory.size()-1;i++)
+        for(int i=skipped_frame; i<allKeyFramesHistory.size()-1;i++)
         {
             FrameShell* pKF = allKeyFramesHistory[i];
             //if(pKF->isBad()) continue;
@@ -1335,7 +1309,7 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
             }
             else
             {
-                std::cerr<<"-----------here is the last KF in vScaleGravityKF------------"<<std::endl;
+                //std::cerr<<"-----------here is the last KF in vScaleGravityKF------------"<<std::endl;
                 // If this is the last KeyFrame, no 'next' KeyFrame exists
                 FrameShell* pKFprev = allKeyFramesHistory[i-1];
                 //if(!pKFprev) cerr<<"pKFprev is NULL, cnt="<<cnt<<endl;
@@ -1359,7 +1333,7 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
                 Eigen::Vector3d veleig = velpre + g*dt + rotpre*( dv + Jvba*biasAcc );
                 pKF->navstate = gtsam::NavState(gtsam::Pose3(wTb),veleig);
             }
-			std::cout<<"The GTV:"<<pKF->groundtruth.velocity.norm()<<"estimated velocity:"<<pKF->navstate.v().norm()<<std::endl;
+			//std::cout<<"The GTV:"<<pKF->groundtruth.velocity.norm()<<"estimated velocity:"<<pKF->navstate.v().norm()<<std::endl;
         }
 
 
@@ -1471,13 +1445,13 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
 //
 //        }
 
-        std::cout<<std::endl<<"... Map NavState updated ..."<<std::endl<<std::endl;
+       // std::cout<<std::endl<<"... Map NavState updated ..."<<std::endl<<std::endl;
 
 }
 
 bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale, Vec3 &_biasAcc)
 {
-	int skip_first_n_frames = 0;
+	int skip_first_n_frames = 1;
 	int N = allKeyFramesHistory.size() - skip_first_n_frames;
 	double G = 9.801;
 	for (size_t refine_idx = 0; refine_idx < 5; refine_idx++)
@@ -1616,8 +1590,8 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 		std::cout << "SVs:" << w2.t() << std::endl;
 
 		// checking gravity wrt groundtruth
-		Mat33 R_ix = allKeyFramesHistory[0]->groundtruth.pose.rotation().matrix();
-		Mat33 R_wx = allKeyFramesHistory[0]->camToWorld.rotationMatrix() * getRbc().transpose();
+		Mat33 R_ix = allKeyFramesHistory[1]->groundtruth.pose.rotation().matrix();
+		Mat33 R_wx = allKeyFramesHistory[1]->camToWorld.rotationMatrix() * getRbc().transpose();
 		Mat33 R_iw = R_ix * R_wx.transpose();
 		std::cout << "inertial gravity: " << (R_iw * _gEigen).transpose() << std::endl;
 		std::cout << std::endl << std::endl;
