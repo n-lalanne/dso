@@ -49,9 +49,15 @@ public:
 	CoarseTracker(int w, int h, FullSystem* fullsystem_);
 	~CoarseTracker();
 
+//	bool trackNewestCoarse(
+//			FrameHessian* newFrameHessian,
+//			SE3 &lastToNew_out, SE3 &previousToNew_out, AffLight &aff_g2l_out,
+//			int coarsestLvl, Vec5 minResForAbort,
+//			IOWrap::Output3DWrapper* wrap=0);
+
 	bool trackNewestCoarse(
 			FrameHessian* newFrameHessian,
-			SE3 &lastToNew_out, SE3 &previousToNew_out, AffLight &aff_g2l_out,
+			SE3 &lastToNew_out, AffLight &aff_g2l_out,
 			int coarsestLvl, Vec5 minResForAbort,
 			IOWrap::Output3DWrapper* wrap=0);
 
@@ -122,7 +128,8 @@ private:
 
 
 	Vec6 calcResAndGS(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
-	Vec6 calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToNew, AffLight aff_g2l, float cutoffTH);
+	//Vec6 calcRes(int lvl, const SE3 &refToNew, const SE3 &previousToNew, AffLight aff_g2l, float cutoffTH);
+	Vec6 calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH);
 	Vec6 calcResIMU(int lvl, const gtsam::NavState previous_navstate, const gtsam::NavState current_navstate, AffLight aff_g2l,const Vec6 prev_biases,const Vec6 biases, float cutoffTH);
 	//Vec6 calcResIMUbias(int lvl, const gtsam::NavState previous_navstate, const gtsam::NavState current_navstate, AffLight aff_g2l,const Vec6 prev_biases,const Vec6 biases, float cutoffTH);
 	void calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &refToNew, AffLight aff_g2l);
