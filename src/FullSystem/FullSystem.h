@@ -175,7 +175,16 @@ public:
 	Mat44 getTbc() { return dso_vi::Tbc.matrix(); }
 	void setTbc(Mat44 _Tbc) { dso_vi::setTbc(_Tbc); mTbc = _Tbc; Tbc = SE3(_Tbc); }
     std::vector<dso_vi::IMUData> getIMUSinceLastKF() { return mvIMUSinceLastKF; }
-    SE3 Tbc;
+	/**
+	 *
+	 * @brief sim3 alignment between evaluated keyframe trajectory and groundtruth keyframe trajectory
+	 * @param _transformation output SE3 transformation from estimated to groundtruth
+	 * @param _scale output scale (estimated to groundtruth)
+	 * @param _translation_error translation error per point
+	 */
+    void alignSIM3(SE3 &_transformation, double &_scale, VecX &_translation_error);
+
+	SE3 Tbc;
     SE3 Tcb;
     Mat44 mTbc;
 private:

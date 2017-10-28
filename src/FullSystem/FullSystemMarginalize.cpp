@@ -57,13 +57,13 @@ namespace dso
 
 void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 {
-//	if(isIMUinitialized())
+//	if(!isIMUinitialized())
 //	{
-//	if ((int)frameHessians.size() >= setting_maxFrames)
-//	{
-//		frameHessians[0]->flaggedForMarginalization = true;
-//	}
-//	return;
+//		if ((int)frameHessians.size() >= setting_maxFrames)
+//		{
+//			frameHessians[0]->flaggedForMarginalization = true;
+//		}
+//		return;
 //	}
 
 	if(setting_minFrameAge > setting_maxFrames)

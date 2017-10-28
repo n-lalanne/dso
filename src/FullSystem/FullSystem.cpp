@@ -1272,6 +1272,14 @@ bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
 	}
 	_scale = sstar;
 	cv::cv2eigen(gwstar, _gEigen);
+
+	// checking gravity wrt groundtruth
+	Mat33 R_ix = allKeyFramesHistory[skip_first_n_frames]->groundtruth.pose.rotation().matrix();
+	Mat33 R_wx = allKeyFramesHistory[skip_first_n_frames]->camToWorld.rotationMatrix() * getRbc().transpose();
+	Mat33 R_iw = R_ix * R_wx.transpose();
+	std::cout << "inertial gravity: " << (R_iw * _gEigen).transpose() << std::endl;
+	std::cout << std::endl << std::endl;
+
 	return true;
 }
 
@@ -1415,15 +1423,15 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 		std::cout << "SVs:" << w2.t() << std::endl;
 
 		// checking gravity wrt groundtruth
-		Mat33 R_ix = allKeyFramesHistory[0]->groundtruth.pose.rotation().matrix();
-		Mat33 R_wx = allKeyFramesHistory[0]->camToWorld.rotationMatrix() * getRbc().transpose();
+		Mat33 R_ix = allKeyFramesHistory[skip_first_n_frames]->groundtruth.pose.rotation().matrix();
+		Mat33 R_wx = allKeyFramesHistory[skip_first_n_frames]->camToWorld.rotationMatrix() * getRbc().transpose();
 		Mat33 R_iw = R_ix * R_wx.transpose();
 		std::cout << "inertial gravity: " << (R_iw * _gEigen).transpose() << std::endl;
 		std::cout << std::endl << std::endl;
 	}
 
 
-	if ( _scale <= 0)
+	if (_scale <= 0)
 	{
 		return false;
 	}
@@ -2399,6 +2407,73 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	return;
 }
 
+void FullSystem::alignSIM3(SE3 &_transformation, double &_scale, VecX &_translation_error)
+{
+	// the estimated trajectory
+	MatXX model(3, allKeyFramesHistory.size());
+	// the groundtruth trajectory
+	MatXX data(3, allKeyFramesHistory.size());
+
+	for (size_t i=0; i<allKeyFramesHistory.size(); i++)
+	{
+		// the estimated trajectory
+		model.col(i) = allKeyFramesHistory[i]->camToWorld.translation();
+		// the groundtruth trajectory
+		data.col(i) = allKeyFramesHistory[i]->groundtruth.pose.translation();
+
+	}
+
+	MatXX model_zerocentered = model.colwise() - model.rowwise().mean();
+	MatXX data_zerocentered = data.colwise() - data.rowwise().mean();
+
+	Mat33 W = Mat33::Zero();
+	for (size_t column=0,len=model.cols(); column<len; column++)
+	{
+		W += model_zerocentered.col(column) * data_zerocentered.col(column).transpose();
+	}
+
+	Eigen::JacobiSVD<Mat33> svd(W.transpose(), Eigen::ComputeFullU | Eigen::ComputeFullV);
+	Mat33 U = svd.matrixU();
+	Mat33 Vh = svd.matrixV().transpose();
+	Vec3 d = svd.singularValues();
+	Mat33 S = Mat33::Identity();
+
+	if (U.determinant() * Vh.determinant() < 0)
+	{
+		S(2, 2) = -1;
+	}
+
+	Mat33 rot = U * S * Vh;
+	MatXX rotmodel = rot*model_zerocentered;
+	double dots = 0.0;
+	double norms = 0.0;
+
+	for (size_t column=0,len=data_zerocentered.cols(); column<len; column++)
+	{
+		dots	+=	data_zerocentered.col(column).transpose() * rotmodel.col(column);
+		norms	+=	pow( model_zerocentered.col(column).norm(), 2 );
+	}
+	std::cout << dots << ", " << norms << std::endl;
+	_scale = dots/norms;
+	Vec3 trans = data.colwise().mean().transpose() - (_scale * rot * model.colwise().mean().transpose());
+
+	MatXX model_aligned = (_scale*rot*model).colwise() + trans;
+	MatXX alignment_error = model_aligned - data;
+
+	_translation_error = alignment_error.cwiseAbs2().colwise().sum().cwiseSqrt().transpose();
+	_transformation = SE3(rot, trans);
+
+	// debug
+	std::cout << "W: \n" << W << std::endl;
+	std::cout << "U: \n" << U << std::endl;
+	std::cout << "V: \n" << Vh << std::endl;
+	std::cout << "S: \n" << S << std::endl;
+	std::cout << "eval rot: \n" << rot << std::endl;
+	std::cout << "gt rot: \n"	<< getRbc() << std::endl;
+	std::cout << "gt scale: " << _scale << std::endl;
+	std::cout << "gt translation err: " << _translation_error.transpose() << std::endl;
+}
+
 void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<dso_vi::IMUData> vimuData, double ftimestamp,
 								 dso_vi::ConfigParam &config , dso_vi::GroundTruthIterator::ground_truth_measurement_t groundtruth )
 {
@@ -2408,6 +2483,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 	if	(
 			!IMUinitialized &&
 			allKeyFramesHistory.size() >= WINDOW_SIZE &&
+			ftimestamp - allKeyFramesHistory[0]->viTimestamp > 15.0 &&
 			// we want the last KF to come from the previous frame
 			// TODO: this may not be a good idea, maybe this never happens !!!
 			allKeyFramesHistory.back()->id == allFrameHistory.back()->id
@@ -2417,6 +2493,12 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		while (!isLocalBADone.load());
 
 		std::cout << "Initializing with " << allKeyFramesHistory.size() << " keyframes" << std::endl;
+
+		// check the alignment between groundtruth and evaluated trajectory
+		SE3 transformation;
+		double gt_scale;
+		VecX error;
+		alignSIM3(transformation, gt_scale, error);
 
 		// lock everything
 		boost::unique_lock<boost::mutex> lockMap(mapMutex);
