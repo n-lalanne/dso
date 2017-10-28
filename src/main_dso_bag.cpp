@@ -359,6 +359,7 @@ int step(dso_vi::MsgSynchronizer &msgsync, dso_vi::ConfigParam &config, dso_vi::
 //				nPreviousImageTimestamp,
 //				imageMsg->header.stamp.toSec(),
 //				relativePose.translation().x(),
+//				relativePose.translation().x(),
 //				relativePose.translation().y(),
 //				relativePose.translation().z()
 //			);
@@ -433,7 +434,7 @@ int main( int argc, char** argv )
     fullSystem->setBiasEstimate(config.GetEigAccBias(), config.GetEigGyroBias());
     fullSystem->addprior = config.Getaddprior();
     fullSystem->addimu = config.Getaddimu();
-    fullSystem->WINDOW_SIZE = 80;
+    fullSystem->WINDOW_SIZE = 100;
 
 
     if(!disableAllDisplay)

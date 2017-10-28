@@ -341,7 +341,21 @@ private:
     bool SolveScaleGravity(Vec3 &gEigen, double &scale);
 	bool RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale, Vec3 &_biasAcc);
     void RefineGravity(Vec3 &g, VecX &x);
-    void UpdateState(Vec3 &g, VecX &x);
+    /**
+     *
+     * @brief update navstates after imu init
+     * @param g
+     * @param x
+     */
+	void UpdateState(Vec3 &g, VecX &x);
+	/**
+	 * @brief update backend (linearization points, prior hessian) after imu init
+	 * @param rot_diff
+	 * @param initial_P
+	 * @param scale
+	 */
+	void updateBackend(Mat33 rot_diff, Vec3 initial_P, double scale);
+    bool SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAcc, VecX & Vstates);
 
 	// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
 	boost::mutex trackMapSyncMutex;

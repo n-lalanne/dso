@@ -1162,7 +1162,7 @@ void FullSystem::flagPointsForRemoval()
 
 bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
 {
-	int skip_first_n_frames = 2;
+	int skip_first_n_frames = 0;
     int N = allKeyFramesHistory.size() - skip_first_n_frames;
     // Solve A*x=B for x=[s,gw] 4x1 vector
     cv::Mat A = cv::Mat::zeros(3*(N-2),4,CV_32F);
@@ -1283,9 +1283,96 @@ bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
 	return true;
 }
 
+bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAcc, VecX & Vstates)
+{
+	cv::Mat pcb = dso_vi::toCvMat(dso_vi::Tcb.translation());
+	cv::Mat Rcb = dso_vi::toCvMat(dso_vi::Tcb.rotationMatrix());
+	cv::Mat dbiasa_ = dso_vi::toCvMat(biasAcc);
+	cv::Mat gw = dso_vi::toCvMat(g);
+
+	// scale and velocity
+	size_t n_state = allKeyFramesHistory.size() * 3 + 1;
+
+	// just to maintain compatibility with VINS stuffs
+	Vstates = VecX(n_state);
+	Vstates.tail<1>()(0) = scale;
+
+	int cnt=0;
+	for(int i=0; i<allKeyFramesHistory.size()-1;i++)
+	{
+		FrameShell* pKF = allKeyFramesHistory[i];
+		//if(pKF->isBad()) continue;
+		//if(pKF!=vScaleGravityKF[cnt]) cerr<<"pKF!=vScaleGravityKF[cnt], id: "<<pKF->mnId<<" != "<<vScaleGravityKF[cnt]->mnId<<endl;
+		// Position and rotation of visual SLAM
+		cv::Mat wPc = dso_vi::toCvMat(pKF->camToWorld.translation()); //pKF->GetPoseInverse().rowRange(0,3).col(3);                   // wPc
+		cv::Mat Rwc = dso_vi::toCvMat(pKF->camToWorld.rotationMatrix());    //pKF->GetPoseInverse().rowRange(0,3).colRange(0,3);            // Rwc
+		// Set position and rotation of navstate
+		cv::Mat wPb = scale*wPc + Rwc*pcb;
+		Mat33 wRb = dso_vi::toMatrix3d(Rwc*Rcb);
+
+		Mat44 wTb;
+		wTb.Identity();
+		wTb.block<3,3>(0,0) = wRb;
+		wTb.block<3,1>(0,3) = dso_vi::toVector3d(wPb);
+
+		// Step 4.
+		// compute velocity
+		if(pKF != allKeyFramesHistory.back())
+		{
+			FrameShell* pKFnext = allKeyFramesHistory[i+1];
+			//if(!pKFnext) std:cerr<<"pKFnext is NULL, cnt="<<cnt<<", pKFnext:"<<pKFnext<<endl;
+			//if(pKFnext!=vScaleGravityKF[cnt+1]) cerr<<"pKFnext!=vScaleGravityKF[cnt+1], cnt="<<cnt<<", id: "<<pKFnext->mnId<<" != "<<vScaleGravityKF[cnt+1]->mnId<<endl;
+			// IMU pre-int between pKF ~ pKFnext
+			//const IMUPreintegrator& imupreint = pKFnext->GetIMUPreInt();
+			// Time from this(pKF) to next(pKFnext)
+			double dt = pKFnext->imu_preintegrated_last_kf_->deltaTij();//   imupreint.getDeltaTime();                                       // deltaTime
+			cv::Mat dp = dso_vi::toCvMat(pKFnext->imu_preintegrated_last_kf_->deltaPij());//Converter::toCvMat(imupreint.getDeltaP());       // deltaP
+			cv::Mat Jpba = dso_vi::toCvMat(dso_vi::getJPBiasa(pKFnext->imu_preintegrated_last_kf_));//onverter::toCvMat(imupreint.getJPBiasa());    // J_deltaP_biasa
+			cv::Mat wPcnext = dso_vi::toCvMat(pKFnext->camToWorld.translation());//pKFnext->GetPoseInverse().rowRange(0,3).col(3);           // wPc next
+			cv::Mat Rwcnext = dso_vi::toCvMat(pKFnext->camToWorld.rotationMatrix());//pKFnext->GetPoseInverse().rowRange(0,3).colRange(0,3);    // Rwc next
+
+			cv::Mat vel = - 1./dt*( scale*(wPc - wPcnext) + (Rwc - Rwcnext)*pcb + Rwc*Rcb*(dp + Jpba*dbiasa_) + 0.5*gw*dt*dt );
+			Eigen::Vector3d veleig = dso_vi::toVector3d(vel);
+//			pKF->navstate = gtsam::NavState(gtsam::Pose3(wTb),veleig);
+			Vstates.segment<3>(i*3) = veleig;
+			//pKF->SetNavStateVel(veleig);
+		}
+		else
+		{
+			std::cerr<<"-----------here is the last KF in vScaleGravityKF------------"<<std::endl;
+			// If this is the last KeyFrame, no 'next' KeyFrame exists
+			FrameShell* pKFprev = allKeyFramesHistory[i-1];
+			//if(!pKFprev) cerr<<"pKFprev is NULL, cnt="<<cnt<<endl;
+			//if(pKFprev!=vScaleGravityKF[cnt-1]) cerr<<"pKFprev!=vScaleGravityKF[cnt-1], cnt="<<cnt<<", id: "<<pKFprev->mnId<<" != "<<vScaleGravityKF[cnt-1]->mnId<<endl;
+			//const IMUPreintegrator& imupreint_prev_cur = pKF->GetIMUPreInt();
+			//double dt = imupreint_prev_cur.getDeltaTime();
+			//Eigen::Matrix3d Jvba = imupreint_prev_cur.getJVBiasa();
+			//Eigen::Vector3d dv = imupreint_prev_cur.getDeltaV();
+
+			double dt = pKFprev->imu_preintegrated_last_kf_->deltaTij();//   imupreint.getDeltaTime();                                       // deltaTime
+			Mat33 Jvba = dso_vi::getJVBiasa(pKFprev->imu_preintegrated_last_kf_);//pKFprev->imu_preintegrated_last_kf_->.getJVBiasa();
+			Vec3 dv = pKFprev->imu_preintegrated_last_kf_->deltaVij();                           //imupreint_prev_cur.getDeltaV();
+
+
+			//cv::Mat wPcnext = dso_vi::toCvMat(pKFnext->camToWorld.translation());//pKFnext->GetPoseInverse().rowRange(0,3).col(3);           // wPc next
+			//cv::Mat Rwcnext = dso_vi::toCvMat(pKFnext->camToWorld.rotationMatrix());//pKFnext->GetPoseInverse().rowRange(0,3).colRange(0,3);    // Rwc next
+
+			//
+			Eigen::Vector3d velpre = pKFprev->navstate.v();
+			Eigen::Matrix3d rotpre = pKFprev->navstate.pose().rotation().matrix();
+			Eigen::Vector3d veleig = velpre + g*dt + rotpre*( dv + Jvba*biasAcc );
+			// pKF->navstate = gtsam::NavState(gtsam::Pose3(wTb),veleig);
+			Vstates.segment<3>(i*3) = veleig;
+		}
+		std::cout<<"The GTV:"<<pKF->groundtruth.velocity.norm()<<"estimated velocity:"<<pKF->navstate.v().norm()<<std::endl;
+	}
+	std::cout<<std::endl<<"... Map NavState updated ..."<<std::endl<<std::endl;
+	return true;
+}
+
 bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale, Vec3 &_biasAcc)
 {
-	int skip_first_n_frames = 2;
+	int skip_first_n_frames = 0;
 	int N = allKeyFramesHistory.size() - skip_first_n_frames;
 	double G = 9.801;
 	for (size_t refine_idx = 0; refine_idx < 5; refine_idx++)
@@ -1412,6 +1499,7 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 			fs->imu_preintegrated_last_kf_->biasCorrectedDelta(gtsam::imuBias::ConstantBias(
 					(Vec6() << _biasAcc, gyroBiasEstimate).finished()
 			));
+            fs->bias = gtsam::imuBias::ConstantBias(_biasAcc,gyroBiasEstimate);
 		}
 
 		// debug
@@ -2167,22 +2255,30 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 	}
 
 	std::cout<<"scale is : "<<scale<<std::endl;
+	updateBackend(rot_diff, initial_P, scale);
+    return;
+}
 
-    // update local window linearization point and scale
-    for (size_t i = 0; i < frameHessians.size(); i++)
-    {
-        SE3 T_wb = frameHessians[i]->get_imuToWorld_evalPT();
-        Mat44 T_wb_new = Mat44::Identity();
+void FullSystem::updateBackend(Mat33 rot_diff, Vec3 initial_P, double scale)
+{
+	SE3 TBC(getTbc());
+	SE3 TCB = TBC.inverse();
 
-        T_wb_new.topLeftCorner<3, 3>().noalias() = rot_diff * T_wb.rotationMatrix();
-        T_wb_new.topRightCorner<3, 1>().noalias() = rot_diff * scale * (T_wb.translation() - initial_P);
+	// update local window linearization point and scale
+	for (size_t i = 0; i < frameHessians.size(); i++)
+	{
+		SE3 T_wb = frameHessians[i]->get_imuToWorld_evalPT();
+		Mat44 T_wb_new = Mat44::Identity();
 
-        frameHessians[i]->worldToCam_evalPT = TCB * (SE3(T_wb_new).inverse());
+		T_wb_new.topLeftCorner<3, 3>().noalias() = rot_diff * T_wb.rotationMatrix();
+		T_wb_new.topRightCorner<3, 1>().noalias() = rot_diff * scale * (T_wb.translation() - initial_P);
 
-        Vec6 pose_error = (frameHessians[i]->worldToCam_evalPT * frameHessians[i]->shell->camToWorld).log();
-        std::cout << "camToWorld: "	<< frameHessians[i]->shell->camToWorld.matrix() << std::endl;
-        std::cout << "pose_error: " << pose_error.transpose() << std::endl;
-    }
+		frameHessians[i]->worldToCam_evalPT = TCB * (SE3(T_wb_new).inverse());
+
+		Vec6 pose_error = (frameHessians[i]->worldToCam_evalPT * frameHessians[i]->shell->camToWorld).log();
+		std::cout << "camToWorld: "	<< frameHessians[i]->shell->camToWorld.matrix() << std::endl;
+		std::cout << "pose_error: " << pose_error.transpose() << std::endl;
+	}
 
 
 	// ------------------------------ Rescale the depth ------------------------------
@@ -2215,16 +2311,16 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 				fh->PRE_camToWorld = camToWorld;
 				fh->PRE_worldToCam = camToWorld.inverse();
 
-                // don't relinearize
-                fh->rescaleState(scale);
-                // check rescallng error
-                if (!setting_debugout_runquiet)
-                {
-                    Vec6 error = (fh->PRE_worldToCam * fh->shell->camToWorld).log();
-                    std::cout << "Rescaling error: " << error << std::endl;
-                }
+				// don't relinearize
+				fh->rescaleState(scale);
+				// check rescallng error
+				if (!setting_debugout_runquiet)
+				{
+					Vec6 error = (fh->PRE_worldToCam * fh->shell->camToWorld).log();
+					std::cout << "Rescaling error: " << error << std::endl;
+				}
 
-                // relinearize the states
+				// relinearize the states
 //				fh->worldToCam_evalPT = fh->PRE_worldToCam;
 //				fh->setState(Vec10::Zero());
 //				fh->setStateZero(Vec10::Zero());
@@ -2351,14 +2447,14 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 //		marginalizeFrame(frameHessians.front());
 //	}
 
-    size_t HM_size = ef->HM.cols();
-    double scale_inv = 1/scale;
-    for (size_t i = CPARS; i < HM_size; i+=8)
-    {
-        ef->HM.block(0, i, HM_size, 3) *= scale_inv;
-        ef->HM.block(i, 0, 3, HM_size) *= scale_inv;
-        ef->bM.segment<3>(i) *= scale_inv;
-    }
+	size_t HM_size = ef->HM.cols();
+	double scale_inv = 1/scale;
+	for (size_t i = CPARS; i < HM_size; i+=8)
+	{
+		ef->HM.block(0, i, HM_size, 3) *= scale_inv;
+		ef->HM.block(i, 0, 3, HM_size) *= scale_inv;
+		ef->bM.segment<3>(i) *= scale_inv;
+	}
 
 	// clear all the prior factor since we're relinearizing
 //	ef->HM.setZero();
@@ -2385,26 +2481,24 @@ void FullSystem::UpdateState(Vec3 &g, VecX &x)
 
 
 			std::cout	<< "pose err: " 	<< se3_err.transpose() << std::endl
-						<< "velocity err: "	<< vel_err.transpose() << std::endl
-						<< "Actual dt: " 	<< frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp << std::endl
-						<< "IMU dt: " 		<< frameHessians[i]->shell->imu_preintegrated_last_kf_->deltaTij() << std::endl
-						<< "---------------------------------"
-						<< std::endl 		<< std::endl;
+						 << "velocity err: "	<< vel_err.transpose() << std::endl
+						 << "Actual dt: " 	<< frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp << std::endl
+						 << "IMU dt: " 		<< frameHessians[i]->shell->imu_preintegrated_last_kf_->deltaTij() << std::endl
+						 << "---------------------------------"
+						 << std::endl 		<< std::endl;
 
 		}
 		else if (i >=1)
 		{
 			std::cout 	<< "rejected dt: " << frameHessians[i]->shell->viTimestamp - frameHessians[i-1]->shell->viTimestamp
-					  	<< std::endl
-						<< "-----------------------------------"
-						<< std::endl << std::endl;
+						 << std::endl
+						 << "-----------------------------------"
+						 << std::endl << std::endl;
 		}
 	}
 
 	coarseTracker->makeCoarseDepthL0(frameHessians);
 	coarseTracker_forNewKF->makeCoarseDepthL0(frameHessians);
-
-	return;
 }
 
 void FullSystem::alignSIM3(SE3 &_transformation, double &_scale, VecX &_translation_error)
@@ -2508,11 +2602,31 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
         Vec3 g, biasAcc;
 		double scale;
         Eigen::VectorXd initialstates;
-		solveGyroscopeBiasbyGTSAM();
-		SolveScaleGravity(g, scale);
-		RefineScaleGravityAndSolveAccBias(g, scale, biasAcc);
+        solveGyroscopeBiasbyGTSAM();
+		bool is_init_success = false;
 
-        if(SolveScale(g, initialstates))
+#if 1
+        // VIORB style init
+		is_init_success = SolveScaleGravity(g, scale);
+		if (is_init_success)
+		{
+			is_init_success = RefineScaleGravityAndSolveAccBias(g, scale, biasAcc);
+		}
+		if (is_init_success)
+		{
+			accBiasEstimate = biasAcc;
+			is_init_success = SolveVelocity(g,scale,biasAcc,initialstates);
+		}
+		if (is_init_success)
+		{
+			// the g in VIORB is pointing up
+			g = -g;
+		}
+#else
+        // VINS style init
+        is_init_success = SolveScale(g, initialstates);
+#endif
+        if (is_init_success)
 		{
 			UpdateState(g,initialstates);
 			// accelero bias need to be solved after getting scale, velocity and gravity direction
