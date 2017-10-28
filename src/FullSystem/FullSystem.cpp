@@ -1162,7 +1162,7 @@ void FullSystem::flagPointsForRemoval()
 
 bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
 {
-	int skip_first_n_frames = 2;
+	int skip_first_n_frames = 0;
     int N = allKeyFramesHistory.size() - skip_first_n_frames;
     // Solve A*x=B for x=[s,gw] 4x1 vector
     cv::Mat A = cv::Mat::zeros(3*(N-2),4,CV_32F);
@@ -1299,7 +1299,7 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
             Mat44 wTb;
             wTb.Identity();
             wTb.block<3,3>(0,0) = wRb;
-            wTb.block<3,3>(0,3) = dso_vi::toVector3d(wPb);
+            wTb.block<3,1>(0,3) = dso_vi::toVector3d(wPb);
 
             //pKF->navstate = gtsam::NavState(gtsam::Rot3(wRb),gtsam::Point3(dso_vi::toVector3d(wPb)),dummy_v);
                     //SetNavStatePos(Converter::toVector3d(wPb));
@@ -1347,7 +1347,6 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
 
                 double dt = pKFprev->imu_preintegrated_last_kf_->deltaTij();//   imupreint.getDeltaTime();                                       // deltaTime
                 Mat33 Jvba = dso_vi::getJVBiasa(pKFprev->imu_preintegrated_last_kf_);//pKFprev->imu_preintegrated_last_kf_->.getJVBiasa();
-                Vec3 Jpba = dso_vi::getJPBiasa(pKFprev->imu_preintegrated_last_kf_);        //onverter::toCvMat(imupreint.getJPBiasa());    // J_deltaP_biasa
                 Vec3 dv = pKFprev->imu_preintegrated_last_kf_->deltaVij();                           //imupreint_prev_cur.getDeltaV();
 
 
@@ -1360,6 +1359,7 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
                 Eigen::Vector3d veleig = velpre + g*dt + rotpre*( dv + Jvba*biasAcc );
                 pKF->navstate = gtsam::NavState(gtsam::Pose3(wTb),veleig);
             }
+			std::cout<<"The GTV:"<<pKF->groundtruth.velocity.norm()<<"estimated velocity:"<<pKF->navstate.v().norm()<<std::endl;
         }
 
 
@@ -1477,7 +1477,7 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
 
 bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale, Vec3 &_biasAcc)
 {
-	int skip_first_n_frames = 2;
+	int skip_first_n_frames = 0;
 	int N = allKeyFramesHistory.size() - skip_first_n_frames;
 	double G = 9.801;
 	for (size_t refine_idx = 0; refine_idx < 5; refine_idx++)
@@ -2609,6 +2609,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 	if	(
 			!IMUinitialized &&
 			allKeyFramesHistory.size() >= WINDOW_SIZE &&
+			ftimestamp - allKeyFramesHistory[0]->timestamp > 15.0 &&
 			// we want the last KF to come from the previous frame
 			// TODO: this may not be a good idea, maybe this never happens !!!
 			allKeyFramesHistory.back()->id == allFrameHistory.back()->id
