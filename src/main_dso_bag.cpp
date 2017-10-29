@@ -57,6 +57,7 @@ std::string groundTruthFile = "";
 std::string bagFile = "";
 std::string outputFile = "";
 int startFrame = 0;
+int windowsize = 0;
 int endFrame = std::numeric_limits<int>::max();
 
 unsigned frameCount = 0;
@@ -175,6 +176,12 @@ void parseArgument(char* arg)
     if(1==sscanf(arg,"start_frame=%d",&startFrame))
     {
         printf("start frame %d\n", startFrame);
+        return;
+    }
+
+    if(1==sscanf(arg,"WINDOWSIZE=%d",&windowsize))
+    {
+        printf("start frame %d\n", windowsize);
         return;
     }
 
@@ -434,7 +441,7 @@ int main( int argc, char** argv )
     fullSystem->setBiasEstimate(config.GetEigAccBias(), config.GetEigGyroBias());
     fullSystem->addprior = config.Getaddprior();
     fullSystem->addimu = config.Getaddimu();
-    fullSystem->WINDOW_SIZE = 40;
+    fullSystem->WINDOW_SIZE = windowsize;
 
 
     if(!disableAllDisplay)

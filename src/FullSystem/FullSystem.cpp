@@ -1136,7 +1136,7 @@ void FullSystem::flagPointsForRemoval()
 
 bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
 {
-	int skip_first_n_frames = 1;
+	int skip_first_n_frames = 0;
     int N = allKeyFramesHistory.size() - skip_first_n_frames;
     // Solve A*x=B for x=[s,gw] 4x1 vector
     cv::Mat A = cv::Mat::zeros(3*(N-2),4,CV_32F);
@@ -1230,6 +1230,7 @@ bool FullSystem::SolveScaleGravity(Vec3 &_gEigen, double &_scale)
     cv::Mat gwstar = xx.rowRange(1,4);   // gravity should be about ~9.8
 
     // Debug log
+	std::cout<<"condition number:"<<w.at<float>(0)/w.at<float>(3)<<std::endl;
     std::cout<<"scale sstar: "<<sstar<<std::endl;
     std::cout<<"gwstar: "<<gwstar.t()<<", |gwstar|="<<cv::norm(gwstar)<<std::endl;
 
@@ -1353,9 +1354,11 @@ bool FullSystem::SolveVelocity(const Vec3 g,const double scale,const Vec3 biasAc
 
 bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale, Vec3 &_biasAcc)
 {
-	int skip_first_n_frames = 1;
+	int skip_first_n_frames = 0;
 	int N = allKeyFramesHistory.size() - skip_first_n_frames;
 	double G = 9.801;
+	double condition_number = 1e9;
+	//cv::Mat w2;
 	for (size_t refine_idx = 0; refine_idx < 2; refine_idx++)
 	{
 		cv::Mat gwstar = dso_vi::toCvMat(_gEigen);
@@ -1477,18 +1480,22 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 		// apply the bias
 		for (FrameShell *fs: allKeyFramesHistory)
 		{
+			gyroBiasEstimate << -0.002153, 0.020744, 0.075806;
+			_biasAcc << -0.013337, 0.123464, 0.057086;
 			fs->imu_preintegrated_last_kf_->biasCorrectedDelta(gtsam::imuBias::ConstantBias(
 					(Vec6() << _biasAcc, gyroBiasEstimate).finished()
 			));
             fs->bias = gtsam::imuBias::ConstantBias(_biasAcc,gyroBiasEstimate);
 		}
 
+		condition_number = w2.at<float>(0) / w2.at<float>(5);
 		// debug
 		std::cout << "Refined: " << std::endl;
 		std::cout << "scale: " << _scale << std::endl;
+		std::cout << "gyro bias:"<<gyroBiasEstimate<<std::endl;
 		std::cout << "bias: " << _biasAcc.transpose() << std::endl;
 		std::cout << "gravity: " << _gEigen.transpose() << std::endl;
-		std::cout << "cond num:" << w2.at<float>(0) / w2.at<float>(5) << std::endl;
+		std::cout << "cond num:" << condition_number << std::endl;
 		std::cout << "SVs:" << w2.t() << std::endl;
 
 		// checking gravity wrt groundtruth
@@ -1501,7 +1508,7 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 		std::cout << std::endl << std::endl;
 	}
 
-	if (_scale <= 0)
+	if (_scale <= 0 || condition_number > 105.0)
 	{
 		return false;
 	}
@@ -2601,7 +2608,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		}
 		if (is_init_success)
 		{
-			// the g in VIORB is pointing up
+			// the g in VIORB is pointing down (but the VINS one is pointing up). Funny thing, our coordinate frame in the end will have gravity pointing down
 			g = -g;
 		}
 #else
