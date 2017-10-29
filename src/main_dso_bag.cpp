@@ -271,15 +271,15 @@ void track(const sensor_msgs::ImageConstPtr img, std::vector<dso_vi::IMUData> vi
 //        rawimudata.head<3>() = Rbc * rawimudata.head<3>();
 //        rawimudata.tail<3>() = Rbc * rawimudata.tail<3>();
 
-        std::cout << "----------------------------------------------------" << std::endl;
-        std::cout << "Data: ";
+        //std::cout << "----------------------------------------------------" << std::endl;
+        //std::cout << "Data: ";
         for (int i = 0; i < 6; i++)
         {
             std::cout << rawimudata(i) << ", ";
         }
         std::cout << std::endl;
-        std::cout << "Timestamp: " << std::fixed << imudata._t << ", " << old_timestamp << std::endl;
-        std::cout << "----------------------------------------------------" << std::endl;
+        //std::cout << "Timestamp: " << std::fixed << imudata._t << ", " << old_timestamp << std::endl;
+        //std::cout << "----------------------------------------------------" << std::endl;
         double dt = (imudata._t - old_timestamp);
         if (dt >= 0.0001) {
             imu_preintegrated->integrateMeasurement(

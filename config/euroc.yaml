@@ -38,7 +38,7 @@ imutopic: "/imu0"
 imagetopic: "/cam0/image_raw"
 
 #if withprior(1: with prior 0: without prior)
-addprior: 1
+addprior: 0
 
 #if withimu(1: with imu 0: without imu)
 addimu: 1

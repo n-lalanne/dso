@@ -197,8 +197,8 @@ Vec15 FrameShell::evaluateIMUerrors(
 //    std::cout<<"J_imu_v_j:\n"<<J_imu_v_j<<std::endl;
 //
 //
-    std::cout<<"Navstate_i:\n"<<previous_navstate<<std::endl;
-    std::cout<<"Navstate_j:\n"<<current_navstate<<std::endl;
+    //std::cout<<"Navstate_i:\n"<<previous_navstate<<std::endl;
+    //std::cout<<"Navstate_j:\n"<<current_navstate<<std::endl;
 
     return resreturn;
 }
@@ -209,19 +209,19 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
     // IMU factors from the keyframe to last frame
     std::vector<PreintegrationType*> keyframe2LastFrameFactors;
 
-    std::cout << "last frame/keyframe: " <<  last_frame->id << ", " << last_kf->id << std::endl;
-    std::cout << "Frame ID: " << id << std::endl;
+    //std::cout << "last frame/keyframe: " <<  last_frame->id << ", " << last_kf->id << std::endl;
+    //std::cout << "Frame ID: " << id << std::endl;
     if (id > last_kf->id + 1)
     { // only if the last kf is not the previous frame
         if (last_frame->last_kf && last_frame->last_kf->id == last_kf->id)
         {
             // KF hasn't changed, get the preintegrated values since the last KF from last frame
             keyframe2LastFrameFactors.push_back(last_frame->imu_preintegrated_last_kf_);
-            std::cout << "IMU measurements: integrating till keyframe of " << last_frame->id << "(" << last_frame->last_kf->id << ")" << std::endl;
+            //std::cout << "IMU measurements: integrating till keyframe of " << last_frame->id << "(" << last_frame->last_kf->id << ")" << std::endl;
         }
         else
         {
-            std::cout << "IMU measurements: integrating frames ";
+            //std::cout << "IMU measurements: integrating frames ";
             // integrate all the imu factors between previous keyframe and previous frame
             // need to to this in reverse order first because we only have pointers to previous frame, not previous keyframe
             for (
@@ -242,7 +242,7 @@ void FrameShell::updateIMUmeasurements(std::vector<dso_vi::IMUData> mvIMUSinceLa
     }
 
     printf("Between: %.7f, %.7f", last_frame->viTimestamp, viTimestamp);
-    std::cout << "IMU count: " << mvIMUSinceLastF.size() << std::endl;
+    //std::cout << "IMU count: " << mvIMUSinceLastF.size() << std::endl;
     for (size_t i = 0; i < mvIMUSinceLastF.size(); i++)
     {
         dso_vi::IMUData imudata = mvIMUSinceLastF[i];
@@ -364,7 +364,7 @@ gtsam::NavState FrameShell::PredictPose(gtsam::NavState ref_pose_imu, double las
     {
         if (!setting_debugout_runquiet)
         {
-            std::cout << "IMU prediction nan for translation!!!" << std::endl;
+            //std::cout << "IMU prediction nan for translation!!!" << std::endl;
         }
         predicted_pose_imu = gtsam::NavState(
                 gtsam::Pose3(ref_pose_imu.pose().rotation(), Vec3::Zero()),

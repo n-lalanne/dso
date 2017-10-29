@@ -2437,12 +2437,12 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 
 
 			// linearize the imu factor (for first estimate jacobian)
-			newFrame->shell->linearizeImuFactorLastFrame(
-					navstate_i_first_estimate,
-					navstate_j_new,
-					pbiases_first_estimate,
-					gtsam::imuBias::ConstantBias(biases_new)
-			);
+//			newFrame->shell->linearizeImuFactorLastFrame(
+//					navstate_i_new,
+//					navstate_j_new,
+//					gtsam::imuBias::ConstantBias(pbiases_new),
+//					gtsam::imuBias::ConstantBias(biases_new)
+//			);
 			Vec6 resNew = calcResIMU(lvl, navstate_i_new, navstate_j_new, aff_g2l_new, pbiases_new, biases_new, setting_coarseCutoffTH*levelCutoffRepeat);
 
 			bool accept = resNew[0] < resOld[0];
@@ -2504,12 +2504,12 @@ bool CoarseTracker::trackNewestCoarsewithIMU(
 				if(lambda < lambdaExtrapolationLimit) lambda = lambdaExtrapolationLimit;
 
 				// rollback to last good estimate if not accepted
-				newFrame->shell->linearizeImuFactorLastFrame(
-						navstate_i_first_estimate,
-						navstate_j_current,
-						pbiases_first_estimate,
-						biases_current_estimate
-				);
+//				newFrame->shell->linearizeImuFactorLastFrame(
+//						navstate_i_current,
+//						navstate_j_current,
+//						gtsam::imuBias::ConstantBias(pbiases_current),
+//						gtsam::imuBias::ConstantBias(biases_current)
+//				);
 			}
 
 			// linearize the imu factor (for first estimate jacobian)

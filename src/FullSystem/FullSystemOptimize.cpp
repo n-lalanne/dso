@@ -269,9 +269,9 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 
 			if(fh->PRE_navstate.v().norm()>100)
 			{
-				std::cout<<"The velocity is wrong!!!"<<std::endl;
-				std::cout<<"fh->PRE_navstate:"<<fh->PRE_navstate<<std::endl;
-				std::cout<<"fh->vstep:"<<fh->vstep.transpose()<<std::endl;
+				//std::cout<<"The velocity is wrong!!!"<<std::endl;
+				//std::cout<<"fh->PRE_navstate:"<<fh->PRE_navstate<<std::endl;
+				//std::cout<<"fh->vstep:"<<fh->vstep.transpose()<<std::endl;
 			}
 
 			sumA += fh->step[6]*fh->step[6];
@@ -519,13 +519,13 @@ float FullSystem::optimize(int mnumOptIts)
             Vec3 vel_err = predicted.velocity() - frameHessians[i]->shell->groundtruth.velocity;
 
 
-            std::cout << "pose err: " << se3_err.transpose() << std::endl
-                      << "velocity err: " << vel_err.transpose() << std::endl
-                      << "Actual dt: "
-                      << frameHessians[i]->shell->viTimestamp - frameHessians[i - 1]->shell->viTimestamp << std::endl
-                      << "IMU dt: " << frameHessians[i]->shell->imu_preintegrated_last_kf_->deltaTij() << std::endl
-                      << "---------------------------------------"
-                      << std::endl << std::endl;
+//            std::cout << "pose err: " << se3_err.transpose() << std::endl
+//                      << "velocity err: " << vel_err.transpose() << std::endl
+//                      << "Actual dt: "
+//                      << frameHessians[i]->shell->viTimestamp - frameHessians[i - 1]->shell->viTimestamp << std::endl
+//                      << "IMU dt: " << frameHessians[i]->shell->imu_preintegrated_last_kf_->deltaTij() << std::endl
+//                      << "---------------------------------------"
+//                      << std::endl << std::endl;
 
         }
     }
@@ -599,7 +599,7 @@ float FullSystem::optimize(int mnumOptIts)
         }
 
 		if(isIMUinitialized()){
-			std::cout<<"newEnergy[0]: "<<newEnergy[0]<<" newEnergy[1]: " <<newEnergy[1]<<" newIMUEnergy: "<<newIMUEnergy<<std::endl;
+			//std::cout<<"newEnergy[0]: "<<newEnergy[0]<<" newEnergy[1]: " <<newEnergy[1]<<" newIMUEnergy: "<<newIMUEnergy<<std::endl;
 		}
 
 		if(setting_forceAceptStep || (newEnergy[0] +  newEnergy[1] +  newEnergyL + newEnergyM + newIMUEnergy <
@@ -678,9 +678,9 @@ float FullSystem::optimize(int mnumOptIts)
 				SE3 T_world_imu = fh->shell->camToWorld * SE3(getTbc()).inverse();
                 if((fh->shell->navstate.v()-fh->PRE_navstate.v()).norm()>0.5)
                 {
-                    std::cout<<"before BA:\n"<<fh->shell->navstate<<std::endl;
-                    std::cout<<"after BA:\n"<<fh->PRE_navstate<<std::endl;
-                    std::cout<<"veloctiy increment is too high!"<<std::endl;
+//                    std::cout<<"before BA:\n"<<fh->shell->navstate<<std::endl;
+//                    std::cout<<"after BA:\n"<<fh->PRE_navstate<<std::endl;
+//                    std::cout<<"veloctiy increment is too high!"<<std::endl;
                 }
 
 				fh->shell->navstate = fh->PRE_navstate;

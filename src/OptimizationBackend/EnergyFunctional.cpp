@@ -502,7 +502,7 @@ void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
 {
 	int nframes = frames.size();
 	if(nframes <=2 ){
-		std::cout<<"Do not call this function in vo model!"<<std::endl;
+		//std::cout<<"Do not call this function in vo model!"<<std::endl;
 		exit(0);
 	}
 	std::vector<int> sizearr;
@@ -510,7 +510,7 @@ void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
 	for(int i=1;i<nframes;i++){
 		if(frames[i]->data->imufactorvalid)
 		{
-			std::cout<< "frame "<<i <<" is valid"<<std::endl;
+			//std::cout<< "frame "<<i <<" is valid"<<std::endl;
 			sizearr[i] = 17;
 			sizearr[i-1] = 17;
 		}
@@ -554,10 +554,10 @@ void EnergyFunctional::stateexpand(MatXX &H, VecX &b)
 VecX EnergyFunctional::solutionreduce(VecX x)
 {
 	if(nFrames <=2 ){
-		std::cout<<"Do not call this function in vo model!"<<std::endl;
+		//std::cout<<"Do not call this function in vo model!"<<std::endl;
 		exit(0);
 	}
-	std::cout<<"x: "<<x.transpose()<<std::endl;
+	//std::cout<<"x: "<<x.transpose()<<std::endl;
 	VecX x_tmp = x;
 	x.conservativeResize(CPARS+nFrames*8);
 	x.setZero();
@@ -566,7 +566,7 @@ VecX EnergyFunctional::solutionreduce(VecX x)
 	{
 		x.segment<8>(CPARS+i*8) = x_tmp.segment<8>(frames[i]->reducedframepos);
 	}
-	std::cout<<"after x: "<<x.transpose()<<std::endl;
+	//std::cout<<"after x: "<<x.transpose()<<std::endl;
 	return x;
 }
 
@@ -574,7 +574,7 @@ VecX EnergyFunctional::solutionreduce(VecX x)
 void EnergyFunctional::statereduce(MatXX &H, VecX &b)
 {
 	if(nFrames <=2 ){
-		std::cout<<"Do not call this function in vo model!"<<std::endl;
+		//std::cout<<"Do not call this function in vo model!"<<std::endl;
 		exit(0);
 	}
 
@@ -609,8 +609,8 @@ void EnergyFunctional::statereduce(MatXX &H, VecX &b)
 	}
 	reducedtotalsize = std::accumulate(reducedsizearr.begin(),reducedsizearr.end(),CPARS);
 
-	std::cout<<"H: "<<H.diagonal().transpose()<<std::endl;
-	std::cout<<"b: "<<b.transpose()<<std::endl;
+	//std::cout<<"H: "<<H.diagonal().transpose()<<std::endl;
+	//std::cout<<"b: "<<b.transpose()<<std::endl;
 	MatXX H_tmp = H;
 	VecX b_tmp = b;
 
@@ -666,7 +666,7 @@ void EnergyFunctional::statereduce(MatXX &H, VecX &b)
 void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
 {
     if(nFrames <=2 ){
-        std::cout<<"Do not call this function in vo model!"<<std::endl;
+        //std::cout<<"Do not call this function in vo model!"<<std::endl;
         exit(0);
     }
     std::vector<int> sizearr;
@@ -731,8 +731,8 @@ void EnergyFunctional::accumulateIMU_ST(MatXX &H, VecX &b)
         b.segment<34>(currentpos) += b_temp;
         currentpos += frames[indexi-1]->statesize;
     }
-    std::cout<<"H_imu is : "<< H.diagonal()<<std::endl;
-    std::cout<<"b_imu is : "<< b<<std::endl;
+    //std::cout<<"H_imu is : "<< H.diagonal()<<std::endl;
+    //std::cout<<"b_imu is : "<< b<<std::endl;
 }
 
 
@@ -740,7 +740,7 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	if(setting_solverMode & SOLVER_USE_GN) lambda=0;
 	if(setting_solverMode & SOLVER_FIX_LAMBDA) lambda = 1e-5;
 
-	std::cout<<"sloving VI ba"<<std::endl;
+	//std::cout<<"sloving VI ba"<<std::endl;
 
 	assert(EFDeltaValid);
 	assert(EFAdjointsValid);
@@ -848,15 +848,15 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
         x_imu = SVecI_imu.asDiagonal() * HFinalScaled_imu.ldlt().solve(SVecI_imu.asDiagonal() * bFinal_top_imu);
 	}
 
-	std::cout<<"The vo incremnt is :"<<x.transpose()<<std::endl;
-    std::cout<<"The vi incremnt is :"<<x_imu.transpose()<<std::endl;
+	//std::cout<<"The vo incremnt is :"<<x.transpose()<<std::endl;
+    //std::cout<<"The vi incremnt is :"<<x_imu.transpose()<<std::endl;
 	//// Todo: reduce the state to 8 for orthogonalization and after this operation, change it back
 	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
 	{
 
 		lastX = VIorthogonalize(x_imu, 0);
-		std::cout << "before lastX: " << lastX.transpose() << std::endl;
-		std::cout << "x_imu: " << x_imu.transpose() << std::endl;
+		//std::cout << "before lastX: " << lastX.transpose() << std::endl;
+		//std::cout << "x_imu: " << x_imu.transpose() << std::endl;
 		incrementreplace(lastX,&x_imu);
 //		for(int i=0;i<nFrames;i++)
 //		{
@@ -874,7 +874,7 @@ void EnergyFunctional::solveVISystemF(int iteration, double lambda, CalibHessian
 	currentLambda= lambda;
 	VIresubstituteF_MT(x_imu, HCalib,multiThreading);
 	currentLambda=0;
-	std::cout<<"goes here!"<<std::endl;
+	//std::cout<<"goes here!"<<std::endl;
 
 
 }
