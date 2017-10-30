@@ -1481,7 +1481,7 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 		for (FrameShell *fs: allKeyFramesHistory)
 		{
 //			gyroBiasEstimate << -0.002153, 0.020744, 0.075806;
-//			_biasAcc << -0.013337, 0.123464, 0.057086;
+			_biasAcc << -0.023337, 0.173464, 0.067086;
 			fs->imu_preintegrated_last_kf_->biasCorrectedDelta(gtsam::imuBias::ConstantBias(
 					(Vec6() << _biasAcc, gyroBiasEstimate).finished()
 			));

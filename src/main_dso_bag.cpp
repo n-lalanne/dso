@@ -519,7 +519,7 @@ int main( int argc, char** argv )
     if (trajectory_log)
     {
         std::cout << "Saving trajectory" << std::endl;
-        for(FrameShell *fs: fullSystem->getAllFrameHistory())
+        for(FrameShell* fs: fullSystem->getAllkeyFrameHistory())
         {
             dso::SE3 pose = fs->camToWorld;
             fprintf(
