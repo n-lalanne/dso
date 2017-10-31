@@ -22,15 +22,15 @@ maxDsvioError = max(dsvioError);
 minDsoError = min(dsoError);
 minDsvioError = min(dsvioError);
 
-% --------------------------- clip error to be atmost 0.5 --------------------------- %
-meanDsoError = arrayfun(clipFun, meanDsoError);
-meanDsvioError = arrayfun(clipFun, meanDsvioError);
-
-maxDsoError = arrayfun(clipFun, maxDsoError);
-maxDsvioError = arrayfun(clipFun, maxDsvioError);
-
-minDsoError = arrayfun(clipFun, minDsoError);
-minDsvioError = arrayfun(clipFun, minDsvioError);
+% % --------------------------- clip error to be atmost 0.5 --------------------------- %
+% meanDsoError = arrayfun(clipFun, meanDsoError);
+% meanDsvioError = arrayfun(clipFun, meanDsvioError);
+% 
+% maxDsoError = arrayfun(clipFun, maxDsoError);
+% maxDsvioError = arrayfun(clipFun, maxDsvioError);
+% 
+% minDsoError = arrayfun(clipFun, minDsoError);
+% minDsvioError = arrayfun(clipFun, minDsvioError);
 
 % calculate the difference from the mean
 maxDsoError = maxDsoError - meanDsoError;

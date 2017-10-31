@@ -1,9 +1,9 @@
 % set this to the supplementary files folder.
-FILEPATH = '/home/rakesh/SLAM/dso_supplementary/supp_v2';
+FILEPATH = '/home/sicong/dso_bak/supp_v2';
 
-DSO_EVAL_FILEPATH = '/home/rakesh/SLAM/dso_supplementary/Matlab_Evaluation';
+DSO_EVAL_FILEPATH = '/home/sicong/dso/evaluate_ate_scale_matlab';
 DSO_FILEPATH = FILEPATH;
-DSVIO_FILEPATH = '/home/rakesh/workspace/dso/Matlab_evaluation/logs/';
+DSVIO_FILEPATH = '/home/sicong/dso/build/bin/logs/';
 
 addpath(DSO_EVAL_FILEPATH);
 addpath([DSO_EVAL_FILEPATH '/MakePlots']);
@@ -16,6 +16,7 @@ logPath_fwd = [DSO_FILEPATH '/DS-VO_Forward/'];
 
 %% DSVIO
 logPath_fwd = [DSVIO_FILEPATH];
-[ DSVIO_MAV_FWD ] = evalMAVdataset( logPath_fwd, options, errorPerSequenceMAV(FILEPATH), true );
+[ DSVIO_MAV_FWD ] = evalMAVdataset( logPath_fwd, options, errorPerSequenceMAV(FILEPATH));
 save('logs/DSVIO.mat', 'DSVIO_MAV_FWD')
 Plot
+PlotErrorBar

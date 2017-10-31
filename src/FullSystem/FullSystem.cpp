@@ -2547,14 +2547,14 @@ void FullSystem::alignSIM3(SE3 &_transformation, double &_scale, VecX &_translat
 	_transformation = SE3(rot, trans);
 
 	// debug
-//	std::cout << "W: \n" << W << std::endl;
-//	std::cout << "U: \n" << U << std::endl;
-//	std::cout << "V: \n" << Vh << std::endl;
-//	std::cout << "S: \n" << S << std::endl;
-//	std::cout << "eval rot: \n" << rot << std::endl;
-//	std::cout << "gt rot: \n"	<< getRbc() << std::endl;
-//	std::cout << "gt scale: " << _scale << std::endl;
-//	std::cout << "gt translation err: " << _translation_error.transpose() << std::endl;
+	std::cout << "W: \n" << W << std::endl;
+	std::cout << "U: \n" << U << std::endl;
+	std::cout << "V: \n" << Vh << std::endl;
+	std::cout << "S: \n" << S << std::endl;
+	std::cout << "eval rot: \n" << rot << std::endl;
+	std::cout << "gt rot: \n"	<< getRbc() << std::endl;
+	std::cout << "gt scale: " << _scale << std::endl;
+	std::cout << "gt translation err: " << _translation_error.transpose() << std::endl;
 }
 
 void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<dso_vi::IMUData> vimuData, double ftimestamp,
