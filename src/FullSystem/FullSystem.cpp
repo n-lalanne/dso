@@ -2831,6 +2831,27 @@ bool FullSystem::ifblur(FrameShell *fs)
     return true;
 }
 
+//// Todo: get the sharpness by using the code below
+
+//short GetSharpness(char* data, unsigned int width, unsigned int height)
+//{
+////assumes that your image is already in planner yuv or 8 bit greyscale
+//	IplImage* in = cvCreateImage(cvSize(width,height),IPL_DEPTH_8U,1);
+//	IplImage* out = cvCreateImage(cvSize(width,height),IPL_DEPTH_16S,1);
+//	memcpy(in->imageData,data,width*height);
+////aperture size of 1 corresponds to the correct matrix
+//	cvLaplace(in, out, 1);
+//	short maxLap = -32767;
+//	short* imgData = (short*)out->imageData;
+//	for(int i =0;i<(out->imageSize/2);i++)
+//	{
+//		if(imgData[i]> maxLap) maxLap = imgData[i];
+//	}
+//	cvReleaseImage(&in);
+//	cvReleaseImage(&out);
+//	return maxLap;
+//}
+
 
 
 void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
