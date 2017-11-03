@@ -1671,7 +1671,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	double IMUenergy = imu_error.transpose() * information_imu * imu_error;
 	//std::cout << "imu_error: " << imu_error.transpose() << std::endl;
     // TODO: make threshold a setting
-	float imu_huberTH = 500;//21.66;
+	float imu_huberTH = 50000;//21.66;
 	//std::cout<<"IMUenergy(uncut): "<<IMUenergy<<std::endl;
 	//std::cout<<"information_imu:(uncut)"<<information_imu.diagonal().transpose()<<std::endl;
 
@@ -1716,7 +1716,7 @@ Vec6 CoarseTracker::calcResIMU(int lvl, const gtsam::NavState previous_navstate,
 	std::cout<<"er "<<priorr<<" et "<<priort<<" priorv "<<priorv<<std::endl;
 	if(priorEnergy<0.0)std::cout<<"priorEnergy is negative!!!"<<std::endl;
 	// TODO: make threshold a setting
-	float prior_huberTH = 500;//50;
+	float prior_huberTH = 50000;//50;
 	std::cout<<"information(uncut): "<<information_prior.diagonal().transpose()<<std::endl;
 	std::cout<<"res_prior: "<<res_prior<<std::endl;
 	std::cout<<"priorEnergy(uncut): "<<priorEnergy<<std::endl;

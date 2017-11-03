@@ -8,7 +8,7 @@ for seqNum = 1:22
 	dsvioError(:, seqNum) = DSVIO_MAV_FWD{seqNum}.allSegRMSE;
 end
 
-clipFun = @(x) (x<=0.5)*x + (x>0.5)*0.5;
+clipFun = @(x) (x<=1)*x + (x>1)*1;
 % clip error to be atmost 0.5
 % dsoError = arrayfun(clipFun, dsoError);
 % dsvioError = arrayfun(clipFun, dsvioError);
@@ -23,14 +23,14 @@ minDsoError = min(dsoError);
 minDsvioError = min(dsvioError);
 
 % % --------------------------- clip error to be atmost 0.5 --------------------------- %
-% meanDsoError = arrayfun(clipFun, meanDsoError);
-% meanDsvioError = arrayfun(clipFun, meanDsvioError);
-% 
-% maxDsoError = arrayfun(clipFun, maxDsoError);
-% maxDsvioError = arrayfun(clipFun, maxDsvioError);
-% 
-% minDsoError = arrayfun(clipFun, minDsoError);
-% minDsvioError = arrayfun(clipFun, minDsvioError);
+meanDsoError = arrayfun(clipFun, meanDsoError);
+meanDsvioError = arrayfun(clipFun, meanDsvioError);
+
+maxDsoError = arrayfun(clipFun, maxDsoError);
+maxDsvioError = arrayfun(clipFun, maxDsvioError);
+
+minDsoError = arrayfun(clipFun, minDsoError);
+minDsvioError = arrayfun(clipFun, minDsvioError);
 
 % calculate the difference from the mean
 maxDsoError = maxDsoError - meanDsoError;

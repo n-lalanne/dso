@@ -747,6 +747,14 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 //
 //		std::cout << "camToWorld normal: \n" << fh->shell->camToWorld.matrix() << std::endl;
 
+//        std::cout<<"estimated nav:"<<navstate_this<<std::endl;
+        SE3 gtcpose = SE3(fh->shell->groundtruth.pose.matrix());
+
+        SE3 gtrefpose = SE3(lastF->shell->groundtruth.pose.matrix());
+        SE3 gtrelaivepose = SE3(gtrefpose.inverse() * gtcpose);
+        SE3 predictcpose = SE3(lastF->shell->navstate.pose().matrix()) * gtrelaivepose;
+//        navstate_this = gtsam::NavState(Pose3(predictcpose.matrix()),navstate_this.velocity());
+//        std::cout<<"gt nav::"<<navstate_this<<std::endl;
 
 		fh->shell->updateNavState(navstate_this);
 		fh->shell->bias = biases_current;
@@ -766,10 +774,13 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 //		fh->shell->last_frame->bias = gtsam::imuBias::ConstantBias(pbiases_this);
 		//std::cout << "camToWorld imu: \n" << fh->shell->camToWorld.matrix() << std::endl;
+        SE3 estrelative= SE3((lastF->shell->navstate.pose().inverse() * navstate_this.pose()).matrix());
+        SE3 gtre = SE3(gtrefpose.inverse() * gtcpose);
+        std::cout << "After tracking pose: \n" << estrelative.matrix()<< std::endl;
+        std::cout << "GT tracking pose: \n" << gtre.matrix()<< std::endl;
+        std::cout << "The gap:\n"<< (estrelative.inverse() * gtre).matrix()<<std::endl;
     }
 
-//	std::cout << "After tracking pose: \n" << fh->shell->camToWorld.inverse().matrix() * lastF_2_world.matrix()<< std::endl;
-//	std::cout << "GT tracking pose: \n" << groundtruth_lastF_2_fh.matrix()<< std::endl;
 
 	if(coarseTracker->firstCoarseRMSE < 0)
 		coarseTracker->firstCoarseRMSE = achievedRes[0];
@@ -1480,8 +1491,8 @@ bool FullSystem::RefineScaleGravityAndSolveAccBias(Vec3 &_gEigen, double &_scale
 		// apply the bias
 		for (FrameShell *fs: allKeyFramesHistory)
 		{
-//			gyroBiasEstimate << -0.002153, 0.020744, 0.075806;
-//			_biasAcc << -0.013337, 0.123464, 0.057086;
+//			gyroBiasEstimate << -0.001806, 0.02094, 0.07687;
+//			_biasAcc << -0.020544, 0.124837, 0.0618;
 			fs->imu_preintegrated_last_kf_->biasCorrectedDelta(gtsam::imuBias::ConstantBias(
 					(Vec6() << _biasAcc, gyroBiasEstimate).finished()
 			));
@@ -2761,6 +2772,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		bool needToMakeKF = false;
 		if(setting_keyframesPerSecond > 0)
 		{
+            ifblur(fh);
 			needToMakeKF = allFrameHistory.size()== 1 ||
 					(fh->shell->timestamp - allKeyFramesHistory.back()->timestamp) > 0.95f/setting_keyframesPerSecond;
 		}
@@ -2796,6 +2808,31 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id , std::vector<d
 		return;
 	}
 }
+
+bool FullSystem::ifblur(FrameShell *fs)
+{
+    FrameHessian * fh = fs->fh;
+    int width, height;
+    width = wG[0];
+    height = hG[0];
+    std::vector<int> histogram;
+    histogram.reserve(20);
+    for(int i=4;i<height-4;i++)
+    {
+        for(int j=4; j<width-4;j++)
+        {
+            float dxy = fh->dI[1][i*width+j] > fh->dI[2][i*width+j] ? fh->dI[1][i*width+j] : fh->dI[2][i*width+j];
+            int index = (int) ((dxy / 255.0) * 20.0) ;
+            histogram[index] = histogram[index] + 1;
+        }
+    }
+
+
+    return true;
+}
+
+
+
 void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
 {
 

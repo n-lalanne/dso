@@ -169,6 +169,7 @@ public:
 
 	void setGammaFunction(float* BInv);
 	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
+	bool ifblur(FrameShell *fh);
 
 	std::vector<FrameShell*> getAllFrameHistory() { return allFrameHistory; }
 	Mat33 getRbc() { return dso_vi::Tbc.rotationMatrix(); }
