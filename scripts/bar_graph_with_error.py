@@ -59,6 +59,8 @@ if __name__ == '__main__':
     x = np.asarray(range(1, len(sequences)+1))
 
     plt.rcParams.update({'font.size': 28, 'font.family': 'Times New Roman'})
+    plt.ylabel('ATE RMSE (m)')
+    plt.title('EuRoC RMSE trajectory error')
 
     plt.bar(
         x - w/2, 
